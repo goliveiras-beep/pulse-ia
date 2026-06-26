@@ -11,20 +11,15 @@ Repositório de documentos (Google Drive):
 - Índice: https://docs.google.com/spreadsheets/d/1YTXHUrvn0ic5zJaQFxC3ilJxlSYACV_SIk3Cna_4rQk
 
 Responda sempre em português brasileiro. Seja objetivo e amigável. Use formatação Slack: *negrito*, _itálico_, listas com •
-
 Quando apresentar eventos, organize por horário de forma clara e concisa.`;
 
 async function getAirtableEvents() {
   const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
   
-  const params = new URLSearchParams({
-    filterByFormula: `AND(IS_SAME({Data c/ Pré}, '${hoje}', 'day'))`,
-    sort: JSON.stringify([{ field: "Inicio do Evento", direction: "asc" }]),
-    maxRecords: "50",
-    fields: ["Match ID", "Tipo de Conteúdo", "Data c/ Pré", "Inicio do Evento", "Data c/ Pós", "Status", "Núcleo", "Finalidade"]
-  });
+  const filter = `DATETIME_FORMAT({Data c/ Pré}, 'YYYY-MM-DD') = '${hoje}'`;
+  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=Inicio%20do%20Evento&sort[0][direction]=asc`;
 
-  const res = await fetch(`https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?${params}`, {
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
   });
   const data = await res.json();
@@ -37,13 +32,15 @@ function formatEvents(records, hoje) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    const inicio = f["Inicio do Evento"] || "";
+    const inicio = f["Inicio do Evento"] || f["Data c/ Pré"] || "";
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
     const status = f["Status"] || "";
-    const finalidade = f["Finalidade"] || "";
 
-    const hora = inicio ? new Date(inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) : "";
+    let hora = "";
+    if (inicio) {
+      try { hora = new Date(inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }); } catch(e) {}
+    }
 
     let linha = `${i + 1}. *${nome}*`;
     if (hora) linha += ` — _${hora}_`;
@@ -99,7 +96,7 @@ export default async function handler(req, res) {
       const records = await getAirtableEvents();
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
       const eventosFormatados = formatEvents(records, hoje);
-      const context = `Grade de eventos de hoje — ${hoje} (Matriz LiveMode Geral - CazéTV):\n\n${eventosFormatados}`;
+      const context = `Grade de hoje — ${hoje} (Matriz LiveMode / CazéTV):\n\n${eventosFormatados}`;
       resposta = await askAI(userMessage, context);
     } else {
       resposta = await askAI(userMessage);
