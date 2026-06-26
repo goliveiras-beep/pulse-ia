@@ -28,16 +28,14 @@ Responda sempre em português brasileiro. Seja objetivo e amigável. Use formata
   try {
     await slackPost("chat.postMessage", { channel: channelId, text: "_Pensando..._", mrkdwn: true });
 
-    const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "HTTP-Referer": "https://pulse-ia-six.vercel.app",
-        "X-Title": "Pulse IA LiveMode"
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-3.1-8b-instruct:free",
+        model: "llama-3.1-8b-instant",
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: userMessage }
