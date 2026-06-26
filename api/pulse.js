@@ -71,29 +71,24 @@ async function slackPost(method, body) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const body = req.body;
-
   if (body.type === "url_verification") return res.status(200).json({ challenge: body.challenge });
 
   const event = body.event;
-  
-  // LOG completo para debug
-  console.log("EVENT:", JSON.stringify({ 
-    type: event?.type,
-    subtype: event?.subtype,
-    channel_type: event?.channel_type,
-    bot_id: event?.bot_id,
-    text: event?.text?.slice(0,50),
-    user: event?.user
-  }));
-
   if (!event) return res.status(200).json({ ok: true });
-  if (event.bot_id) return res.status(200).json({ ok: true });
-  if (!event.text || !event.user) return res.status(200).json({ ok: true });
+
+  // Ignora qualquer subtype (message_changed, message_deleted, bot_message etc)
+  if (event.subtype) return res.status(200).json({ ok: true });
   
-  // Aceita im E outros tipos de canal direto
-  const isDM = event.channel_type === "im" || event.channel_type === "mpim" || !event.channel_type;
-  if (!isDM) return res.status(200).json({ ok: true });
-  if (event.subtype && event.subtype !== "") return res.status(200).json({ ok: true });
+  // Ignora bots
+  if (event.bot_id) return res.status(200).json({ ok: true });
+  
+  // Precisa ter texto e usuário real
+  if (!event.text || !event.user) return res.status(200).json({ ok: true });
+
+  // Só DMs
+  if (event.channel_type !== "im") return res.status(200).json({ ok: true });
+
+  console.log("PROCESSANDO:", event.text?.slice(0, 50));
 
   const userMessage = event.text.trim();
   const channelId = event.channel;
@@ -106,8 +101,10 @@ export default async function handler(req, res) {
     let resposta;
     if (querEventos) {
       const records = await getAirtableEvents();
+      console.log("Airtable records:", records.length);
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
       const eventosFormatados = formatEvents(records, hoje);
+      console.log("Eventos:", eventosFormatados.slice(0, 200));
       const context = `Grade de hoje — ${hoje} (Matriz LiveMode / CazéTV):\n\n${eventosFormatados}`;
       resposta = await askAI(userMessage, context);
     } else {
