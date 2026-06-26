@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "functions": {
+    "api/pulse.js": {
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/pulse",
+      "dest": "/api/pulse.js"
+    }
+  ]
+}
