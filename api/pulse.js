@@ -3,16 +3,20 @@ export const config = { maxDuration: 30 };
 const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode.
 Responda sempre em português brasileiro. Seja objetivo e amigável.`;
 
+function toHoraBRT(isoString) {
+  if (!isoString) return "";
+  // Subtrai 3h do valor UTC para converter para BRT
+  const d = new Date(isoString);
+  d.setHours(d.getHours() - 3);
+  return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || "";
+}
+
 async function getAirtableEvents() {
   const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
   const filter = `DATESTR({fldRnfbwPVzFiHMqs}) = '${hoje}'`;
   const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fld8hthI7oI4MY5aP&sort[0][direction]=asc`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
-  // Log completo do primeiro registro para ver TODOS os campos
-  if (data.records?.[0]) {
-    console.log("TODOS CAMPOS:", JSON.stringify(Object.entries(data.records[0].fields).map(([k,v]) => `${k}=${JSON.stringify(v)}`)).slice(0,800));
-  }
   return data.records || [];
 }
 
@@ -21,18 +25,13 @@ function formatEvents(records, hoje) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    
-    // Tenta todos os campos de data/hora possíveis
-    const inicioRaw = f["fld8hthI7oI4MY5aP"] || f["Início do Evento"] || f["Inicio do Evento"] || f["Data c/ Pré"] || f["fldRnfbwPVzFiHMqs"] || "";
-    const terminoRaw = f["Data c/ Pós"] || "";
-    
-    const inicio = inicioRaw ? (inicioRaw.match(/(\d{2}:\d{2})/)?.[0] || inicioRaw.slice(0,5)) : "??:??";
-    const termino = terminoRaw ? (terminoRaw.match(/(\d{2}:\d{2})/)?.[0] || terminoRaw.slice(0,5)) : "??:??";
-    
+    const inicio = toHoraBRT(f["fld8hthI7oI4MY5aP"]);
+    const termino = toHoraBRT(f["Data c/ Pós"] || "");
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
 
-    return `${i + 1}. *${nome}* — _${inicio} → ${termino}_ | ${tipo} | ${nucleo}`;
+    let hora = inicio && termino ? `_${inicio} → ${termino}_` : inicio ? `_${inicio}_` : "";
+    return `${i + 1}. ${hora} *${nome}* | ${tipo} | ${nucleo}`;
   }).join("\n");
 }
 
