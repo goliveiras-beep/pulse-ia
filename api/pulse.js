@@ -5,16 +5,40 @@ Responda sempre em português brasileiro. Seja objetivo e amigável. Use formata
 Quando apresentar eventos, organize por horário de forma clara e concisa.`;
 
 async function getAirtableEvents() {
-  // Busca sem filtro para debug - ver o que existe
-  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?maxRecords=3`;
+  // Usa a view exata + filtra por data de hoje no campo Data c/ Pré
+  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  const filter = `DATESTR({Data c/ Pré}) = '${hoje}'`;
+  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=Inicio%20do%20Evento&sort[0][direction]=asc`;
+  
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
   });
   const data = await res.json();
-  const primeiro = data.records?.[0]?.fields || {};
-  console.log("CAMPOS:", Object.keys(primeiro).join(" | "));
-  console.log("VALORES:", JSON.stringify(primeiro).slice(0, 400));
+  console.log("HOJE:", hoje, "| TOTAL:", data.records?.length, "| ERRO:", data.error?.message || "nenhum");
+  if (data.records?.[0]) console.log("AMOSTRA:", JSON.stringify(data.records[0].fields).slice(0, 300));
   return data.records || [];
+}
+
+function formatEvents(records, hoje) {
+  if (!records.length) return `Nenhum evento para hoje (${hoje}).`;
+  return records.map((r, i) => {
+    const f = r.fields;
+    const nome = f["Match ID"] || "Sem título";
+    const inicio = f["Inicio do Evento"] || "";
+    const tipo = f["Tipo de Conteúdo"] || "";
+    const nucleo = f["Núcleo"] || "";
+    const status = f["Status"] || "";
+    let hora = "";
+    if (inicio) {
+      try { hora = new Date(inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }); } catch(e) {}
+    }
+    let linha = `${i + 1}. *${nome}*`;
+    if (hora) linha += ` — _${hora}_`;
+    if (tipo) linha += ` | ${tipo}`;
+    if (nucleo) linha += ` | ${nucleo}`;
+    if (status) linha += ` | ${status}`;
+    return linha;
+  }).join("\n");
 }
 
 async function askAI(message, context = "") {
@@ -59,12 +83,10 @@ export default async function handler(req, res) {
     let resposta;
     if (querEventos) {
       const records = await getAirtableEvents();
-      if (records.length > 0) {
-        const context = `Aqui estão alguns registros do Airtable (debug):\n${records.map(r => JSON.stringify(r.fields)).join('\n\n')}\n\nMostra esses dados ao usuário de forma organizada.`;
-        resposta = await askAI(userMessage, context);
-      } else {
-        resposta = "Airtable retornou zero registros — pode ser problema de permissão na base.";
-      }
+      const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
+      const eventosFormatados = formatEvents(records, hoje);
+      const context = `Grade de hoje — ${hoje} (Matriz LiveMode / CazéTV):\n\n${eventosFormatados}`;
+      resposta = await askAI(userMessage, context);
     } else {
       resposta = await askAI(userMessage);
     }
