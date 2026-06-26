@@ -1,17 +1,23 @@
+export const config = { maxDuration: 30 };
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  
   const body = req.body;
+  
+  // Slack URL verification
   if (body.type === "url_verification") return res.status(200).json({ challenge: body.challenge });
 
   const event = body.event;
-  if (!event || event.bot_id || event.subtype || !event.text || !event.user) return res.status(200).json({ ok: true });
+  
+  // Ignora tudo que não for DM real
+  if (!event || event.bot_id || event.subtype || !event.text || !event.user) {
+    return res.status(200).json({ ok: true });
+  }
   if (event.channel_type !== "im") return res.status(200).json({ ok: true });
 
   const userMessage = event.text.trim();
   const channelId = event.channel;
-
-  // Responde imediatamente pro Slack
-  res.status(200).json({ ok: true });
 
   const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode. Ajuda o time com informações internas, documentos e suporte geral.
 
@@ -26,6 +32,7 @@ Repositório de documentos (Google Drive):
 Responda sempre em português brasileiro. Seja objetivo e amigável. Use formatação Slack: *negrito*, _itálico_, listas com •`;
 
   try {
+    // Envia "pensando" e resposta numa única chamada encadeada
     await slackPost("chat.postMessage", { channel: channelId, text: "_Pensando..._", mrkdwn: true });
 
     const geminiRes = await fetch(
@@ -42,10 +49,14 @@ Responda sempre em português brasileiro. Seja objetivo e amigável. Use formata
 
     const data = await geminiRes.json();
     const resposta = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Não consegui processar. Tente novamente.";
+    
     await slackPost("chat.postMessage", { channel: channelId, text: resposta, mrkdwn: true });
+    
+    return res.status(200).json({ ok: true });
   } catch (err) {
     console.error("Erro:", err);
-    await slackPost("chat.postMessage", { channel: channelId, text: "Ops, tive um problema. Tente novamente." });
+    await slackPost("chat.postMessage", { channel: channelId, text: "Ops, tive um problema. Tente novamente em instantes." });
+    return res.status(200).json({ ok: true });
   }
 }
 
