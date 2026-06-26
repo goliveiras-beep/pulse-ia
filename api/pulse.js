@@ -48,8 +48,11 @@ function formatEvents(records, hoje) {
     const termino = toHoraBRT(f["Data c/ Pós"] || "");
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
+    const local = f["fldeWtlwHewgiT598"] || "";
     const hora = inicio && termino ? `_${inicio} → ${termino}_` : inicio ? `_${inicio}_` : "";
-    return `${i + 1}. ${hora} *${nome}* | ${tipo} | ${nucleo}`;
+    let linha = `${i + 1}. ${hora} *${nome}* | ${tipo} | ${nucleo}`;
+    if (local) linha += ` | 📍 ${local}`;
+    return linha;
   }).join("\n");
 }
 
