@@ -11,22 +11,40 @@ function toHoraBRT(isoString) {
 
 async function getAirtableEvents() {
   const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-  // Filtra por Data c/ Pré = hoje, ordena por Início do Evento (fld8hthI7oI4MY5aP)
   const filter = `DATESTR({fldRnfbwPVzFiHMqs}) = '${hoje}'`;
+  // Ordena pelo campo Início do Evento via ID
   const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fld8hthI7oI4MY5aP&sort[0][direction]=asc`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
-  console.log("TOTAL:", data.records?.length, "ERRO:", data.error?.message || "ok");
+  // Log para ver TODOS os campos disponíveis com valores
+  if (data.records?.[0]) {
+    const f = data.records[0].fields;
+    const camposComValor = Object.entries(f)
+      .filter(([k,v]) => typeof v === 'string' && v.includes('T') && v.includes(':'))
+      .map(([k,v]) => `${k}=${v}`);
+    console.log("CAMPOS DATA/HORA:", camposComValor.join(" | "));
+  }
   return data.records || [];
 }
 
 function formatEvents(records, hoje) {
   if (!records.length) return `Nenhum evento para hoje (${hoje}).`;
-  return records.map((r, i) => {
+  
+  // Ordena no JS pelo campo de início que tiver valor
+  const sorted = [...records].sort((a, b) => {
+    const fa = a.fields;
+    const fb = b.fields;
+    // Tenta vários campos de início
+    const ia = fa["fld8hthI7oI4MY5aP"] || fa["Data c/ Pré"] || "";
+    const ib = fb["fld8hthI7oI4MY5aP"] || fb["Data c/ Pré"] || "";
+    return ia.localeCompare(ib);
+  });
+
+  return sorted.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    // Início do Evento = fld8hthI7oI4MY5aP, Data c/ Pós = término
-    const inicio = toHoraBRT(f["fld8hthI7oI4MY5aP"] || "");
+    // Usa Data c/ Pré para início e Data c/ Pós para término (que funcionou na v22)
+    const inicio = toHoraBRT(f["Data c/ Pré"] || "");
     const termino = toHoraBRT(f["Data c/ Pós"] || "");
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
