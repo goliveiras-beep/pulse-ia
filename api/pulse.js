@@ -5,17 +5,18 @@ Responda sempre em português brasileiro. Seja objetivo e amigável. Use formata
 Quando apresentar eventos, organize por horário de forma clara e concisa.`;
 
 async function getAirtableEvents() {
-  // Usa a view exata + filtra por data de hoje no campo Data c/ Pré
   const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-  const filter = `DATESTR({Data c/ Pré}) = '${hoje}'`;
-  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=Inicio%20do%20Evento&sort[0][direction]=asc`;
+  // Usa ID do campo para filtrar (fldRnfbwPVzFiHMqs = Data c/ Pré)
+  const filter = `DATESTR({fldRnfbwPVzFiHMqs}) = '${hoje}'`;
+  // Usa ID do campo para ordenar (fldC1FvZlEG4JjDAg = Início do Evento)
+  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fldC1FvZlEG4JjDAg&sort[0][direction]=asc`;
   
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
   });
   const data = await res.json();
-  console.log("HOJE:", hoje, "| TOTAL:", data.records?.length, "| ERRO:", data.error?.message || "nenhum");
-  if (data.records?.[0]) console.log("AMOSTRA:", JSON.stringify(data.records[0].fields).slice(0, 300));
+  console.log("HOJE:", hoje, "| TOTAL:", data.records?.length, "| ERRO:", data.error?.message || "ok");
+  if (data.records?.[0]) console.log("CAMPOS:", Object.keys(data.records[0].fields).join(" | "));
   return data.records || [];
 }
 
@@ -24,7 +25,8 @@ function formatEvents(records, hoje) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    const inicio = f["Inicio do Evento"] || "";
+    // Tenta vários nomes possíveis para o campo de início
+    const inicio = f["fldC1FvZlEG4JjDAg"] || f["Início do Evento"] || f["Inicio do Evento"] || f["Data c/ Pré"] || "";
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
     const status = f["Status"] || "";
