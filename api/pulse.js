@@ -5,8 +5,9 @@ Responda sempre em português brasileiro. Seja objetivo e amigável.`;
 
 function toHoraBRT(isoString) {
   if (!isoString) return "";
-  // Extrai HH:MM direto do ISO sem conversão — o Airtable já salva em BRT
-  return isoString.match(/T(\d{2}:\d{2})/)?.[1] || "";
+  // Converte UTC para BRT (UTC-3)
+  const d = new Date(isoString);
+  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 }
 
 async function getAirtableEvents() {
@@ -15,11 +16,10 @@ async function getAirtableEvents() {
   const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fldRnfbwPVzFiHMqs&sort[0][direction]=asc`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
-  // Log dos campos do primeiro registro
   if (data.records?.[0]) {
     const f = data.records[0].fields;
-    console.log("CAMPOS:", Object.keys(f).join(" | "));
-    console.log("PRE:", f["Data c/ Pré"], "| POS:", f["Data c/ Pós"]);
+    console.log("PRE RAW:", f["Data c/ Pré"], "→ BRT:", toHoraBRT(f["Data c/ Pré"]));
+    console.log("POS RAW:", f["Data c/ Pós"], "→ BRT:", toHoraBRT(f["Data c/ Pós"]));
   }
   return data.records || [];
 }
@@ -33,7 +33,6 @@ function formatEvents(records, hoje) {
     const termino = toHoraBRT(f["Data c/ Pós"] || "");
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
-
     const hora = inicio && termino ? `_${inicio} → ${termino}_` : inicio ? `_${inicio}_` : "";
     return `${i + 1}. ${hora} *${nome}* | ${tipo} | ${nucleo}`;
   }).join("\n");
