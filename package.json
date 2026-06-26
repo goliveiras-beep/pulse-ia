@@ -1,9 +1,1 @@
-{
-  "name": "pulse-ia",
-  "version": "1.0.0",
-  "description": "IA oficial da LiveMode no Slack — powered by Claude",
-  "type": "module",
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.0"
-  }
-}
+{"name":"pulse-ia","version":"1.0.0","description":"IA oficial da LiveMode no Slack","type":"module"}
