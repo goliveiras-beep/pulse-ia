@@ -14,34 +14,28 @@ Responda sempre em português brasileiro. Seja objetivo e amigável. Use formata
 Quando apresentar eventos, organize por horário de forma clara e concisa.`;
 
 async function getAirtableEvents() {
-  // Filtra pelo campo Inicio do Evento (fldC1FvZlEG4JjDAg) usando TODAY()
   const filter = `IS_SAME({fldC1FvZlEG4JjDAg}, TODAY(), 'day')`;
   const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fldC1FvZlEG4JjDAg&sort[0][direction]=asc`;
-
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
   });
   const data = await res.json();
-  console.log("Airtable response:", JSON.stringify(data).slice(0, 500));
   return data.records || [];
 }
 
 function formatEvents(records, hoje) {
   if (!records.length) return `Nenhum evento encontrado para hoje (${hoje}).`;
-
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    const inicio = f["Inicio do Evento"] || f["fldC1FvZlEG4JjDAg"] || "";
+    const inicio = f["Inicio do Evento"] || "";
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
     const status = f["Status"] || "";
-
     let hora = "";
     if (inicio) {
       try { hora = new Date(inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }); } catch(e) {}
     }
-
     let linha = `${i + 1}. *${nome}*`;
     if (hora) linha += ` — _${hora}_`;
     if (tipo) linha += ` | ${tipo}`;
@@ -77,11 +71,29 @@ async function slackPost(method, body) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const body = req.body;
+
   if (body.type === "url_verification") return res.status(200).json({ challenge: body.challenge });
 
   const event = body.event;
-  if (!event || event.bot_id || event.subtype || !event.text || !event.user) return res.status(200).json({ ok: true });
-  if (event.channel_type !== "im") return res.status(200).json({ ok: true });
+  
+  // LOG completo para debug
+  console.log("EVENT:", JSON.stringify({ 
+    type: event?.type,
+    subtype: event?.subtype,
+    channel_type: event?.channel_type,
+    bot_id: event?.bot_id,
+    text: event?.text?.slice(0,50),
+    user: event?.user
+  }));
+
+  if (!event) return res.status(200).json({ ok: true });
+  if (event.bot_id) return res.status(200).json({ ok: true });
+  if (!event.text || !event.user) return res.status(200).json({ ok: true });
+  
+  // Aceita im E outros tipos de canal direto
+  const isDM = event.channel_type === "im" || event.channel_type === "mpim" || !event.channel_type;
+  if (!isDM) return res.status(200).json({ ok: true });
+  if (event.subtype && event.subtype !== "") return res.status(200).json({ ok: true });
 
   const userMessage = event.text.trim();
   const channelId = event.channel;
