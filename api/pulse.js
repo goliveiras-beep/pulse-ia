@@ -4,10 +4,14 @@ const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode. Ajuda o time com inf
 Responda sempre em português brasileiro. Seja objetivo e amigável. Use formatação Slack: *negrito*, _itálico_, listas com •
 Quando apresentar eventos, organize por horário de forma clara e concisa.`;
 
-function toHora(isoString) {
+function toHoraBRT(isoString) {
   if (!isoString) return "";
   try {
-    return new Date(isoString).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+    // O Airtable armazena datetime como string local sem timezone, ex: "2026-06-26T01:00:00.000Z"
+    // Mas na verdade representa horário de Brasília — então só pega HH:MM sem converter
+    const match = isoString.match(/T(\d{2}:\d{2})/);
+    if (match) return match[1];
+    return "";
   } catch(e) { return ""; }
 }
 
@@ -17,7 +21,7 @@ async function getAirtableEvents() {
   const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fld8hthI7oI4MY5aP&sort[0][direction]=asc`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
-  console.log("TOTAL:", data.records?.length, "| ERRO:", data.error?.message || "ok");
+  console.log("TOTAL:", data.records?.length, "| AMOSTRA INICIO:", data.records?.[0]?.fields?.["fld8hthI7oI4MY5aP"], "| FIM:", data.records?.[0]?.fields?.["fldRnfbwPVzFiHMqs"]);
   return data.records || [];
 }
 
@@ -26,8 +30,8 @@ function formatEvents(records, hoje) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    const inicio = toHora(f["fld8hthI7oI4MY5aP"]);
-    const termino = toHora(f["fldRnfbwPVzFiHMqs"]);
+    const inicio = toHoraBRT(f["fld8hthI7oI4MY5aP"]);
+    const termino = toHoraBRT(f["fldRnfbwPVzFiHMqs"]);
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
     const status = f["Status"] || "";
