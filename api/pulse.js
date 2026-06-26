@@ -14,15 +14,15 @@ Responda sempre em português brasileiro. Seja objetivo e amigável. Use formata
 Quando apresentar eventos, organize por horário de forma clara e concisa.`;
 
 async function getAirtableEvents() {
-  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-  
-  const filter = `DATETIME_FORMAT({Data c/ Pré}, 'YYYY-MM-DD') = '${hoje}'`;
-  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=Inicio%20do%20Evento&sort[0][direction]=asc`;
+  // Filtra pelo campo Inicio do Evento (fldC1FvZlEG4JjDAg) usando TODAY()
+  const filter = `IS_SAME({fldC1FvZlEG4JjDAg}, TODAY(), 'day')`;
+  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fldC1FvZlEG4JjDAg&sort[0][direction]=asc`;
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
   });
   const data = await res.json();
+  console.log("Airtable response:", JSON.stringify(data).slice(0, 500));
   return data.records || [];
 }
 
@@ -32,7 +32,7 @@ function formatEvents(records, hoje) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    const inicio = f["Inicio do Evento"] || f["Data c/ Pré"] || "";
+    const inicio = f["Inicio do Evento"] || f["fldC1FvZlEG4JjDAg"] || "";
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
     const status = f["Status"] || "";
