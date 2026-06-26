@@ -4,19 +4,20 @@ const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode. Ajuda o time com inf
 Responda sempre em português brasileiro. Seja objetivo e amigável. Use formatação Slack: *negrito*, _itálico_, listas com •
 Quando apresentar eventos, organize por horário de forma clara e concisa.`;
 
+function toHora(isoString) {
+  if (!isoString) return "";
+  try {
+    return new Date(isoString).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+  } catch(e) { return ""; }
+}
+
 async function getAirtableEvents() {
   const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-  // Usa ID do campo para filtrar (fldRnfbwPVzFiHMqs = Data c/ Pré)
   const filter = `DATESTR({fldRnfbwPVzFiHMqs}) = '${hoje}'`;
-  // Usa ID do campo para ordenar (fldC1FvZlEG4JjDAg = Início do Evento)
-  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fldC1FvZlEG4JjDAg&sort[0][direction]=asc`;
-  
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
-  });
+  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fld8hthI7oI4MY5aP&sort[0][direction]=asc`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
-  console.log("HOJE:", hoje, "| TOTAL:", data.records?.length, "| ERRO:", data.error?.message || "ok");
-  if (data.records?.[0]) console.log("CAMPOS:", Object.keys(data.records[0].fields).join(" | "));
+  console.log("TOTAL:", data.records?.length, "| ERRO:", data.error?.message || "ok");
   return data.records || [];
 }
 
@@ -25,17 +26,15 @@ function formatEvents(records, hoje) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    // Tenta vários nomes possíveis para o campo de início
-    const inicio = f["fldC1FvZlEG4JjDAg"] || f["Início do Evento"] || f["Inicio do Evento"] || f["Data c/ Pré"] || "";
+    const inicio = toHora(f["fld8hthI7oI4MY5aP"]);
+    const termino = toHora(f["fldRnfbwPVzFiHMqs"]);
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
     const status = f["Status"] || "";
-    let hora = "";
-    if (inicio) {
-      try { hora = new Date(inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }); } catch(e) {}
-    }
+
     let linha = `${i + 1}. *${nome}*`;
-    if (hora) linha += ` — _${hora}_`;
+    if (inicio && termino) linha += ` — _${inicio} às ${termino}_`;
+    else if (inicio) linha += ` — _${inicio}_`;
     if (tipo) linha += ` | ${tipo}`;
     if (nucleo) linha += ` | ${nucleo}`;
     if (status) linha += ` | ${status}`;
