@@ -1,19 +1,7 @@
 export const config = { maxDuration: 30 };
 
 const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode. Ajuda o time com informações internas, documentos, agenda e suporte geral.
-Responda sempre em português brasileiro. Seja objetivo e amigável. Use formatação Slack: *negrito*, _itálico_, listas com •
-Quando apresentar eventos, organize por horário de forma clara e concisa.`;
-
-function toHoraBRT(isoString) {
-  if (!isoString) return "";
-  try {
-    // O Airtable armazena datetime como string local sem timezone, ex: "2026-06-26T01:00:00.000Z"
-    // Mas na verdade representa horário de Brasília — então só pega HH:MM sem converter
-    const match = isoString.match(/T(\d{2}:\d{2})/);
-    if (match) return match[1];
-    return "";
-  } catch(e) { return ""; }
-}
+Responda sempre em português brasileiro. Seja objetivo e amigável.`;
 
 async function getAirtableEvents() {
   const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -21,7 +9,10 @@ async function getAirtableEvents() {
   const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fld8hthI7oI4MY5aP&sort[0][direction]=asc`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
-  console.log("TOTAL:", data.records?.length, "| AMOSTRA INICIO:", data.records?.[0]?.fields?.["fld8hthI7oI4MY5aP"], "| FIM:", data.records?.[0]?.fields?.["fldRnfbwPVzFiHMqs"]);
+  // Log do valor bruto para ver o formato exato
+  const r0 = data.records?.[0]?.fields;
+  console.log("INICIO RAW:", r0?.["fld8hthI7oI4MY5aP"]);
+  console.log("TERMINO RAW:", r0?.["fldRnfbwPVzFiHMqs"]);
   return data.records || [];
 }
 
@@ -30,18 +21,20 @@ function formatEvents(records, hoje) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    const inicio = toHoraBRT(f["fld8hthI7oI4MY5aP"]);
-    const termino = toHoraBRT(f["fldRnfbwPVzFiHMqs"]);
+    // Pega direto o valor bruto — vamos ver o que vem
+    const inicioRaw = f["fld8hthI7oI4MY5aP"] || "";
+    const terminoRaw = f["fldRnfbwPVzFiHMqs"] || "";
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
     const status = f["Status"] || "";
 
-    let linha = `${i + 1}. *${nome}*`;
-    if (inicio && termino) linha += ` — _${inicio} às ${termino}_`;
-    else if (inicio) linha += ` — _${inicio}_`;
+    // Extrai HH:MM do valor bruto
+    const inicio = inicioRaw.match(/\d{2}:\d{2}/)?.[0] || inicioRaw;
+    const termino = terminoRaw.match(/\d{2}:\d{2}/)?.[0] || terminoRaw;
+
+    let linha = `${i + 1}. *${nome}* — _${inicio} → ${termino}_`;
     if (tipo) linha += ` | ${tipo}`;
     if (nucleo) linha += ` | ${nucleo}`;
-    if (status) linha += ` | ${status}`;
     return linha;
   }).join("\n");
 }
@@ -90,8 +83,8 @@ export default async function handler(req, res) {
       const records = await getAirtableEvents();
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
       const eventosFormatados = formatEvents(records, hoje);
-      const context = `Grade de hoje — ${hoje} (Matriz LiveMode / CazéTV):\n\n${eventosFormatados}`;
-      resposta = await askAI(userMessage, context);
+      // Manda a lista formatada diretamente sem passar pela IA
+      resposta = `*Grade de hoje — ${hoje}*\n\n${eventosFormatados}`;
     } else {
       resposta = await askAI(userMessage);
     }
