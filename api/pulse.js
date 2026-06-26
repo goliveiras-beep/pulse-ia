@@ -1,6 +1,6 @@
 export const config = { maxDuration: 30 };
 
-const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode. Ajuda o time com informações internas, documentos, agenda e suporte geral.
+const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode.
 Responda sempre em português brasileiro. Seja objetivo e amigável.`;
 
 async function getAirtableEvents() {
@@ -9,10 +9,10 @@ async function getAirtableEvents() {
   const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fld8hthI7oI4MY5aP&sort[0][direction]=asc`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
-  // Log do valor bruto para ver o formato exato
-  const r0 = data.records?.[0]?.fields;
-  console.log("INICIO RAW:", r0?.["fld8hthI7oI4MY5aP"]);
-  console.log("TERMINO RAW:", r0?.["fldRnfbwPVzFiHMqs"]);
+  // Log completo do primeiro registro para ver TODOS os campos
+  if (data.records?.[0]) {
+    console.log("TODOS CAMPOS:", JSON.stringify(Object.entries(data.records[0].fields).map(([k,v]) => `${k}=${JSON.stringify(v)}`)).slice(0,800));
+  }
   return data.records || [];
 }
 
@@ -21,21 +21,18 @@ function formatEvents(records, hoje) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    // Pega direto o valor bruto — vamos ver o que vem
-    const inicioRaw = f["fld8hthI7oI4MY5aP"] || "";
-    const terminoRaw = f["fldRnfbwPVzFiHMqs"] || "";
+    
+    // Tenta todos os campos de data/hora possíveis
+    const inicioRaw = f["fld8hthI7oI4MY5aP"] || f["Início do Evento"] || f["Inicio do Evento"] || f["Data c/ Pré"] || f["fldRnfbwPVzFiHMqs"] || "";
+    const terminoRaw = f["Data c/ Pós"] || "";
+    
+    const inicio = inicioRaw ? (inicioRaw.match(/(\d{2}:\d{2})/)?.[0] || inicioRaw.slice(0,5)) : "??:??";
+    const termino = terminoRaw ? (terminoRaw.match(/(\d{2}:\d{2})/)?.[0] || terminoRaw.slice(0,5)) : "??:??";
+    
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
-    const status = f["Status"] || "";
 
-    // Extrai HH:MM do valor bruto
-    const inicio = inicioRaw.match(/\d{2}:\d{2}/)?.[0] || inicioRaw;
-    const termino = terminoRaw.match(/\d{2}:\d{2}/)?.[0] || terminoRaw;
-
-    let linha = `${i + 1}. *${nome}* — _${inicio} → ${termino}_`;
-    if (tipo) linha += ` | ${tipo}`;
-    if (nucleo) linha += ` | ${nucleo}`;
-    return linha;
+    return `${i + 1}. *${nome}* — _${inicio} → ${termino}_ | ${tipo} | ${nucleo}`;
   }).join("\n");
 }
 
@@ -82,9 +79,7 @@ export default async function handler(req, res) {
     if (querEventos) {
       const records = await getAirtableEvents();
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
-      const eventosFormatados = formatEvents(records, hoje);
-      // Manda a lista formatada diretamente sem passar pela IA
-      resposta = `*Grade de hoje — ${hoje}*\n\n${eventosFormatados}`;
+      resposta = `*Grade de hoje — ${hoje}*\n\n${formatEvents(records, hoje)}`;
     } else {
       resposta = await askAI(userMessage);
     }
