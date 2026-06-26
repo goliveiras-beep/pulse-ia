@@ -5,22 +5,18 @@ Responda sempre em português brasileiro. Seja objetivo e amigável.`;
 
 function toHoraBRT(isoString) {
   if (!isoString) return "";
-  // Converte UTC para BRT (UTC-3)
   const d = new Date(isoString);
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 }
 
 async function getAirtableEvents() {
   const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  // Filtra por Data c/ Pré = hoje, ordena por Início do Evento (fld8hthI7oI4MY5aP)
   const filter = `DATESTR({fldRnfbwPVzFiHMqs}) = '${hoje}'`;
-  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fldRnfbwPVzFiHMqs&sort[0][direction]=asc`;
+  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fld8hthI7oI4MY5aP&sort[0][direction]=asc`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
-  if (data.records?.[0]) {
-    const f = data.records[0].fields;
-    console.log("PRE RAW:", f["Data c/ Pré"], "→ BRT:", toHoraBRT(f["Data c/ Pré"]));
-    console.log("POS RAW:", f["Data c/ Pós"], "→ BRT:", toHoraBRT(f["Data c/ Pós"]));
-  }
+  console.log("TOTAL:", data.records?.length, "ERRO:", data.error?.message || "ok");
   return data.records || [];
 }
 
@@ -29,7 +25,8 @@ function formatEvents(records, hoje) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    const inicio = toHoraBRT(f["Data c/ Pré"] || "");
+    // Início do Evento = fld8hthI7oI4MY5aP, Data c/ Pós = término
+    const inicio = toHoraBRT(f["fld8hthI7oI4MY5aP"] || "");
     const termino = toHoraBRT(f["Data c/ Pós"] || "");
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
