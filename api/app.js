@@ -592,7 +592,7 @@ export default async function handler(req, res) {
     <!-- Coluna 1: #NossoDia (fixo) -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title" style="color:#e53e3e">#NossoDia</span>
+        <span class="card-title" style="color:#22c55e">#NossoDia</span>
         <span class="badge blue">${eventosHoje.length} eventos</span>
         <span style="font-size:10px;color:var(--text3);margin-left:auto">${hojeStr}</span>
       </div>
@@ -683,15 +683,17 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
 setTimeout(function(){
   var body = document.querySelector('#painel-dia-0 .card-body');
   if(!body) return;
-  var divs = body.children;
+  var divs = Array.from(body.querySelectorAll(':scope > div'));
+  var alvo = null;
   for(var i=0;i<divs.length;i++){
     var s = divs[i].getAttribute('style')||'';
-    if(s.indexOf('opacity:.35')===-1 && s.indexOf('opacity: .35')===-1 && s.indexOf('border-radius:8px')!==-1){
-      body.scrollTop = divs[i].offsetTop - 8;
+    if(s.indexOf('opacity') === -1){
+      alvo = divs[i];
       break;
     }
   }
-}, 500);
+  if(alvo) body.scrollTop = alvo.offsetTop - 4;
+}, 600);
 var diaAtual3=0;
 function navDia(dir){
   var total=5;
