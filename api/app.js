@@ -701,7 +701,7 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
 window.addEventListener('load', function(){
   var b = document.getElementById('cb-hoje');
   var a = document.getElementById('primeiro-ativo-hoje');
-  if(b && a) b.scrollTop = Math.max(0, a.offsetTop - 120);
+  if(b && a) b.scrollTop = Math.max(0, a.offsetTop - 60);
 });
 
 // Scroll automático para o primeiro evento ativo no #NossoDia
