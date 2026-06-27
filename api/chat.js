@@ -19,13 +19,32 @@ function getSession(req) {
   } catch { return null; }
 }
 
+async function parseBody(req) {
+  // Try req.body first (Vercel auto-parses)
+  if (req.body && typeof req.body === 'object') return req.body;
+  // Manual parse fallback
+  return new Promise((resolve) => {
+    let data = '';
+    req.on('data', chunk => { data += chunk; });
+    req.on('end', () => {
+      try { resolve(JSON.parse(data)); }
+      catch { resolve({}); }
+    });
+    req.on('error', () => resolve({}));
+  });
+}
+
 export default async function handler(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+
   if (req.method !== 'POST') return res.status(405).json({error:'Method not allowed'});
 
   const session = getSession(req);
   if (!session) return res.status(401).json({error:'Não autorizado'});
 
-  const { messages, pagina } = req.body || {};
+  const body = await parseBody(req);
+  const { messages, pagina } = body;
+
   if (!messages?.length) return res.status(400).json({error:'Mensagens inválidas'});
 
   try {
@@ -39,15 +58,13 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 600,
-        system: `Você é o assistente operacional do Pulse IA, dashboard da equipe de TV ao vivo da LiveMode.
-Ajuda gestores com: escalas de trabalho, cobertura de eventos ao vivo (Copa do Mundo, futebol, programas), alertas trabalhistas (interjornada mínima 11h, máx 10h/dia, 7 dias consecutivos), e decisões operacionais.
-Usuário logado: ${session.nome}. Página atual: ${pagina||'/'}.
-Seja direto, prático, use linguagem informal brasileira. Máx 3 parágrafos. Use bullets para listas.`,
+        system: `Você é o assistente operacional do Pulse IA, dashboard da equipe de TV ao vivo da LiveMode. Ajuda gestores com escalas, cobertura de eventos ao vivo (Copa do Mundo, futebol, programas), alertas trabalhistas (interjornada mínima 11h, máx 10h/dia, 7 dias consecutivos) e decisões operacionais. Usuário: ${session.nome}. Página: ${pagina||'/'}. Seja direto, prático, linguagem informal brasileira. Máx 3 parágrafos curtos.`,
         messages: messages.slice(-10)
       })
     });
 
     const d = await r.json();
+    if (d.error) return res.status(500).json({error: d.error.message});
     const resposta = d.content?.[0]?.text || 'Não consegui responder agora.';
     return res.status(200).json({ ok: true, resposta });
   } catch(e) {
