@@ -7,11 +7,11 @@
   "crons": [
     {
       "path": "/api/monitor?token=pulse_monitor_2026",
-      "schedule": "0 * * * *"
+      "schedule": "0 12-22 * * *"
     },
     {
       "path": "/api/monitor?token=pulse_monitor_2026",
-      "schedule": "30 20-23 * * *"
+      "schedule": "30 23-26 * * *"
     }
   ]
 }
