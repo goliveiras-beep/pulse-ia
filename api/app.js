@@ -270,7 +270,32 @@ function toggleChat(){chatAberto=!chatAberto;var box=document.getElementById('ch
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
 function chatKeyDown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviarMensagem();}}
 function limparChat(){chatHistorico=[];document.getElementById('chat-ia-msgs').innerHTML='<div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Conversa limpa! Como posso ajudar? &#128075;</div>';}
-function addMsg(texto,tipo){var msgs=document.getElementById('chat-ia-msgs');var div=document.createElement('div');if(tipo==='user'){div.style.cssText='background:#1a2744;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;align-self:flex-end';div.textContent=texto;}else if(tipo==='load'){div.id='chat-load';div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#718096;max-width:90%';div.innerHTML='<span style="animation:chatpulse 1s infinite">&#10024; Pensando...</span>';}else{div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;white-space:pre-wrap';div.textContent=texto;}msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;}
+function renderMd(txt){
+  return txt
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^#{1,3} (.+)$/gm,'<div style="font-weight:700;margin:6px 0 2px">$1</div>')
+    .replace(/^[\|].+[\|]$/gm,'')
+    .replace(/^[-*•] (.+)$/gm,'<div style="padding-left:12px">• $1</div>')
+    .replace(/\n/g,'<br>');
+}
+function addMsg(texto,tipo){
+  var msgs=document.getElementById('chat-ia-msgs');
+  var div=document.createElement('div');
+  if(tipo==='user'){
+    div.style.cssText='background:#1a2744;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;align-self:flex-end';
+    div.textContent=texto;
+  } else if(tipo==='load'){
+    div.id='chat-load';
+    div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#718096;max-width:90%';
+    div.innerHTML='<span style="animation:chatpulse 1s infinite">&#10024; Pensando...</span>';
+  } else {
+    div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.6;max-width:92%';
+    div.innerHTML=renderMd(texto);
+  }
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;
+}
 async function enviarMensagem(){var input=document.getElementById('chat-ia-input');var texto=input.value.trim();if(!texto)return;input.value='';input.style.height='auto';addMsg(texto,'user');chatHistorico.push({role:'user',content:texto});var load=addMsg('','load');var btn=document.getElementById('chat-ia-send');btn.disabled=true;btn.style.opacity='.5';try{var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:chatHistorico,pagina:chatPagina})});var d=await r.json();load.remove();var resp=d.resposta||'Nao consegui responder agora.';addMsg(resp,'ia');chatHistorico.push({role:'assistant',content:resp});}catch(e){load.remove();addMsg('Erro de conexao. Tenta de novo!','ia');}btn.disabled=false;btn.style.opacity='1';}
 </script>
 </html>`;
@@ -661,7 +686,32 @@ function toggleChat(){chatAberto=!chatAberto;var box=document.getElementById('ch
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
 function chatKeyDown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviarMensagem();}}
 function limparChat(){chatHistorico=[];document.getElementById('chat-ia-msgs').innerHTML='<div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Conversa limpa! Como posso ajudar? &#128075;</div>';}
-function addMsg(texto,tipo){var msgs=document.getElementById('chat-ia-msgs');var div=document.createElement('div');if(tipo==='user'){div.style.cssText='background:#1a2744;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;align-self:flex-end';div.textContent=texto;}else if(tipo==='load'){div.id='chat-load';div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#718096;max-width:90%';div.innerHTML='<span style="animation:chatpulse 1s infinite">&#10024; Pensando...</span>';}else{div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;white-space:pre-wrap';div.textContent=texto;}msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;}
+function renderMd(txt){
+  return txt
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^#{1,3} (.+)$/gm,'<div style="font-weight:700;margin:6px 0 2px">$1</div>')
+    .replace(/^[\|].+[\|]$/gm,'')
+    .replace(/^[-*•] (.+)$/gm,'<div style="padding-left:12px">• $1</div>')
+    .replace(/\n/g,'<br>');
+}
+function addMsg(texto,tipo){
+  var msgs=document.getElementById('chat-ia-msgs');
+  var div=document.createElement('div');
+  if(tipo==='user'){
+    div.style.cssText='background:#1a2744;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;align-self:flex-end';
+    div.textContent=texto;
+  } else if(tipo==='load'){
+    div.id='chat-load';
+    div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#718096;max-width:90%';
+    div.innerHTML='<span style="animation:chatpulse 1s infinite">&#10024; Pensando...</span>';
+  } else {
+    div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.6;max-width:92%';
+    div.innerHTML=renderMd(texto);
+  }
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;
+}
 async function enviarMensagem(){var input=document.getElementById('chat-ia-input');var texto=input.value.trim();if(!texto)return;input.value='';input.style.height='auto';addMsg(texto,'user');chatHistorico.push({role:'user',content:texto});var load=addMsg('','load');var btn=document.getElementById('chat-ia-send');btn.disabled=true;btn.style.opacity='.5';try{var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:chatHistorico,pagina:chatPagina})});var d=await r.json();load.remove();var resp=d.resposta||'Nao consegui responder agora.';addMsg(resp,'ia');chatHistorico.push({role:'assistant',content:resp});}catch(e){load.remove();addMsg('Erro de conexao. Tenta de novo!','ia');}btn.disabled=false;btn.style.opacity='1';}
 </script>`;
     return res.status(200).send(baseHTML('Gestor', conteudo + chatIA, script));
@@ -763,7 +813,32 @@ function toggleChat(){chatAberto=!chatAberto;var box=document.getElementById('ch
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
 function chatKeyDown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviarMensagem();}}
 function limparChat(){chatHistorico=[];document.getElementById('chat-ia-msgs').innerHTML='<div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Conversa limpa! Como posso ajudar? &#128075;</div>';}
-function addMsg(texto,tipo){var msgs=document.getElementById('chat-ia-msgs');var div=document.createElement('div');if(tipo==='user'){div.style.cssText='background:#1a2744;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;align-self:flex-end';div.textContent=texto;}else if(tipo==='load'){div.id='chat-load';div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#718096;max-width:90%';div.innerHTML='<span style="animation:chatpulse 1s infinite">&#10024; Pensando...</span>';}else{div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;white-space:pre-wrap';div.textContent=texto;}msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;}
+function renderMd(txt){
+  return txt
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^#{1,3} (.+)$/gm,'<div style="font-weight:700;margin:6px 0 2px">$1</div>')
+    .replace(/^[\|].+[\|]$/gm,'')
+    .replace(/^[-*•] (.+)$/gm,'<div style="padding-left:12px">• $1</div>')
+    .replace(/\n/g,'<br>');
+}
+function addMsg(texto,tipo){
+  var msgs=document.getElementById('chat-ia-msgs');
+  var div=document.createElement('div');
+  if(tipo==='user'){
+    div.style.cssText='background:#1a2744;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;align-self:flex-end';
+    div.textContent=texto;
+  } else if(tipo==='load'){
+    div.id='chat-load';
+    div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#718096;max-width:90%';
+    div.innerHTML='<span style="animation:chatpulse 1s infinite">&#10024; Pensando...</span>';
+  } else {
+    div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.6;max-width:92%';
+    div.innerHTML=renderMd(texto);
+  }
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;
+}
 async function enviarMensagem(){var input=document.getElementById('chat-ia-input');var texto=input.value.trim();if(!texto)return;input.value='';input.style.height='auto';addMsg(texto,'user');chatHistorico.push({role:'user',content:texto});var load=addMsg('','load');var btn=document.getElementById('chat-ia-send');btn.disabled=true;btn.style.opacity='.5';try{var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:chatHistorico,pagina:chatPagina})});var d=await r.json();load.remove();var resp=d.resposta||'Nao consegui responder agora.';addMsg(resp,'ia');chatHistorico.push({role:'assistant',content:resp});}catch(e){load.remove();addMsg('Erro de conexao. Tenta de novo!','ia');}btn.disabled=false;btn.style.opacity='1';}
 </script>`;
     return res.status(200).send(baseHTML('Meu turno', conteudo + chatIAm));
