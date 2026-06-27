@@ -4,7 +4,7 @@ import { sheetsRequest } from '../lib/google-auth.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
-function hash(s) { return createHash('sha256').update(s + process.env.PULSE_SECRET || 'pulse2026').digest('hex').slice(0,32); }
+function hash(s) { return createHash('sha256').update(s + (process.env.PULSE_SECRET || 'pulse2026')).digest('hex').slice(0,32); }
 
 function getSession(req) {
   const cookies = {};
