@@ -41,7 +41,9 @@ async function appendSheet(range, values) {
 
 const NIVEL_COR = {
   danger:  { bg: 'var(--red-m-bg)',   border: 'var(--red-m-border)',   txt: 'var(--red-m-v)',   dot: '#fc8181' },
+  perigo:  { bg: 'var(--red-m-bg)',   border: 'var(--red-m-border)',   txt: 'var(--red-m-v)',   dot: '#fc8181' },
   warning: { bg: 'var(--amber-m-bg)', border: 'var(--amber-m-border)', txt: 'var(--amber-m-v)', dot: '#f6ad55' },
+  atencao: { bg: 'var(--amber-m-bg)', border: 'var(--amber-m-border)', txt: 'var(--amber-m-v)', dot: '#f6ad55' },
   ok:      { bg: 'var(--badge-green-bg)', border: 'var(--badge-green-c)', txt: 'var(--badge-green-c)', dot: '#68d391' },
   folga:   { bg: 'var(--today-bg)',   border: 'var(--today-border)',   txt: 'var(--today-c)',   dot: '#63b3ed' },
   ausencia:{ bg: '#1a0d2e',           border: '#6b21a8',               txt: '#c084fc',          dot: '#a855f7' },
@@ -242,7 +244,7 @@ export default async function handler(req, res) {
         const df=fmtData(dataObj);
         const a=analise[nome]?.[df];
         const isHoje=df===fmtData(hoje);
-        const c=NIVEL_COR[a?.tipo||'livre'];
+        const c=NIVEL_COR[a?.tipo||'livre']||NIVEL_COR.livre;
         const temAlerta=a?.alertas?.length>0;
         const escRegMes=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
         const _mEnt=escRegMes?.[3]||'';const _mSai=escRegMes?.[4]||'';const _mObs=(escRegMes?.[5]||'').replace(/['"]/g,'');
