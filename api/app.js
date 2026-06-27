@@ -85,6 +85,12 @@ function gerarFraseEncerrado(nomeEvento) {
 
 async function getFraseDoDia(dataStr) {
   try {
+    // Verifica cache na planilha (aba Ajustes, células A1:B1)
+    const cache = await getSheet('Ajustes!A1:B1');
+    if (cache?.[0]?.[0] === dataStr && cache?.[0]?.[1]) {
+      return cache[0][1]; // Retorna frase cacheada
+    }
+    // Gera nova frase
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -104,7 +110,10 @@ async function getFraseDoDia(dataStr) {
       })
     });
     const d = await r.json();
-    return d.choices?.[0]?.message?.content?.trim() || 'Bora que hoje vai ser incrivel!';
+    const frase = d.choices?.[0]?.message?.content?.trim() || 'Bora que hoje vai ser incrivel!';
+    // Salva no cache (planilha Ajustes A1:B1)
+    try { await setSheet('Ajustes!A1:B1', [[dataStr, frase]]); } catch {}
+    return frase;
   } catch { return 'Camera ligada, coração acelerado, vamos nessa!'; }
 }
 
