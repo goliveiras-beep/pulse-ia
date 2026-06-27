@@ -1,4 +1,4 @@
-// api/chat.js — Proxy seguro para o chat IA do Pulse
+// api/chat.js — Proxy chat IA usando Groq
 export const config = { maxDuration: 30 };
 import { createHash } from 'crypto';
 
@@ -20,23 +20,17 @@ function getSession(req) {
 }
 
 async function parseBody(req) {
-  // Try req.body first (Vercel auto-parses)
   if (req.body && typeof req.body === 'object') return req.body;
-  // Manual parse fallback
   return new Promise((resolve) => {
     let data = '';
     req.on('data', chunk => { data += chunk; });
-    req.on('end', () => {
-      try { resolve(JSON.parse(data)); }
-      catch { resolve({}); }
-    });
+    req.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve({}); } });
     req.on('error', () => resolve({}));
   });
 }
 
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
-
   if (req.method !== 'POST') return res.status(405).json({error:'Method not allowed'});
 
   const session = getSession(req);
@@ -44,28 +38,30 @@ export default async function handler(req, res) {
 
   const body = await parseBody(req);
   const { messages, pagina } = body;
-
   if (!messages?.length) return res.status(400).json({error:'Mensagens inválidas'});
 
+  const sistema = `Você é o assistente operacional do Pulse IA, dashboard da equipe de TV ao vivo da LiveMode. Ajuda gestores com escalas, cobertura de eventos ao vivo (Copa do Mundo, futebol, programas), alertas trabalhistas (interjornada mínima 11h, máx 10h/dia, 7 dias consecutivos) e decisões operacionais. Usuário: ${session.nome}. Página: ${pagina||'/'}. Seja direto, prático, linguagem informal brasileira. Máx 3 parágrafos curtos. Use bullets para listas.`;
+
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'llama-3.1-8b-instant',
         max_tokens: 600,
-        system: `Você é o assistente operacional do Pulse IA, dashboard da equipe de TV ao vivo da LiveMode. Ajuda gestores com escalas, cobertura de eventos ao vivo (Copa do Mundo, futebol, programas), alertas trabalhistas (interjornada mínima 11h, máx 10h/dia, 7 dias consecutivos) e decisões operacionais. Usuário: ${session.nome}. Página: ${pagina||'/'}. Seja direto, prático, linguagem informal brasileira. Máx 3 parágrafos curtos.`,
-        messages: messages.slice(-10)
+        messages: [
+          { role: 'system', content: sistema },
+          ...messages.slice(-10)
+        ]
       })
     });
 
     const d = await r.json();
     if (d.error) return res.status(500).json({error: d.error.message});
-    const resposta = d.content?.[0]?.text || 'Não consegui responder agora.';
+    const resposta = d.choices?.[0]?.message?.content || 'Não consegui responder agora.';
     return res.status(200).json({ ok: true, resposta });
   } catch(e) {
     return res.status(500).json({ error: e.message });
