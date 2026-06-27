@@ -1,7 +1,25 @@
 export const config = { maxDuration: 30 };
 
+const CANAL_NOTIFICACOES = "C0BB36J2ZNV";
+
 const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode. Ajuda o time com informações internas, documentos, agenda e suporte geral.
 Responda sempre em português brasileiro. Seja objetivo e amigável.`;
+
+async function slackPost(method, body) {
+  const r = await fetch(`https://slack.com/api/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+function toHoraBRT(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  d.setHours(d.getHours() - 3);
+  return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || "";
+}
 
 async function getAirtableEvents() {
   const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -9,8 +27,6 @@ async function getAirtableEvents() {
   const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fldRnfbwPVzFiHMqs&sort[0][direction]=asc`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
-
-  // Ordena pelo campo Horário KO que já vem em formato HH:MM correto
   const records = data.records || [];
   records.sort((a, b) => {
     const ha = a.fields["Horário KO"] || a.fields["PGM (horário)"] || "";
@@ -25,28 +41,19 @@ function formatEvents(records, hoje) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    
-    // Horário correto sem fuso — campo "Horário KO" já vem HH:MM
     const inicio = f["Horário KO"] || f["PGM (horário)"] || "";
-    
-    // Término — "Alerta Gracenote Fim" ou calcula pelo Duration
-    // Data c/ Pós em UTC → converte para BRT subtraindo 3h
     const posRaw = f["Data c/ Pós"] || "";
     const termino = posRaw ? (() => {
       const d = new Date(posRaw);
       d.setHours(d.getHours() - 3);
       return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || "";
     })() : "";
-    
-    // Local — "Name (from Padrão de Produção)" é array, remove emoji
     const localArr = f["Name (from Padrão de Produção)"] || [];
-    const local = Array.isArray(localArr) 
+    const local = Array.isArray(localArr)
       ? localArr.map(l => l.replace(/:[^:]+:/g, '').replace(/[🔴🟡🟢⚪🔵🟣🟤⚫]/gu, '').trim()).filter(Boolean).join(", ")
       : String(localArr).replace(/:[^:]+:/g, '').replace(/[🔴🟡🟢⚪🔵🟣🟤⚫]/gu, '').trim();
-    
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = Array.isArray(f["Núcleo"]) ? f["Núcleo"].join(", ") : (f["Núcleo"] || "");
-
     const hora = inicio && termino ? `_${inicio} → ${termino}_` : inicio ? `_${inicio}_` : "";
     let linha = `${i + 1}. ${hora} *${nome}*`;
     if (tipo) linha += ` | ${tipo}`;
@@ -70,19 +77,76 @@ async function askAI(message, context = "") {
   return data?.choices?.[0]?.message?.content || "Não consegui processar.";
 }
 
-async function slackPost(method, body) {
-  const r = await fetch(`https://slack.com/api/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
-    body: JSON.stringify(body)
+async function notificarMudancaGrade(changedFields, recordId) {
+  // Busca o registro alterado para pegar os dados
+  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H/${recordId}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
+  const data = await res.json();
+  const f = data.fields || {};
+
+  const nome = f["Match ID"] || "Evento sem nome";
+  const inicio = f["Horário KO"] || f["PGM (horário)"] || "";
+  const dia = f["Dia (para agrupamento) BRT"] || "";
+  const tipo = f["Tipo de Conteúdo"] || "";
+  const status = f["Status"] || "";
+
+  // Formata campos alterados
+  const camposAlterados = Object.keys(changedFields || {})
+    .filter(k => !k.startsWith("Last Modified") && !k.startsWith("Auxiliar") && !k.startsWith("(Teste)"))
+    .map(k => `• *${k}*`)
+    .join("\n");
+
+  const msg = `🔔 *Alteração na grade detectada!*\n\n*Evento:* ${nome}\n*Data:* ${dia}\n*Horário:* ${inicio}\n*Tipo:* ${tipo}\n*Status:* ${status}\n\n*Campos alterados:*\n${camposAlterados || "• Registro criado ou removido"}`;
+
+  // Envia para o canal #ctec-bot
+  await slackPost("chat.postMessage", {
+    channel: CANAL_NOTIFICACOES,
+    text: msg,
+    mrkdwn: true
   });
-  return r.json();
 }
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const body = req.body;
+
+  // Verificação do Slack
   if (body.type === "url_verification") return res.status(200).json({ challenge: body.challenge });
+
+  // Webhook do Airtable — notificação de mudança na grade
+  if (body.base && body.webhook) {
+    res.status(200).json({ ok: true });
+    try {
+      const payloads = body.payloads || [];
+      for (const payload of payloads) {
+        const changedRecords = payload.changedFieldsByRecord || {};
+        const createdIds = payload.createdRecordIds || [];
+        const destroyedIds = payload.destroyedRecordIds || [];
+
+        // Eventos criados
+        for (const id of createdIds) {
+          await notificarMudancaGrade({}, id);
+        }
+        // Eventos alterados
+        for (const [id, fields] of Object.entries(changedRecords)) {
+          await notificarMudancaGrade(fields, id);
+        }
+        // Eventos removidos
+        for (const id of destroyedIds) {
+          await slackPost("chat.postMessage", {
+            channel: CANAL_NOTIFICACOES,
+            text: `🗑️ *Evento removido da grade!*\n\nID: \`${id}\`\nVerifique o Airtable para mais detalhes.`,
+            mrkdwn: true
+          });
+        }
+      }
+    } catch(e) {
+      console.error("Erro webhook Airtable:", e.message);
+    }
+    return;
+  }
+
+  // Mensagens do Slack (DM no Pulse)
   const event = body.event;
   if (!event || event.subtype || event.bot_id || !event.text || !event.user) return res.status(200).json({ ok: true });
   if (event.channel_type !== "im") return res.status(200).json({ ok: true });
