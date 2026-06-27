@@ -412,31 +412,8 @@ export default async function handler(req, res) {
         const evMin = toMin(ev.hora);
         const encerrado = comOpacidade && evMin !== null && evMin < horaAtualMin - 30;
         const fraseEnc = encerrado ? await gerarFraseEncerrado(ev.nome) : '';
-        const frasesEncerrado = [
-          'Esse aqui ja foi!',
-          'Menos um, galera!',
-          'Esse foi sucesso!',
-          'Missao cumprida!',
-          'Ja era, proximo!',
-          'Foi la e voltou!',
-          'Check! Ta no saco.',
-          'Encerrou bonito!',
-          'Passou voando!',
-          'Era uma vez... acabou.',
-          'Deu certo, segue o baile!',
-          'Evento no retrovisor!',
-          'Esse foi, e foi bem!',
-          'Producao entregue!',
-          'Mais um na conta!',
-          'Fechou com chave de ouro!',
-          'Operacao realizada com sucesso!',
-          'Esse a gente ja dominou!',
-          'Foi de primeira!',
-          'Tcharaaaaan! Acabou.',
-        ];
-        const fraseEnc = frasesEncerrado[Math.abs(toMin(ev.hora)||0) % frasesEncerrado.length];
-        const [bc,bb,ic,itc]=ev.semCob?['#fef2f2','#fca5a5','!','#991b1b']:['#f0fdf4','#86efac','OK','#166534'];
-        return `<div class="${encerrado?'ev-encerrado':''}" style="border:1px solid ${encerrado?'#e5e7eb':bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado?';opacity:.35':''}">
+        const [bc,bb,itc]=ev.semCob?['#fef2f2','#fca5a5','#991b1b']:['#f0fdf4','#86efac','#166534'];
+        return `<div style="border:1px solid ${encerrado?'#e5e7eb':bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado?';opacity:.35':''}">
           <div style="background:${encerrado?'#f9fafb':bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
             <div style="font-size:13px;font-weight:700;color:${encerrado?'#9ca3af':'#1d4ed8'};min-width:50px">${ev.hora||'--'}</div>
             <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado?'#9ca3af':'#1a1a1a'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}</div></div>
@@ -450,10 +427,15 @@ export default async function handler(req, res) {
           </div>
           ${!encerrado?`<div style="padding:8px 12px">
             ${ev.disp.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f5f5f5">${av(p.nome)}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#1d4ed8;font-weight:600">${p.ent}--${p.sai}</span></div>`).join('')}
-            ${ev.atenc.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #fef9c3">${av(p.nome,'#fef3c7','#92400e')}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#555">${p.ent}--${p.sai}</span><span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">${p.status}</span></div>`).join('')}
+            ${ev.atenc.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #fef9c3">${av(p.nome,'#fef3c7','#92400e')}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#555">${p.ent}--${p.sai}</span></div>`).join('')}
             ${ev.semCob?`<div style="text-align:center;padding:6px;color:#991b1b;font-size:11px;font-weight:600">Sem cobertura neste horario</div>`:''}
             ${ev.aus.length?`<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:3px">${ev.aus.map(p=>`<span style="background:#f3f4f6;color:#9ca3af;border-radius:3px;padding:1px 6px;font-size:10px">${p.nome.split(' ')[0]}</span>`).join('')}</div>`:''}
           </div>`:''}
+        </div>`;
+      }));
+      return cards.join('');
+    }
+
         </div>`;
       }));
       return cards.join('');
