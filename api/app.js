@@ -474,6 +474,10 @@ export default async function handler(req, res) {
     }
 
     const eventosCruzadosHoje = cruzarEventos(eventosHoje, escHoje, hojeStr);
+    const numEncerradosHoje = eventosCruzadosHoje.filter(e=>{
+      const evMin = toMin(e.hora);
+      return evMin !== null && evMin < horaAtualMin - 30;
+    }).length;
     const eventosCruzadosAmanha = cruzarEventos(eventosAmanha, escD1, d1Str);
 
     const diasNav = [
@@ -680,23 +684,18 @@ function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.text
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
 
 // Scroll automático para o primeiro evento ativo no #NossoDia
+var _numEnc = ${numEncerradosHoje};
 function scrollParaAtivo(){
   var body = document.querySelector('#painel-dia-0 .card-body');
-  if(!body) return;
+  if(!body||_numEnc===0) return;
   var divs = Array.from(body.children);
-  var altura = 0;
-  for(var i=0;i<divs.length;i++){
-    var s = divs[i].getAttribute('style')||'';
-    if(s.indexOf('opacity:.35')!==-1 || s.indexOf('opacity: .35')!==-1){
-      altura += divs[i].offsetHeight + 10;
-    } else {
-      break;
-    }
+  if(divs[_numEnc]){
+    body.scrollTop = divs[_numEnc].offsetTop - 4;
   }
-  if(altura > 0) body.scrollTop = altura;
 }
-setTimeout(scrollParaAtivo, 200);
-setTimeout(scrollParaAtivo, 800);
+setTimeout(scrollParaAtivo, 100);
+setTimeout(scrollParaAtivo, 400);
+setTimeout(scrollParaAtivo, 900);
 var diaAtual3=0;
 function navDia(dir){
   var total=5;
