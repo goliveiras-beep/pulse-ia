@@ -1,6 +1,5 @@
-// api/dashboard.js
+// api/dashboard.js — Visão do Gestor
 export const config = { maxDuration: 30 };
-
 import { sheetsRequest } from '../lib/google-auth.js';
 
 const AIRTABLE_BASE = 'appwE9LmmTxynTGFY';
@@ -8,399 +7,372 @@ const AIRTABLE_TABLE = 'tblpibvwAIGBQXr0H';
 
 function getBRT() {
   const a = new Date();
-  return new Date(a.getTime() + ((-3 * 60) - a.getTimezoneOffset()) * 60000);
+  return new Date(a.getTime() + ((-3*60) - a.getTimezoneOffset())*60000);
 }
-function fmtData(d) {
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
-}
-function fmtAirtable(d) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
+function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; }
+function fmtAirtable(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function iniciais(n) { return n.split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
+function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); return hh*60+(mm||0); }
 
-// Converte "14:00" → minutos desde meia-noite (suporte a virada: 23:59 = 1439, mas turnos noturnos são tratados)
-function toMin(h) {
-  if (!h) return null;
-  const [hh, mm] = h.split(':').map(Number);
-  return hh * 60 + (mm || 0);
+function estaDeServico(ent, sai, horaEv) {
+  if(!ent||!sai||!horaEv) return false;
+  const i=toMin(ent), f=toMin(sai), e=toMin(horaEv);
+  return f>i ? e>=i&&e<=f : e>=i||e<=f;
 }
-
-// Verifica se colaborador está de plantão durante o horário do evento
-// Lida com turnos que viram a madrugada (ex: 23:59 → 08:00)
-function estaDeServico(entrada, saida, horaEvento) {
-  if (!entrada || !saida || !horaEvento) return false;
-  const ini = toMin(entrada);
-  const fim = toMin(saida);
-  const ev = toMin(horaEvento);
-  if (fim === null || ini === null || ev === null) return false;
-  if (fim > ini) {
-    // Turno normal (ex: 08:00 → 16:00)
-    return ev >= ini && ev <= fim;
-  } else {
-    // Turno noturno que vira meia-noite (ex: 23:59 → 08:00)
-    return ev >= ini || ev <= fim;
-  }
-}
-
-// Verifica se colaborador entra ou sai DURANTE o evento (±60 min)
-function statusDuranteEvento(entrada, saida, horaEvento) {
-  if (!entrada || !saida || !horaEvento) return null;
-  const ev = toMin(horaEvento);
-  const ini = toMin(entrada);
-  const fim = toMin(saida);
-  if (Math.abs(ini - ev) <= 60) return 'entrando';
-  if (Math.abs(fim - ev) <= 60) return 'saindo';
+function statusTurno(ent, sai, horaEv) {
+  if(!ent||!sai||!horaEv) return null;
+  const ev=toMin(horaEv), i=toMin(ent), f=toMin(sai);
+  if(Math.abs(i-ev)<=60) return 'entrando';
+  if(Math.abs(f-ev)<=60) return 'saindo';
   return null;
 }
 
 async function getSheet(range) {
-  try {
-    const d = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(range)}`);
-    return d.values || [];
-  } catch { return []; }
+  try { const d=await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}`); return d.values||[]; }
+  catch { return []; }
 }
 
 async function getEventos(dataStr) {
-  const filter = `OR(DATESTR({fldRnfbwPVzFiHMqs})='${dataStr}',DATESTR({fld8hthI7oI4MY5aP})='${dataStr}')`;
-  const url = `https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=30`;
+  const filter=`OR(DATESTR({fldRnfbwPVzFiHMqs})='${dataStr}',DATESTR({fld8hthI7oI4MY5aP})='${dataStr}')`;
   try {
-    const r = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
-    const d = await r.json();
-    return (d.records || []).map(r => ({
-      nome: r.fields['Match ID'] || 'Evento',
-      hora: r.fields['Horário KO'] || r.fields['PGM (horário)'] || '',
-      tipo: r.fields['Tipo de Conteúdo'] || '',
-      nucleo: Array.isArray(r.fields['Núcleo']) ? r.fields['Núcleo'].join(', ') : (r.fields['Núcleo'] || ''),
-    })).sort((a, b) => (a.hora || '').localeCompare(b.hora || ''));
+    const r=await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=30`,
+      {headers:{Authorization:`Bearer ${process.env.AIRTABLE_API_KEY}`}});
+    const d=await r.json();
+    return (d.records||[]).map(r=>({
+      nome:r.fields['Match ID']||'Evento',
+      hora:r.fields['Horário KO']||r.fields['PGM (horário)']||'',
+      tipo:r.fields['Tipo de Conteúdo']||'',
+      nucleo:Array.isArray(r.fields['Núcleo'])?r.fields['Núcleo'].join(', '):(r.fields['Núcleo']||''),
+    })).sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
   } catch { return []; }
 }
 
+// Salva ajuste na aba Ajustes do Sheets
+async function salvarAjuste(ajuste) {
+  const agora=getBRT();
+  const ts=agora.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
+  const row=[ts, ajuste.data, ajuste.colaborador, ajuste.acao, ajuste.entrada||'', ajuste.saida||'', ajuste.obs||''];
+  await sheetsRequest(process.env.GOOGLE_SHEET_ID,
+    `/values/Ajustes!A1:append?valueInputOption=USER_ENTERED`,'POST',{values:[row]});
+}
+
+// Atualiza linha na aba Escala
+async function atualizarEscala(data, colaborador, entrada, saida, obs) {
+  const escala=await getSheet('Escala!A2:F500');
+  const idx=escala.findIndex(r=>r[0]===data&&r[2]===colaborador);
+  if(idx>=0) {
+    const row=idx+2;
+    await sheetsRequest(process.env.GOOGLE_SHEET_ID,
+      `/values/Escala!D${row}:F${row}?valueInputOption=USER_ENTERED`,'PUT',
+      {values:[[entrada||'',saida||'',obs||'']]});
+  } else {
+    await sheetsRequest(process.env.GOOGLE_SHEET_ID,
+      `/values/Escala!A1:append?valueInputOption=USER_ENTERED`,'POST',
+      {values:[[data,'',colaborador,entrada||'',saida||'',obs||'']]});
+  }
+}
+
 export default async function handler(req, res) {
-  const hoje = getBRT();
-  const d1 = new Date(hoje); d1.setDate(hoje.getDate() + 1);
-  const hojeStr = fmtData(hoje);
-  const d1Str = fmtData(d1);
+  // Processar ajustes via POST
+  if(req.method==='POST') {
+    try {
+      const {acao,data,colaborador,entrada,saida,obs}=req.body;
+      await atualizarEscala(data,colaborador,entrada,saida,acao==='folga'?'Folga':obs||'');
+      await salvarAjuste({data,colaborador,acao,entrada,saida,obs});
+      return res.status(200).json({ok:true});
+    } catch(e) {
+      return res.status(500).json({error:e.message});
+    }
+  }
 
-  const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  const DIAS_FULL = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  const hoje=getBRT();
+  const d1=new Date(hoje); d1.setDate(hoje.getDate()+1);
+  const hojeStr=fmtData(hoje), d1Str=fmtData(d1);
+  const DIAS_PT=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const DIAS_FULL=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 
-  // Semana atual
-  const dow = hoje.getDay();
-  const seg = new Date(hoje); seg.setDate(hoje.getDate() - dow + 1);
-  const dias = Array.from({length:7}, (_, i) => { const d = new Date(seg); d.setDate(seg.getDate()+i); return d; });
-  const segStr = fmtData(dias[0]);
-  const domStr = fmtData(dias[6]);
+  const dow=hoje.getDay();
+  const seg=new Date(hoje); seg.setDate(hoje.getDate()-dow+1);
+  const dias=Array.from({length:7},(_,i)=>{const d=new Date(seg);d.setDate(seg.getDate()+i);return d;});
+  const segStr=fmtData(dias[0]), domStr=fmtData(dias[6]);
 
-  const [escalaRaw, ausenciasRaw, equipeRaw, eventosD1] = await Promise.all([
+  const [escalaRaw,ausenciasRaw,equipeRaw,eventosD1]=await Promise.all([
     getSheet('Escala!A2:F500'),
     getSheet('Ausências!A2:I500'),
     getSheet('Equipe!A2:G50'),
     getEventos(fmtAirtable(d1)),
   ]);
 
-  const escala = escalaRaw.filter(r => r[0] >= segStr && r[0] <= domStr);
-  const ausencias = ausenciasRaw.filter(r => r[4] >= segStr && r[4] <= domStr);
-  const equipe = equipeRaw;
+  const escala=escalaRaw.filter(r=>r[0]>=segStr&&r[0]<=domStr);
+  const ausencias=ausenciasRaw.filter(r=>r[4]>=segStr&&r[4]<=domStr);
+  const equipe=equipeRaw;
+  const nomes=equipe.length>0?equipe.map(r=>r[0]):[...new Set(escalaRaw.map(r=>r[2]))];
+  const escalaD1=escala.filter(r=>r[0]===d1Str);
 
-  // Escala do D+1
-  const escalaD1 = escala.filter(r => r[0] === d1Str);
-
-  // Para cada evento, cruzar com escala
-  const eventosCruzados = eventosD1.map(ev => {
-    const disponiveis = [];
-    const atenção = [];
-    const ausentes = [];
-
-    escalaD1.forEach(r => {
-      const nome = r[2], entrada = r[3], saida = r[4], obs = r[5];
-      const ausente = ausencias.find(a => a[1] === nome && (a[4] === d1Str || a[5] === d1Str));
-
-      if (ausente || obs === 'Folga' || obs === 'Folga/Ausente' || (!entrada && !saida)) {
-        ausentes.push({ nome, motivo: ausente ? ausente[3] : 'Folga' });
-        return;
+  const eventosCruzados=eventosD1.map(ev=>{
+    const disponiveis=[],atencao=[],ausentes=[];
+    escalaD1.forEach(r=>{
+      const [,, nome,,, obs]=r, entrada=r[3], saida=r[4];
+      const ausente=ausencias.find(a=>a[1]===nome&&(a[4]===d1Str||a[5]===d1Str));
+      if(ausente||obs==='Folga'||obs==='Folga/Ausente'||(!entrada&&!saida)){
+        ausentes.push({nome,motivo:ausente?ausente[3]:'Folga'}); return;
       }
-
-      const ativo = estaDeServico(entrada, saida, ev.hora);
-      const status = statusDuranteEvento(entrada, saida, ev.hora);
-
-      if (ativo) {
-        if (status) {
-          atenção.push({ nome, entrada, saida, status });
-        } else {
-          disponiveis.push({ nome, entrada, saida });
-        }
+      if(estaDeServico(entrada,saida,ev.hora)){
+        const st=statusTurno(entrada,saida,ev.hora);
+        st?atencao.push({nome,entrada,saida,status:st}):disponiveis.push({nome,entrada,saida});
       }
     });
-
-    return { ...ev, disponiveis, atenção, ausentes, semCobertura: disponiveis.length === 0 && atenção.length === 0 };
+    return{...ev,disponiveis,atencao,ausentes,semCobertura:disponiveis.length===0&&atencao.length===0};
   });
 
-  const semCobertura = eventosCruzados.filter(e => e.semCobertura).length;
-  const comAtencao = eventosCruzados.filter(e => e.atenção.length > 0).length;
+  const semCobertura=eventosCruzados.filter(e=>e.semCobertura).length;
+  const comAtencao=eventosCruzados.filter(e=>e.atencao.length>0).length;
+  const trabalhando=escalaD1.filter(r=>r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Folga/Ausente').length;
+  const folgasD1=escalaD1.filter(r=>!r[3]||r[5]==='Folga'||r[5]==='Folga/Ausente').length;
+  const cobertura=equipe.length>0?Math.round(trabalhando/equipe.length*100):0;
+  const atualizado=hoje.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 
-  const atualizado = hoje.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
-
-  // Gera HTML dos cards de eventos
-  function badgeStatus(s) {
-    if (s === 'entrando') return `<span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;margin-left:4px">entrando</span>`;
-    if (s === 'saindo') return `<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;margin-left:4px">saindo</span>`;
-    return '';
+  function av(nome,bg='#dbeafe',c='#1d4ed8'){
+    return `<div style="width:26px;height:26px;border-radius:50%;background:${bg};color:${c};font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>`;
   }
 
-  function avatarHTML(nome, cor='#dbeafe', txt='#1d4ed8') {
-    return `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${cor};color:${txt};font-size:8px;font-weight:700;flex-shrink:0">${iniciais(nome)}</span>`;
-  }
-
-  const eventosHTML = eventosCruzados.length === 0
-    ? `<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento encontrado para ${d1Str}</div>`
-    : eventosCruzados.map(ev => {
-      const alertCor = ev.semCobertura ? '#fee2e2' : ev.atenção.length > 0 ? '#fef3c7' : '#f0fdf4';
-      const alertBorder = ev.semCobertura ? '#fca5a5' : ev.atenção.length > 0 ? '#fcd34d' : '#86efac';
-      const alertIcon = ev.semCobertura ? '⚠️' : ev.atenção.length > 0 ? '⚡' : '✓';
-      const alertTxt = ev.semCobertura ? 'Sem cobertura' : ev.atenção.length > 0 ? 'Atenção — troca de turno' : 'Cobertura OK';
-      const alertTxtCor = ev.semCobertura ? '#991b1b' : ev.atenção.length > 0 ? '#92400e' : '#166534';
-
-      const disponiveisHTML = ev.disponiveis.map(p =>
-        `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f5f5f5">
-          ${avatarHTML(p.nome)}
-          <span style="font-size:12px;font-weight:600;flex:1">${p.nome}</span>
-          <span style="font-size:11px;color:#555">${p.entrada}→${p.saida}</span>
-        </div>`
-      ).join('');
-
-      const atencaoHTML = ev.atenção.map(p =>
-        `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #fef9c3">
-          ${avatarHTML(p.nome, '#fef3c7', '#92400e')}
-          <span style="font-size:12px;font-weight:600;flex:1">${p.nome}</span>
-          <span style="font-size:11px;color:#555">${p.entrada}→${p.saida}</span>
-          ${badgeStatus(p.status)}
-        </div>`
-      ).join('');
-
-      const ausentesHTML = ev.ausentes.length > 0
-        ? `<div style="margin-top:10px">
-            <div style="font-size:10px;color:#aaa;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Folgas/ausentes</div>
-            <div style="display:flex;flex-wrap:wrap;gap:4px">
-              ${ev.ausentes.map(p => `<span style="background:#f3f4f6;color:#9ca3af;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:500">${p.nome.split(' ')[0]} <span style="opacity:.6">${p.motivo}</span></span>`).join('')}
-            </div>
-          </div>`
-        : '';
-
-      return `
-      <div style="background:#fff;border:1px solid ${alertBorder};border-radius:10px;overflow:hidden;margin-bottom:12px">
-        <div style="padding:10px 14px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px">
-          <div style="font-size:14px;font-weight:700;color:#1d4ed8;min-width:52px">${ev.hora||'—'}</div>
-          <div style="flex:1">
-            <div style="font-size:13px;font-weight:700">${ev.nome} <span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">Copa</span></div>
-            <div style="font-size:11px;color:#888">${ev.tipo}${ev.nucleo?' · '+ev.nucleo:''}</div>
-          </div>
-          <div style="background:${alertCor};border:1px solid ${alertBorder};border-radius:6px;padding:3px 10px;font-size:11px;font-weight:700;color:${alertTxtCor}">${alertIcon} ${alertTxt}</div>
+  const eventosHTML=eventosCruzados.length===0
+    ?`<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento para ${d1Str}</div>`
+    :eventosCruzados.map(ev=>{
+      const [bc,bb,ic,itxt]=ev.semCobertura?['#fef2f2','#fca5a5','⚠️','#991b1b']:
+        ev.atencao.length?['#fffbeb','#fcd34d','⚡','#92400e']:['#f0fdf4','#86efac','✓','#166534'];
+      return `<div style="border:1px solid ${bb};border-radius:8px;margin-bottom:10px;overflow:hidden">
+        <div style="background:${bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
+          <div style="font-size:13px;font-weight:700;color:#1d4ed8;min-width:52px">${ev.hora||'—'}</div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700">${ev.nome}</div><div style="font-size:10px;color:#888">${ev.tipo}${ev.nucleo?' · '+ev.nucleo:''}</div></div>
+          <div style="font-size:11px;font-weight:700;color:${itxt}">${ic} ${ev.semCobertura?'Sem cobertura':ev.atencao.length?'Troca de turno':'OK'}</div>
         </div>
-        <div style="padding:10px 14px">
-          ${ev.disponiveis.length > 0 ? `
-            <div style="font-size:10px;color:#166534;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">De plantão (${ev.disponiveis.length})</div>
-            ${disponiveisHTML}` : ''}
-          ${ev.atenção.length > 0 ? `
-            <div style="font-size:10px;color:#92400e;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:${ev.disponiveis.length>0?'10px':0} 0 4px">Troca de turno (${ev.atenção.length})</div>
-            ${atencaoHTML}` : ''}
-          ${ev.semCobertura ? `<div style="text-align:center;padding:10px;color:#991b1b;font-size:12px;font-weight:600">Nenhum colaborador escalado neste horário</div>` : ''}
-          ${ausentesHTML}
+        <div style="padding:8px 12px">
+          ${ev.disponiveis.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f5f5f5">${av(p.nome)}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#1d4ed8;font-weight:600">${p.entrada}→${p.saida}</span></div>`).join('')}
+          ${ev.atencao.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #fef9c3">${av(p.nome,'#fef3c7','#92400e')}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#555">${p.entrada}→${p.saida}</span><span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">${p.status}</span></div>`).join('')}
+          ${ev.semCobertura?`<div style="text-align:center;padding:6px;color:#991b1b;font-size:11px;font-weight:600">Nenhum colaborador neste horário</div>`:''}
+          ${ev.ausentes.length?`<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px">${ev.ausentes.map(p=>`<span style="background:#f3f4f6;color:#9ca3af;border-radius:3px;padding:1px 6px;font-size:10px">${p.nome.split(' ')[0]}</span>`).join('')}</div>`:''}
         </div>
       </div>`;
     }).join('');
 
-  // Tabela semanal
-  let tabelaHTML = '';
-  const nomes = equipe.length > 0 ? equipe.map(r => r[0]) : [...new Set(escala.map(r => r[2]))];
-
-  nomes.forEach(nome => {
-    const cargo = equipe.find(r => r[0] === nome)?.[1] || '';
-    tabelaHTML += `<tr><td class="col-nome">
-      <div class="nome-cell">
-        <div class="av">${iniciais(nome)}</div>
-        <div><div class="nome-principal">${nome}</div>${cargo?`<div class="nome-cargo">${cargo}</div>`:''}</div>
-      </div></td>`;
-
-    dias.forEach(d => {
-      const df = fmtData(d);
-      const isD1 = df === d1Str, isHoje = df === hojeStr;
-      const reg = escala.find(r => r[0] === df && r[2] === nome);
-      const ausente = ausencias.find(a => a[1] === nome && (a[4] === df || a[5] === df));
-      tabelaHTML += `<td class="${isD1?'td-d1':isHoje?'td-hoje':''}">`;
-      if (ausente) tabelaHTML += `<span class="badge ausencia">${ausente[3]||'Ausência'}</span>`;
-      else if (reg) {
-        const {3: ent, 4: sai, 5: obs} = reg;
-        if (obs === 'Folga') tabelaHTML += `<span class="badge folga">Folga</span>`;
-        else if (obs === 'Folga/Ausente' || (!ent && !sai)) tabelaHTML += `<span class="sem-escala">—</span>`;
-        else tabelaHTML += `<span class="${isD1?'turno d1':'turno'}">${ent}→${sai}</span>`;
-      } else tabelaHTML += `<span class="sem-escala">—</span>`;
-      tabelaHTML += `</td>`;
+  let tabelaHTML='';
+  nomes.forEach(nome=>{
+    const cargo=equipe.find(r=>r[0]===nome)?.[1]||'';
+    tabelaHTML+=`<tr><td style="padding:6px 10px;border-bottom:1px solid #f5f5f5">
+      <div style="display:flex;align-items:center;gap:7px">${av(nome)}<div><div style="font-size:11px;font-weight:600;white-space:nowrap">${nome}</div>${cargo?`<div style="font-size:10px;color:#aaa">${cargo}</div>`:''}</div></div></td>`;
+    dias.forEach(d=>{
+      const df=fmtData(d), isD1=df===d1Str, isHoje=df===hojeStr;
+      const reg=escala.find(r=>r[0]===df&&r[2]===nome);
+      const ausente=ausencias.find(a=>a[1]===nome&&(a[4]===df||a[5]===df));
+      const bg=isD1?'#eff6ff':isHoje?'#fafafa':'';
+      tabelaHTML+=`<td style="padding:5px 8px;border-bottom:1px solid #f5f5f5;text-align:center;background:${bg};cursor:pointer" onclick="abrirAjuste('${df}','${nome}','${reg?reg[3]:''}','${reg?reg[4]:''}','${reg?reg[5]:''}')">`;
+      if(ausente) tabelaHTML+=`<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">${ausente[3]||'Aus.'}</span>`;
+      else if(reg){
+        const{3:ent,4:sai,5:obs}=reg;
+        if(obs==='Folga') tabelaHTML+=`<span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">Folga</span>`;
+        else if(!ent&&!sai) tabelaHTML+=`<span style="color:#d1d5db;font-size:11px">—</span>`;
+        else tabelaHTML+=`<span style="font-size:11px;color:${isD1?'#1d4ed8':'#333'};font-weight:${isD1?700:500}">${ent}→${sai}</span>`;
+      } else tabelaHTML+=`<span style="color:#e5e7eb;font-size:11px">+</span>`;
+      tabelaHTML+=`</td>`;
     });
-    tabelaHTML += `</tr>`;
+    tabelaHTML+=`</tr>`;
   });
 
-  const trabalhando = escalaD1.filter(r => r[5]!=='Folga'&&r[5]!=='Folga/Ausente'&&(r[3]||r[4])).length;
-  const folgasD1cnt = escalaD1.filter(r => r[5]==='Folga'||r[5]==='Folga/Ausente'||(!r[3]&&!r[4])).length;
-  const cobertura = equipe.length > 0 ? Math.round(trabalhando/equipe.length*100) : 0;
+  // Links da equipe
+  const linksHTML=nomes.map(nome=>{
+    const slug=nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,'-');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f5f5f5">
+      ${av(nome)}
+      <span style="flex:1;font-size:12px;font-weight:600">${nome}</span>
+      <a href="/api/meu-turno?nome=${slug}" target="_blank" style="font-size:11px;color:#1d4ed8;text-decoration:none;border:1px solid #dbeafe;border-radius:4px;padding:2px 8px">Ver turno</a>
+    </div>`;
+  }).join('');
 
-  const html = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pulse — Dashboard</title>
+  const html=`<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse — Gestor</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a}
-.header{background:#fff;border-bottom:1px solid #e5e5e5;padding:14px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10}
-.logo{width:32px;height:32px;background:#1a1a1a;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700}
-.header-title{font-size:15px;font-weight:600}
-.header-sub{font-size:12px;color:#888;margin-top:1px}
-.header-right{margin-left:auto;display:flex;align-items:center;gap:10px}
-.atualizado{font-size:11px;color:#aaa}
-.btn-refresh{background:none;border:1px solid #e5e5e5;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;color:#555}
-.btn-refresh:hover{background:#f0f0f0}
-.container{max-width:1100px;margin:0 auto;padding:20px 24px}
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
-.metric{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px 16px}
-.metric-label{font-size:11px;color:#888;margin-bottom:6px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
-.metric-value{font-size:28px;font-weight:700;color:#1a1a1a;line-height:1}
-.metric-sub{font-size:11px;color:#aaa;margin-top:4px}
-.metric.blue{border-color:#dbeafe;background:#eff6ff}.metric.blue .metric-value{color:#1d4ed8}
-.metric.red{border-color:#fca5a5;background:#fef2f2}.metric.red .metric-value{color:#dc2626}
-.metric.amber{border-color:#fcd34d;background:#fffbeb}.metric.amber .metric-value{color:#d97706}
-.layout{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.section{background:#fff;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden}
-.section-header{padding:12px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:8px}
-.section-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#555}
-.section-badge{background:#f0f0f0;color:#666;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:500}
-.section-badge.blue{background:#dbeafe;color:#1d4ed8}
-.section-badge.red{background:#fee2e2;color:#991b1b}
-.section-badge.amber{background:#fef3c7;color:#92400e}
-.section-content{padding:12px 16px}
-.full-width{grid-column:1/-1}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;font-size:14px}
+.header{background:#fff;border-bottom:1px solid #e5e5e5;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
+.logo{width:30px;height:30px;background:#1a1a1a;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700}
+.ht{font-size:14px;font-weight:600}
+.hs{font-size:11px;color:#888}
+.hr{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{background:none;border:1px solid #e5e5e5;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;color:#555}
+.btn:hover{background:#f0f0f0}
+.wrap{max-width:1200px;margin:0 auto;padding:16px 20px}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.metric{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px 14px}
+.ml{font-size:10px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.mv{font-size:26px;font-weight:700;line-height:1}
+.ms{font-size:10px;color:#aaa;margin-top:3px}
+.blue{border-color:#dbeafe;background:#eff6ff}.blue .mv{color:#1d4ed8}
+.red{border-color:#fca5a5;background:#fef2f2}.red .mv{color:#dc2626}
+.amber{border-color:#fcd34d;background:#fffbeb}.amber .mv{color:#d97706}
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden}
+.card-header{padding:10px 14px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:8px}
+.card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#555}
+.badge{border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600}
+.badge.blue{background:#dbeafe;color:#1d4ed8}
+.badge.red{background:#fee2e2;color:#991b1b}
+.badge.amber{background:#fef3c7;color:#92400e}
+.badge.green{background:#dcfce7;color:#166534}
+.card-body{padding:10px 14px}
+.full{grid-column:1/-1}
 .table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:12px;min-width:650px}
-th{padding:8px 10px;text-align:center;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#888;border-bottom:1px solid #f0f0f0;white-space:nowrap;background:#fafafa}
-th.th-nome{text-align:left;width:150px}
-th.th-hoje{color:#555;background:#f5f5f5}
-th.th-d1{background:#eff6ff;color:#1d4ed8;border-bottom:2px solid #3b82f6}
-td{padding:6px 10px;border-bottom:1px solid #f5f5f5;text-align:center;vertical-align:middle}
+table{width:100%;border-collapse:collapse;min-width:650px}
+th{padding:6px 8px;text-align:center;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#888;border-bottom:1px solid #f0f0f0;background:#fafafa;white-space:nowrap}
+th.tnome{text-align:left;width:150px}
+th.thoje{color:#555;background:#f5f5f5}
+th.td1{background:#eff6ff;color:#1d4ed8;border-bottom:2px solid #3b82f6}
+td{padding:5px 8px;border-bottom:1px solid #f5f5f5;vertical-align:middle}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:#fafafa}
-.td-hoje{background:#fafafa}.td-d1{background:#eff6ff}
-.col-nome{text-align:left!important}
-.nome-cell{display:flex;align-items:center;gap:7px}
-.av{width:24px;height:24px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.nome-principal{font-size:12px;font-weight:600;white-space:nowrap}
-.nome-cargo{font-size:10px;color:#aaa}
-.turno{font-size:11px;color:#333;font-weight:500}
-.turno.d1{color:#1d4ed8;font-weight:700}
-.badge{border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600}
-.folga{background:#fef3c7;color:#92400e}
-.ausencia{background:#fee2e2;color:#991b1b}
-.sem-escala{font-size:11px;color:#d1d5db}
-.legenda{display:flex;gap:12px;padding:10px 16px;border-top:1px solid #f0f0f0;flex-wrap:wrap}
-.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#888}
-@media(max-width:768px){.metrics{grid-template-columns:repeat(2,1fr)}.layout{grid-template-columns:1fr}.container{padding:12px}}
+tr:hover td{background:#fafafa!important}
+.legenda{display:flex;gap:12px;padding:8px 14px;border-top:1px solid #f0f0f0;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:4px;font-size:10px;color:#888}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:10px;padding:20px;width:340px;max-width:90vw}
+.modal h3{font-size:14px;font-weight:600;margin-bottom:14px}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:11px;color:#555;font-weight:600;margin-bottom:3px}
+.field input,.field select{width:100%;border:1px solid #e5e5e5;border-radius:6px;padding:6px 10px;font-size:13px;outline:none}
+.field input:focus,.field select:focus{border-color:#3b82f6}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.btn-primary{background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;cursor:pointer;font-weight:600}
+.btn-primary:hover{background:#1e40af}
+.btn-danger{background:#dc2626;color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:12px;cursor:pointer;font-weight:600}
+.toast{position:fixed;bottom:20px;right:20px;background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:500;z-index:300;display:none}
+@media(max-width:768px){.metrics{grid-template-columns:repeat(2,1fr)}.layout{grid-template-columns:1fr}.wrap{padding:10px}}
 </style>
-</head>
-<body>
+</head><body>
+
 <div class="header">
   <div class="logo">P</div>
-  <div>
-    <div class="header-title">Pulse — Dashboard operacional</div>
-    <div class="header-sub">Semana ${segStr}–${domStr} · D+1: ${DIAS_FULL[d1.getDay()]} ${d1Str}</div>
-  </div>
-  <div class="header-right">
-    <span class="atualizado">Atualizado ${atualizado}</span>
-    <button class="btn-refresh" onclick="location.reload()">↻ Atualizar</button>
-  </div>
+  <div><div class="ht">Pulse — Visão do gestor</div><div class="hs">Semana ${segStr}–${domStr} · D+1: ${DIAS_FULL[d1.getDay()]} ${d1Str}</div></div>
+  <div class="hr"><span style="font-size:11px;color:#aaa">${atualizado}</span><button class="btn" onclick="location.reload()">↻ Atualizar</button></div>
 </div>
 
-<div class="container">
+<div class="wrap">
   <div class="metrics">
-    <div class="metric blue">
-      <div class="metric-label">Trabalhando D+1</div>
-      <div class="metric-value">${trabalhando}</div>
-      <div class="metric-sub">de ${equipe.length} na equipe · ${cobertura}% cobertura</div>
-    </div>
-    <div class="metric ${folgasD1cnt > 2 ? 'amber' : ''}">
-      <div class="metric-label">Folgas D+1</div>
-      <div class="metric-value">${folgasD1cnt}</div>
-      <div class="metric-sub">${ausencias.filter(a=>a[4]===d1Str).length} registradas via Pulse</div>
-    </div>
-    <div class="metric ${semCobertura > 0 ? 'red' : ''}">
-      <div class="metric-label">Eventos sem cobertura</div>
-      <div class="metric-value">${semCobertura}</div>
-      <div class="metric-sub">de ${eventosD1.length} evento${eventosD1.length!==1?'s':''} no D+1</div>
-    </div>
-    <div class="metric ${comAtencao > 0 ? 'amber' : ''}">
-      <div class="metric-label">Trocas de turno</div>
-      <div class="metric-value">${comAtencao}</div>
-      <div class="metric-sub">eventos com ${comAtencao > 0 ? 'entrada/saída durante' : 'cobertura completa'}</div>
-    </div>
+    <div class="metric blue"><div class="ml">Trabalhando D+1</div><div class="mv">${trabalhando}</div><div class="ms">${cobertura}% de cobertura · ${equipe.length} na equipe</div></div>
+    <div class="metric ${folgasD1>2?'amber':''}"><div class="ml">Folgas D+1</div><div class="mv">${folgasD1}</div><div class="ms">${ausenciasRaw.filter(a=>a[4]===d1Str).length} via Pulse</div></div>
+    <div class="metric ${semCobertura>0?'red':''}"><div class="ml">Sem cobertura</div><div class="mv">${semCobertura}</div><div class="ms">de ${eventosD1.length} eventos D+1</div></div>
+    <div class="metric ${comAtencao>0?'amber':''}"><div class="ml">Trocas de turno</div><div class="mv">${comAtencao}</div><div class="ms">eventos com entrada/saída</div></div>
   </div>
 
   <div class="layout">
-    <div class="section">
-      <div class="section-header">
-        <span class="section-title">Eventos D+1 × Escala</span>
-        <span class="section-badge ${semCobertura>0?'red':comAtencao>0?'amber':'blue'}">${eventosD1.length} eventos</span>
-      </div>
-      <div class="section-content" style="max-height:600px;overflow-y:auto">${eventosHTML}</div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Eventos D+1 × escala</span><span class="badge ${semCobertura>0?'red':comAtencao>0?'amber':'green'}">${eventosD1.length} eventos</span></div>
+      <div class="card-body" style="max-height:520px;overflow-y:auto">${eventosHTML}</div>
     </div>
 
-    <div class="section">
-      <div class="section-header">
-        <span class="section-title">Plantão D+1 — ${d1Str}</span>
-        <span class="section-badge blue">${trabalhando} ativos</span>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card" style="flex:1">
+        <div class="card-header"><span class="card-title">Plantão D+1</span><span class="badge blue">${trabalhando} ativos</span></div>
+        <div class="card-body" style="max-height:260px;overflow-y:auto">
+          ${escalaD1.filter(r=>r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Folga/Ausente').sort((a,b)=>a[3].localeCompare(b[3])).map(r=>`
+          <div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #f5f5f5">${av(r[2])}<span style="flex:1;font-size:11px;font-weight:600">${r[2]}</span><span style="font-size:11px;color:#1d4ed8;font-weight:700">${r[3]}→${r[4]}</span></div>`).join('')}
+          ${escalaD1.filter(r=>!r[3]||r[5]==='Folga'||r[5]==='Folga/Ausente').map(r=>`
+          <div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #f5f5f5;opacity:.4">${av(r[2],'#f3f4f6','#9ca3af')}<span style="flex:1;font-size:11px;font-weight:600;color:#9ca3af">${r[2]}</span><span style="background:#f3f4f6;color:#9ca3af;border-radius:3px;padding:1px 5px;font-size:10px">${r[5]||'—'}</span></div>`).join('')}
+        </div>
       </div>
-      <div class="section-content">
-        ${escalaD1.filter(r=>r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Folga/Ausente').sort((a,b)=>a[3].localeCompare(b[3])).map(r=>`
-        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f5f5f5">
-          <div style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:9px;font-weight:700;flex-shrink:0">${iniciais(r[2])}</div>
-          <div style="flex:1;font-size:12px;font-weight:600">${r[2]}</div>
-          <div style="font-size:12px;color:#1d4ed8;font-weight:600">${r[3]}→${r[4]}</div>
-        </div>`).join('')}
-        ${escalaD1.filter(r=>!r[3]||r[5]==='Folga'||r[5]==='Folga/Ausente').map(r=>`
-        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f5f5f5;opacity:.5">
-          <div style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#f3f4f6;color:#9ca3af;font-size:9px;font-weight:700;flex-shrink:0">${iniciais(r[2])}</div>
-          <div style="flex:1;font-size:12px;font-weight:600;color:#9ca3af">${r[2]}</div>
-          <span style="background:#f3f4f6;color:#9ca3af;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600">${r[5]||'—'}</span>
-        </div>`).join('')}
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">Links da equipe</span><span class="badge blue">${nomes.length}</span></div>
+        <div class="card-body" style="max-height:220px;overflow-y:auto">${linksHTML}</div>
       </div>
     </div>
 
-    <div class="section full-width">
-      <div class="section-header">
-        <span class="section-title">Escala semanal</span>
-        <span class="section-badge">${equipe.length} colaboradores</span>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th class="th-nome">Colaborador</th>
-            ${dias.map(d => {
-              const df = fmtData(d), isD1 = df===d1Str, isHoje = df===hojeStr;
-              return `<th class="${isD1?'th-d1':isHoje?'th-hoje':''}">${DIAS_PT[d.getDay()]}<br><span style="font-weight:400">${df}</span>${isD1?'<br><span style="font-size:9px;color:#3b82f6">D+1</span>':''}${isHoje?'<br><span style="font-size:9px;color:#888">hoje</span>':''}</th>`;
-            }).join('')}
-          </tr></thead>
-          <tbody>${tabelaHTML}</tbody>
-        </table>
-      </div>
+    <div class="card full">
+      <div class="card-header"><span class="card-title">Escala semanal — clique para ajustar</span><span class="badge blue">${nomes.length} colaboradores</span></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th class="tnome">Colaborador</th>${dias.map(d=>{const df=fmtData(d),isD1=df===d1Str,isHoje=df===hojeStr;return`<th class="${isD1?'td1':isHoje?'thoje':''}">${DIAS_PT[d.getDay()]}<br><span style="font-weight:400">${df}</span>${isD1?'<br><span style="font-size:8px;color:#3b82f6">D+1</span>':''}${isHoje?'<br><span style="font-size:8px;color:#888">hoje</span>':''}</th>`;}).join('')}</tr></thead>
+        <tbody>${tabelaHTML}</tbody>
+      </table></div>
       <div class="legenda">
-        <div class="leg-item"><span class="badge folga">Folga</span>folga escalada</div>
-        <div class="leg-item"><span class="badge ausencia">Ausência</span>via Pulse</div>
-        <div class="leg-item"><span class="sem-escala">—</span>sem escala</div>
-        <div class="leg-item" style="color:#1d4ed8;font-weight:600">coluna azul = D+1</div>
+        <div class="leg"><span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">Folga</span>folga</div>
+        <div class="leg"><span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">Aus.</span>ausência via Pulse</div>
+        <div class="leg" style="color:#aaa">Clique em qualquer célula para editar</div>
       </div>
     </div>
   </div>
 </div>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h3 id="modal-titulo">Ajustar escala</h3>
+    <input type="hidden" id="aj-data"><input type="hidden" id="aj-nome">
+    <div class="field"><label>Colaborador</label><input id="aj-colab" readonly style="background:#f9f9f9;color:#888"></div>
+    <div class="field"><label>Data</label><input id="aj-data-show" readonly style="background:#f9f9f9;color:#888"></div>
+    <div class="field"><label>Ação</label>
+      <select id="aj-acao" onchange="toggleAcao()">
+        <option value="horario">Alterar horário</option>
+        <option value="folga">Colocar folga</option>
+        <option value="remover">Remover da escala</option>
+      </select>
+    </div>
+    <div id="aj-horarios">
+      <div class="field"><label>Entrada</label><input type="time" id="aj-entrada"></div>
+      <div class="field"><label>Saída</label><input type="time" id="aj-saida"></div>
+    </div>
+    <div class="field"><label>Observação</label><input type="text" id="aj-obs" placeholder="opcional"></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="fecharModal()">Cancelar</button>
+      <button class="btn-primary" onclick="salvarAjuste()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function abrirAjuste(data,nome,entrada,saida,obs){
+  document.getElementById('aj-data').value=data;
+  document.getElementById('aj-nome').value=nome;
+  document.getElementById('aj-colab').value=nome;
+  document.getElementById('aj-data-show').value=data;
+  document.getElementById('aj-entrada').value=entrada||'';
+  document.getElementById('aj-saida').value=saida||'';
+  document.getElementById('aj-obs').value=obs||'';
+  document.getElementById('aj-acao').value='horario';
+  toggleAcao();
+  document.getElementById('modal').classList.add('open');
+}
+function fecharModal(){ document.getElementById('modal').classList.remove('open'); }
+function toggleAcao(){
+  const acao=document.getElementById('aj-acao').value;
+  document.getElementById('aj-horarios').style.display=acao==='horario'?'block':'none';
+}
+async function salvarAjuste(){
+  const data=document.getElementById('aj-data').value;
+  const colaborador=document.getElementById('aj-nome').value;
+  const acao=document.getElementById('aj-acao').value;
+  const entrada=document.getElementById('aj-entrada').value;
+  const saida=document.getElementById('aj-saida').value;
+  const obs=document.getElementById('aj-obs').value;
+  try{
+    const r=await fetch('/api/dashboard',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({acao,data,colaborador,entrada,saida,obs})});
+    const d=await r.json();
+    if(d.ok){ fecharModal(); mostrarToast('Escala atualizada!'); setTimeout(()=>location.reload(),1200); }
+    else mostrarToast('Erro: '+d.error,'#dc2626');
+  }catch(e){ mostrarToast('Erro: '+e.message,'#dc2626'); }
+}
+function mostrarToast(msg,bg='#1a1a1a'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.background=bg; t.style.display='block';
+  setTimeout(()=>t.style.display='none',2500);
+}
+document.getElementById('modal').addEventListener('click',e=>{ if(e.target===e.currentTarget)fecharModal(); });
+</script>
 </body></html>`;
 
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Content-Type','text/html; charset=utf-8');
+  res.setHeader('Cache-Control','no-cache');
   return res.status(200).send(html);
 }
