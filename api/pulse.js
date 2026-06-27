@@ -1,3 +1,4 @@
+// v27 - grade com local
 export const config = { maxDuration: 30 };
 
 const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode.
