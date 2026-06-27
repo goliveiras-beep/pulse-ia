@@ -58,26 +58,13 @@ async function getEventos(dataStr) {
 
 function gerarFraseEncerrado(nomeEvento) {
   const frases = [
-    'Esse aqui ja foi, e foi bonito!',
-    'Menos um, galera. Segue o baile!',
-    'Missao cumprida. Proximo!',
-    'Entregue! Pode riscar da lista.',
-    'Foi de primeira, sem drama!',
-    'Producao entregue com louvor!',
-    'Ja era. E foi sucesso!',
-    'Passou voando, como devia!',
-    'Check! Ta no saco.',
-    'Era uma vez... e ja acabou.',
-    'Fechou bonito, equipe!',
-    'Evento no retrovisor!',
-    'Tcharaaaan! Encerrado.',
-    'Foi, voltou, deu certo!',
-    'Mais um na conta da galera!',
-    'Operacao realizada, pode fechar!',
-    'Esse a gente dominou!',
-    'Sem susto, sem drama. OK!',
-    'Cumpriu o horario certinho!',
-    'Equipe nota 10 nesse aqui!',
+    'Esse aqui ja foi, e foi bonito!','Menos um, galera. Segue o baile!','Missao cumprida. Proximo!',
+    'Entregue! Pode riscar da lista.','Foi de primeira, sem drama!','Producao entregue com louvor!',
+    'Ja era. E foi sucesso!','Passou voando, como devia!','Check! Ta no saco.',
+    'Era uma vez... e ja acabou.','Fechou bonito, equipe!','Evento no retrovisor!',
+    'Tcharaaaan! Encerrado.','Foi, voltou, deu certo!','Mais um na conta da galera!',
+    'Operacao realizada, pode fechar!','Esse a gente dominou!','Sem susto, sem drama. OK!',
+    'Cumpriu o horario certinho!','Equipe nota 10 nesse aqui!',
   ];
   const idx = nomeEvento.split('').reduce((a,c)=>a+c.charCodeAt(0),0) % frases.length;
   return frases[idx];
@@ -85,38 +72,27 @@ function gerarFraseEncerrado(nomeEvento) {
 
 async function getFraseDoDia(dataStr) {
   try {
-    // Verifica cache (aba Equipe, célula K1 - não usada)
     try {
       const cache = await getSheet('Equipe!K1:L1');
       if (cache?.[0]?.[0] === dataStr && cache?.[0]?.[1]) return cache[0][1];
     } catch {}
-    // Gera nova frase
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        max_tokens: 80,
-        messages: [{
-          role: 'system',
-          content: 'Responda com APENAS UMA frase curta de até 6 palavras. Sem explicações, sem listas, sem sugestões. Só a frase. Exemplo: Café na veia, câmera no ar!'
-        },{
-          role: 'user',
-          content: `Uma frase curta e animada para equipe de TV. Dia ${dataStr}.`
-        }]
+        model: 'llama-3.1-8b-instant', max_tokens: 80,
+        messages: [
+          { role: 'system', content: 'Responda com APENAS UMA frase curta de até 6 palavras. Sem explicações, sem listas, sem sugestões. Só a frase. Exemplo: Café na veia, câmera no ar!' },
+          { role: 'user', content: `Uma frase curta e animada para equipe de TV. Dia ${dataStr}.` }
+        ]
       })
     });
     const d = await r.json();
     const frase = d.choices?.[0]?.message?.content?.trim() || 'Bora que hoje vai ser incrivel!';
-    // Salva no cache
     try { await setSheet('Equipe!K1:L1', [[dataStr, frase]]); } catch {}
     return frase;
   } catch { return 'Camera ligada, coração acelerado, vamos nessa!'; }
 }
-
 
 function parseCookies(cookieHeader) {
   const cookies = {};
@@ -264,7 +240,8 @@ ${script}
 </html>`;
 }
 
-const CHAT_IA = '\n<div id="chat-ia-btn" onclick="toggleChat()" style="position:fixed;bottom:24px;right:24px;z-index:900;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);box-shadow:0 4px 20px rgba(99,102,241,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:transform .2s" title="Assistente IA">&#10024;</div>\n<div id="chat-ia-box" style="display:none;position:fixed;bottom:88px;right:24px;z-index:900;width:360px;max-width:calc(100vw - 48px);background:#1e2230;border:1px solid #3d4660;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.6);overflow:hidden;flex-direction:column">\n  <div style="background:#161920;padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2d3748">\n    <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">&#10024;</div>\n    <div style="flex:1"><div style="font-size:13px;font-weight:600;color:#e2e8f0">Pulse IA</div><div style="font-size:10px;color:#718096">Assistente operacional</div></div>\n    <button onclick="limparChat()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:14px;padding:4px">&#128465;</button>\n    <button onclick="toggleChat()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:20px;padding:4px;line-height:1">&times;</button>\n  </div>\n  <div id="chat-ia-msgs" style="height:320px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px">\n    <div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Oi! Sou o assistente do Pulse. Pergunte sobre escalas, cobertura de eventos ou alertas trabalhistas. &#128075;</div>\n  </div>\n  <div style="padding:10px 12px;border-top:1px solid #2d3748;display:flex;gap:8px;align-items:flex-end">\n    <textarea id="chat-ia-input" placeholder="Pergunte sobre a operacao..." rows="1" onkeydown="chatKeyDown(event)" oninput="autoResize(this)" style="flex:1;background:#2d3140;border:1px solid #3d4660;border-radius:8px;padding:8px 10px;font-size:12px;color:#e2e8f0;outline:none;resize:none;font-family:inherit;max-height:100px;line-height:1.4"></textarea>\n    <button onclick="enviarMensagem()" id="chat-ia-send" style="background:linear-gradient(135deg,#1d4ed8,#7c3aed);border:none;border-radius:8px;width:36px;height:36px;cursor:pointer;font-size:14px;flex-shrink:0;color:#fff">&#10148;</button>\n  </div>\n</div>\n<style>@keyframes chatpulse{0%,100%{opacity:1}50%{opacity:.3}}#chat-ia-btn:hover{transform:scale(1.1)!important}</style>\n<script>\nvar chatAberto=false,chatHistorico=[],chatPagina=window.location.pathname+window.location.search;\nfunction toggleChat(){chatAberto=!chatAberto;var box=document.getElementById(\'chat-ia-box\');box.style.display=chatAberto?\'flex\':\'none\';document.getElementById(\'chat-ia-btn\').style.transform=chatAberto?\'scale(0.9)\':\'scale(1)\';if(chatAberto){setTimeout(function(){document.getElementById(\'chat-ia-input\').focus();},100);var m=document.getElementById(\'chat-ia-msgs\');m.scrollTop=m.scrollHeight;}}\nfunction autoResize(el){el.style.height=\'auto\';el.style.height=Math.min(el.scrollHeight,100)+\'px\';}\nfunction chatKeyDown(e){if(e.key===\'Enter\'&&!e.shiftKey){e.preventDefault();enviarMensagem();}}\nfunction limparChat(){chatHistorico=[];document.getElementById(\'chat-ia-msgs\').innerHTML=\'<div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Conversa limpa! Como posso ajudar? &#128075;</div>\';}\nfunction renderMd(txt){\n  return txt\n    .replace(/&/g,\'&amp;\').replace(/</g,\'&lt;\').replace(/>/g,\'&gt;\')\n    .replace(/\\*\\*(.+?)\\*\\*/g,\'<strong>$1</strong>\')\n    .replace(/\\*(.+?)\\*/g,\'<em>$1</em>\')\n    .replace(/^#{1,3} (.+)$/gm,\'<div style="font-weight:700;margin:6px 0 2px">$1</div>\')\n    .replace(/^[\\|].+[\\|]$/gm,\'\')\n    .replace(/^[-*•] (.+)$/gm,\'<div style="padding-left:12px">• $1</div>\')\n    .replace(/\\n/g,\'<br>\');\n}\nfunction addMsg(texto,tipo){\n  var msgs=document.getElementById(\'chat-ia-msgs\');\n  var div=document.createElement(\'div\');\n  if(tipo===\'user\'){\n    div.style.cssText=\'background:#1a2744;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;align-self:flex-end\';\n    div.textContent=texto;\n  } else if(tipo===\'load\'){\n    div.id=\'chat-load\';\n    div.style.cssText=\'background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#718096;max-width:90%\';\n    div.innerHTML=\'<span style="animation:chatpulse 1s infinite">&#10024; Pensando...</span>\';\n  } else {\n    div.style.cssText=\'background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.6;max-width:92%\';\n    div.innerHTML=renderMd(texto);\n  }\n  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;\n}\nasync function enviarMensagem(){var input=document.getElementById(\'chat-ia-input\');var texto=input.value.trim();if(!texto)return;input.value=\'\';input.style.height=\'auto\';addMsg(texto,\'user\');chatHistorico.push({role:\'user\',content:texto});var load=addMsg(\'\',\'load\');var btn=document.getElementById(\'chat-ia-send\');btn.disabled=true;btn.style.opacity=\'.5\';try{var r=await fetch(\'/api/chat\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\'},body:JSON.stringify({messages:chatHistorico,pagina:chatPagina})});var d=await r.json();load.remove();var resp=d.resposta||\'Nao consegui responder agora.\';addMsg(resp,\'ia\');chatHistorico.push({role:\'assistant\',content:resp});}catch(e){load.remove();addMsg(\'Erro de conexao. Tenta de novo!\',\'ia\');}btn.disabled=false;btn.style.opacity=\'1\';}\n</script>';
+// ── CHAT IA — ALTERAÇÃO: credentials:'same-origin' adicionado no fetch do /api/chat ──
+const CHAT_IA = '\n<div id="chat-ia-btn" onclick="toggleChat()" style="position:fixed;bottom:24px;right:24px;z-index:900;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);box-shadow:0 4px 20px rgba(99,102,241,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:transform .2s" title="Assistente IA">&#10024;</div>\n<div id="chat-ia-box" style="display:none;position:fixed;bottom:88px;right:24px;z-index:900;width:360px;max-width:calc(100vw - 48px);background:#1e2230;border:1px solid #3d4660;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.6);overflow:hidden;flex-direction:column">\n  <div style="background:#161920;padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2d3748">\n    <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">&#10024;</div>\n    <div style="flex:1"><div style="font-size:13px;font-weight:600;color:#e2e8f0">Pulse IA</div><div style="font-size:10px;color:#718096">Assistente operacional</div></div>\n    <button onclick="limparChat()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:14px;padding:4px">&#128465;</button>\n    <button onclick="toggleChat()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:20px;padding:4px;line-height:1">&times;</button>\n  </div>\n  <div id="chat-ia-msgs" style="height:320px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px">\n    <div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Oi! Sou o assistente do Pulse. Pergunte sobre escalas, cobertura de eventos ou alertas trabalhistas. &#128075;</div>\n  </div>\n  <div style="padding:10px 12px;border-top:1px solid #2d3748;display:flex;gap:8px;align-items:flex-end">\n    <textarea id="chat-ia-input" placeholder="Pergunte sobre a operacao..." rows="1" onkeydown="chatKeyDown(event)" oninput="autoResize(this)" style="flex:1;background:#2d3140;border:1px solid #3d4660;border-radius:8px;padding:8px 10px;font-size:12px;color:#e2e8f0;outline:none;resize:none;font-family:inherit;max-height:100px;line-height:1.4"></textarea>\n    <button onclick="enviarMensagem()" id="chat-ia-send" style="background:linear-gradient(135deg,#1d4ed8,#7c3aed);border:none;border-radius:8px;width:36px;height:36px;cursor:pointer;font-size:14px;flex-shrink:0;color:#fff">&#10148;</button>\n  </div>\n</div>\n<style>@keyframes chatpulse{0%,100%{opacity:1}50%{opacity:.3}}#chat-ia-btn:hover{transform:scale(1.1)!important}</style>\n<script>\nvar chatAberto=false,chatHistorico=[],chatPagina=window.location.pathname+window.location.search;\nfunction toggleChat(){chatAberto=!chatAberto;var box=document.getElementById(\'chat-ia-box\');box.style.display=chatAberto?\'flex\':\'none\';document.getElementById(\'chat-ia-btn\').style.transform=chatAberto?\'scale(0.9)\':\'scale(1)\';if(chatAberto){setTimeout(function(){document.getElementById(\'chat-ia-input\').focus();},100);var m=document.getElementById(\'chat-ia-msgs\');m.scrollTop=m.scrollHeight;}}\nfunction autoResize(el){el.style.height=\'auto\';el.style.height=Math.min(el.scrollHeight,100)+\'px\';}\nfunction chatKeyDown(e){if(e.key===\'Enter\'&&!e.shiftKey){e.preventDefault();enviarMensagem();}}\nfunction limparChat(){chatHistorico=[];document.getElementById(\'chat-ia-msgs\').innerHTML=\'<div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Conversa limpa! Como posso ajudar? &#128075;</div>\';}\nfunction renderMd(txt){\n  return txt\n    .replace(/&/g,\'&amp;\').replace(/</g,\'&lt;\').replace(/>/g,\'&gt;\')\n    .replace(/\\*\\*(.+?)\\*\\*/g,\'<strong>$1</strong>\')\n    .replace(/\\*(.+?)\\*/g,\'<em>$1</em>\')\n    .replace(/^#{1,3} (.+)$/gm,\'<div style="font-weight:700;margin:6px 0 2px">$1</div>\')\n    .replace(/^[\\|].+[\\|]$/gm,\'\')\n    .replace(/^[-*•] (.+)$/gm,\'<div style="padding-left:12px">• $1</div>\')\n    .replace(/\\n/g,\'<br>\');\n}\nfunction addMsg(texto,tipo){\n  var msgs=document.getElementById(\'chat-ia-msgs\');\n  var div=document.createElement(\'div\');\n  if(tipo===\'user\'){\n    div.style.cssText=\'background:#1a2744;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;align-self:flex-end\';\n    div.textContent=texto;\n  } else if(tipo===\'load\'){\n    div.id=\'chat-load\';\n    div.style.cssText=\'background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#718096;max-width:90%\';\n    div.innerHTML=\'<span style="animation:chatpulse 1s infinite">&#10024; Pensando...</span>\';\n  } else {\n    div.style.cssText=\'background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.6;max-width:92%\';\n    div.innerHTML=renderMd(texto);\n  }\n  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;\n}\nasync function enviarMensagem(){var input=document.getElementById(\'chat-ia-input\');var texto=input.value.trim();if(!texto)return;input.value=\'\';input.style.height=\'auto\';addMsg(texto,\'user\');chatHistorico.push({role:\'user\',content:texto});var load=addMsg(\'\',\'load\');var btn=document.getElementById(\'chat-ia-send\');btn.disabled=true;btn.style.opacity=\'.5\';try{var r=await fetch(\'/api/chat\',{method:\'POST\',credentials:\'same-origin\',headers:{\'Content-Type\':\'application/json\'},body:JSON.stringify({messages:chatHistorico,pagina:chatPagina})});var d=await r.json();load.remove();var resp=d.resposta||\'Nao consegui responder agora.\';addMsg(resp,\'ia\');chatHistorico.push({role:\'assistant\',content:resp});}catch(e){load.remove();addMsg(\'Erro de conexao. Tenta de novo!\',\'ia\');}btn.disabled=false;btn.style.opacity=\'1\';}\n</script>';
 
 function paginaLogin(equipe, erro='') {
   const opcoes = equipe.map(r=>`<option value="${r[0]}">${r[0]}</option>`).join('');
@@ -440,7 +417,6 @@ export default async function handler(req, res) {
 
   const escala = escalaRaw;
   const ausencias = ausenciasRaw;
-  // hora atual em minutos para comparar com eventos
   const horaAtualMin = hoje.getHours()*60 + hoje.getMinutes();
 
   if (isGestor) {
@@ -463,22 +439,13 @@ export default async function handler(req, res) {
           }
         });
         const semCob = disp.length===0&&atenc.length===0;
-        // Verifica antecedencia: alguem ja trabalhando >= 1h antes do evento
         const evMin = toMin(ev.hora);
         const temAntecedencia = evMin===null || disp.concat(atenc).some(p=>{
           const entMin = toMin(p.ent);
           const saiMin = toMin(p.sai);
           if(entMin===null||saiMin===null) return false;
-          // turno normal (ex: 08:00-16:00)
-          if(saiMin > entMin) {
-            return (evMin - entMin) >= 60;
-          } else {
-            // turno vira meia-noite (ex: 23:00-07:00)
-            // evento antes da meia-noite: distancia desde entrada
-            if(evMin >= entMin) return (evMin - entMin) >= 60;
-            // evento depois da meia-noite: entrada foi ontem, sempre tem antecedencia
-            return true;
-          }
+          if(saiMin > entMin) { return (evMin - entMin) >= 60; }
+          else { if(evMin >= entMin) return (evMin - entMin) >= 60; return true; }
         });
         return{...ev,disp,atenc,aus,semCob,semAntecedencia:!semCob&&!temAntecedencia};
       });
@@ -566,13 +533,7 @@ export default async function handler(req, res) {
     const conteudo=`
 <div class="header">
   <div class="logo" style="background:none;padding:0;overflow:visible"><svg width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <radialGradient id="hg" cx="38%" cy="35%" r="62%">
-      <stop offset="0%" stop-color="#ff6b6b"/>
-      <stop offset="45%" stop-color="#e53e3e"/>
-      <stop offset="100%" stop-color="#7f1d1d"/>
-    </radialGradient>
-  </defs>
+  <defs><radialGradient id="hg" cx="38%" cy="35%" r="62%"><stop offset="0%" stop-color="#ff6b6b"/><stop offset="45%" stop-color="#e53e3e"/><stop offset="100%" stop-color="#7f1d1d"/></radialGradient></defs>
   <rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/>
   <rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/>
   <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
@@ -604,10 +565,7 @@ export default async function handler(req, res) {
       </div>
     </div>
   </div>
-  <!-- Layout 3 colunas: Hoje | Amanhã | Próximos (navegável) -->
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-
-    <!-- Coluna 1: #NossoDia (fixo) -->
     <div class="card">
       <div class="card-header">
         <span class="card-title" style="color:#22c55e">#NossoDia</span>
@@ -616,8 +574,6 @@ export default async function handler(req, res) {
       </div>
       <div id="cb-hoje" class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosHoje, true)}</div>
     </div>
-
-    <!-- Coluna 2: #NossoDiaAmanhã (fixo) -->
     <div class="card">
       <div class="card-header">
         <span class="card-title" style="color:#3b82f6">#NossoDiaAmanhã</span>
@@ -626,8 +582,6 @@ export default async function handler(req, res) {
       </div>
       <div class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosAmanha, false)}</div>
     </div>
-
-    <!-- Coluna 3: Próximos dias (navegável D+2 a D+6) -->
     <div class="card">
       <div class="card-header" style="display:flex;align-items:center;gap:6px">
         <button onclick="navDia(-1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8249;</button>
@@ -643,7 +597,6 @@ export default async function handler(req, res) {
         ${diasNav.slice(2).map((d,i)=>`<div id="painel3-${i}" style="display:${i===0?'block':'none'}">${renderEventos(d.eventos, false)}</div>`).join('')}
       </div>
     </div>
-
   </div>
 </div>
 <div class="modal-bg" id="modal">
@@ -689,29 +642,23 @@ function fecharModal(){document.getElementById('modal').classList.remove('open')
 function toggleAcao(){document.getElementById('aj-horarios').style.display=document.getElementById('aj-acao').value==='horario'?'block':'none';}
 async function salvarAjuste(){
   const body={acao:document.getElementById('aj-acao').value,data:document.getElementById('aj-data').value,colaborador:document.getElementById('aj-nome').value,entrada:document.getElementById('aj-entrada').value,saida:document.getElementById('aj-saida').value,obs:document.getElementById('aj-obs').value};
-  const r=await fetch('/api/app?action=ajuste',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const r=await fetch('/api/app?action=ajuste',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const d=await r.json();
   if(d.ok){fecharModal();toast('Escala atualizada!');setTimeout(()=>location.reload(),1200);}
   else toast('Erro: '+d.error,'#dc2626');
 }
 function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.textContent=msg;t.style.background=bg;t.style.display='block';setTimeout(()=>t.style.display='none',2500);}
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
-
-// Scroll para primeiro evento ativo no #NossoDia
 window.addEventListener('load', function(){
   var b = document.getElementById('cb-hoje');
   var a = document.getElementById('primeiro-ativo-hoje');
   if(b && a){
-    // Calcula posição somando alturas dos irmãos anteriores
     var pos = 0;
     var el = a.previousElementSibling;
     while(el){ pos += el.offsetHeight + 10; el = el.previousElementSibling; }
     b.scrollTop = Math.max(0, pos - 280);
   }
 });
-
-// Scroll automático para o primeiro evento ativo no #NossoDia
-
 var diaAtual3=0;
 function navDia(dir){
   var total=5;
@@ -774,13 +721,7 @@ function navDia(dir){
     const conteudo=`
 <div class="header">
   <div class="logo" style="background:none;padding:0;overflow:visible"><svg width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <radialGradient id="hg" cx="38%" cy="35%" r="62%">
-      <stop offset="0%" stop-color="#ff6b6b"/>
-      <stop offset="45%" stop-color="#e53e3e"/>
-      <stop offset="100%" stop-color="#7f1d1d"/>
-    </radialGradient>
-  </defs>
+  <defs><radialGradient id="hg" cx="38%" cy="35%" r="62%"><stop offset="0%" stop-color="#ff6b6b"/><stop offset="45%" stop-color="#e53e3e"/><stop offset="100%" stop-color="#7f1d1d"/></radialGradient></defs>
   <rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/>
   <rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/>
   <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
