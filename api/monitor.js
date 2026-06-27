@@ -41,13 +41,24 @@ async function getSnapshotGitHub() {
     });
     if (!res.ok) return null;
     const data = await res.json();
-    const content = atob(data.content.replace(/\n/g, ''));
+    // Decodifica corretamente UTF-8
+    const bytes = Uint8Array.from(atob(data.content.replace(/\n/g, '')), c => c.charCodeAt(0));
+    const content = new TextDecoder('utf-8').decode(bytes);
     return { snapshot: JSON.parse(content), sha: data.sha };
-  } catch { return null; }
+  } catch(e) {
+    console.error("Erro lendo snapshot:", e.message);
+    return null;
+  }
 }
 
 async function salvarSnapshotGitHub(snapshot, sha) {
-  const content = btoa(unescape(encodeURIComponent(JSON.stringify(snapshot))));
+  // Codifica corretamente UTF-8
+  const json = JSON.stringify(snapshot);
+  const bytes = new TextEncoder().encode(json);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  const content = btoa(binary);
+
   await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${SNAPSHOT_PATH}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", Authorization: `token ${process.env.GITHUB_TOKEN}` },
@@ -95,7 +106,6 @@ export default async function handler(req, res) {
   if (token !== process.env.CRON_TOKEN) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    // Calcula D+1 em BRT
     const amanha = new Date();
     amanha.setTime(amanha.getTime() + ((-3 * 60) - amanha.getTimezoneOffset()) * 60000);
     amanha.setDate(amanha.getDate() + 1);
@@ -117,9 +127,6 @@ export default async function handler(req, res) {
       const msg = `🔔 *Mudanças na grade de amanhã — ${dataAmanhaFormatada}*\n\n${mudancas.join("\n\n")}`;
       await slackPost(CANAL, msg);
       await salvarSnapshotGitHub(gradeAtual, sha);
-      console.log("Mudanças detectadas:", mudancas.length);
-    } else {
-      console.log("Sem mudanças na grade de", dataAmanha);
     }
 
     return res.status(200).json({ ok: true, mudancas: mudancas.length, dia: dataAmanha });
