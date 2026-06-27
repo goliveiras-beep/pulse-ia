@@ -200,7 +200,7 @@ async function enviarMensagem(){
   var load=addMsg('','load');
   var btn=document.getElementById('chat-ia-send');btn.disabled=true;btn.style.opacity='.5';
   try{
-    var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:chatHistorico,pagina:chatPagina})});
+    var r=await fetch('/api/chat',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:chatHistorico,pagina:chatPagina})});
     var d=await r.json();
     load.remove();
     var resp=d.resposta||'Nao consegui responder agora.';
