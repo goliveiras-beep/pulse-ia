@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash, createSign } from 'crypto';
 
 // ── helpers de sessão ─────────────────────────────────────────────────────────
 
@@ -25,17 +25,17 @@ function parseSession(req) {
 }
 
 // ── Google Sheets via fetch (sem googleapis) ──────────────────────────────────
-// Usa Service Account JWT para obter access token e chama a REST API diretamente.
 
-function base64url(buf) {
-  return Buffer.from(buf).toString('base64')
+function base64url(str) {
+  return Buffer.from(str).toString('base64')
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 async function getAccessToken() {
   const sa = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
   const now = Math.floor(Date.now() / 1000);
-  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+
+  const header  = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const payload = base64url(JSON.stringify({
     iss: sa.client_email,
     scope: 'https://www.googleapis.com/auth/spreadsheets',
@@ -43,10 +43,8 @@ async function getAccessToken() {
     iat: now,
     exp: now + 3600,
   }));
-  const sigInput = `${header}.${payload}`;
 
-  // Assina com a chave privada usando crypto nativo do Node
-  const { createSign } = await import('crypto');
+  const sigInput = `${header}.${payload}`;
   const sign = createSign('RSA-SHA256');
   sign.update(sigInput);
   const sig = sign.sign(sa.private_key, 'base64')
@@ -59,21 +57,27 @@ async function getAccessToken() {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
   });
+
   const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) throw new Error('Falha ao obter access token: ' + JSON.stringify(tokenData));
+  if (!tokenData.access_token) {
+    throw new Error('Token error: ' + JSON.stringify(tokenData));
+  }
   return tokenData.access_token;
 }
 
+// ── Sheets helpers ────────────────────────────────────────────────────────────
+
 async function sheetsGet(token, range) {
-  const id = process.env.GOOGLE_SHEET_ID;
+  const id  = process.env.GOOGLE_SHEET_ID;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const data = await res.json();
+  if (data.error) throw new Error('Sheets GET error: ' + JSON.stringify(data.error));
   return data.values || [];
 }
 
 async function sheetsBatchUpdate(token, updates) {
-  const id = process.env.GOOGLE_SHEET_ID;
+  const id  = process.env.GOOGLE_SHEET_ID;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`;
   const res = await fetch(url, {
     method: 'POST',
@@ -84,7 +88,7 @@ async function sheetsBatchUpdate(token, updates) {
 }
 
 async function sheetsAppend(token, range, values) {
-  const id = process.env.GOOGLE_SHEET_ID;
+  const id  = process.env.GOOGLE_SHEET_ID;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
   const res = await fetch(url, {
     method: 'POST',
@@ -113,8 +117,7 @@ function filtrarEscalaRelevante(linhas) {
 const WRITE_PATTERNS = [
   /adiciona[r]?/i, /inclui[r]?/i, /insere[r]?/i, /coloca[r]?/i,
   /cadastra[r]?/i, /registra[r]?/i, /grava[r]?/i, /salva[r]?/i,
-  /cria[r]? (?:turno|escala)/i, /coloca na escala/i,
-  /bota na escala/i, /adiciona (?:na|à|a) escala/i,
+  /bota na escala/i, /adiciona (?:na|a) escala/i,
   /muda[r]? (?:o turno|a escala)/i, /altera[r]?/i, /atualiza[r]?/i,
 ];
 
@@ -125,20 +128,18 @@ function temIntencaoEscrita(msg) {
 // ── parser de turno ───────────────────────────────────────────────────────────
 
 function parseTurnosDaMensagem(msg, equipe) {
-  // Extrai horários: 10h00, 10:00, 10h
+  // Horários: 10h00, 10:00, 10h
   const reHora = /(\d{1,2})[h:](\d{0,2})/g;
-  const horas = [...msg.matchAll(reHora)].map(m => {
-    const h = m[1].padStart(2, '0');
-    const min = (m[2] || '00').padStart(2, '0');
-    return `${h}:${min}`;
+  const horas  = [...msg.matchAll(reHora)].map(m => {
+    return `${m[1].padStart(2,'0')}:${(m[2]||'00').padStart(2,'0')}`;
   });
   if (horas.length < 2) return null;
   const entrada = horas[0];
   const saida   = horas[1];
 
-  // Extrai datas: 22/06 ou 22-06
+  // Datas: 22/06, 22-06
   const reDatas = /(\d{1,2})[\/\-](\d{1,2})/g;
-  const datas = [...msg.matchAll(reDatas)].map(m =>
+  const datas   = [...msg.matchAll(reDatas)].map(m =>
     `${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}`
   );
   if (datas.length === 0) return null;
@@ -160,8 +161,9 @@ function parseTurnosDaMensagem(msg, equipe) {
   } else {
     datasAlvo.push(datas[0]);
   }
+  if (datasAlvo.length === 0) return null;
 
-  // Identifica colaborador
+  // Identifica colaborador por nome parcial
   const msgLower = msg.toLowerCase();
   let colaborador = null;
   for (const row of equipe) {
@@ -180,23 +182,27 @@ function parseTurnosDaMensagem(msg, equipe) {
   return { colaborador, entrada, saida, datas: datasAlvo };
 }
 
-// ── grava turnos ──────────────────────────────────────────────────────────────
+// ── grava turnos na planilha ──────────────────────────────────────────────────
 
 async function gravarTurnos(token, turno) {
-  const rows = await sheetsGet(token, 'Escala!A2:F500');
+  const rows    = await sheetsGet(token, 'Escala!A2:F500');
   const updates = [];
   const appends = [];
 
   for (const data of turno.datas) {
     const idx = rows.findIndex(r =>
-      r[0] === data && (r[2] || '').trim().toLowerCase() === turno.colaborador.toLowerCase()
+      r[0] === data &&
+      (r[2] || '').trim().toLowerCase() === turno.colaborador.toLowerCase()
     );
+
     if (idx >= 0) {
+      // linha existente — atualiza
       updates.push({
         range: `Escala!C${idx + 2}:E${idx + 2}`,
         values: [[turno.colaborador, turno.entrada, turno.saida]],
       });
     } else {
+      // procura linha do dia sem colaborador
       const idxData = rows.findIndex(r => r[0] === data && !r[2]);
       if (idxData >= 0) {
         updates.push({
@@ -212,7 +218,7 @@ async function gravarTurnos(token, turno) {
   if (updates.length > 0) await sheetsBatchUpdate(token, updates);
   for (const linha of appends) await sheetsAppend(token, 'Escala!A:F', [linha]);
 
-  // Log na aba Ajustes
+  // Log Ajustes
   const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   await sheetsAppend(token, 'Ajustes!A:G', [[
     agora, turno.colaborador, turno.datas.join(', '),
@@ -235,16 +241,18 @@ export default async function handler(req, res) {
 
   try {
     const token = await getAccessToken();
+
     const [escalaRows, equipeRows] = await Promise.all([
       sheetsGet(token, 'Escala!A2:F500'),
       sheetsGet(token, 'Equipe!A2:I50'),
     ]);
 
     const escalaRelevante = filtrarEscalaRelevante(escalaRows);
+    const isEscrita = temIntencaoEscrita(message);
 
-    // ── tenta gravar se for intenção de escrita ───────────────────────────────
+    // tenta gravar se for intenção de escrita
     let acaoRealizada = null;
-    if (temIntencaoEscrita(message)) {
+    if (isEscrita) {
       const turno = parseTurnosDaMensagem(message, equipeRows);
       if (turno) {
         const qtd = await gravarTurnos(token, turno);
@@ -252,7 +260,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // ── monta contexto para o modelo ──────────────────────────────────────────
+    // contexto para o modelo
     const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
     const equipeTexto = equipeRows
@@ -262,33 +270,34 @@ export default async function handler(req, res) {
 
     const escalaTexto = escalaRelevante.length > 0
       ? escalaRelevante.map(r =>
-          `${r[0]}: ${r[2] || '-'} ${r[3] || ''}-${r[4] || ''}${r[5] ? ' ['+r[5]+']' : ''}`
+          `${r[0]}: ${r[2]||'-'} ${r[3]||''}-${r[4]||''}${r[5]?' ['+r[5]+']':''}`
         ).join('\n')
       : 'Sem registros nesse período.';
 
-    const acaoTexto = acaoRealizada
-      ? `\n\n✅ AÇÃO EXECUTADA COM SUCESSO: Gravei o turno de ${acaoRealizada.colaborador} (${acaoRealizada.entrada}–${acaoRealizada.saida}) nos dias: ${acaoRealizada.datas.join(', ')}. ${acaoRealizada.linhasGravadas} linha(s) salvas.`
-      : (temIntencaoEscrita(message)
-          ? '\n\n⚠️ AÇÃO NÃO EXECUTADA: Não consegui identificar colaborador, horário ou data na mensagem.'
-          : '');
+    let acaoTexto = '';
+    if (acaoRealizada) {
+      acaoTexto = `\n\n✅ GRAVADO: ${acaoRealizada.colaborador} ${acaoRealizada.entrada}–${acaoRealizada.saida} nos dias ${acaoRealizada.datas.join(', ')} (${acaoRealizada.linhasGravadas} linha(s)).`;
+    } else if (isEscrita) {
+      acaoTexto = `\n\n⚠️ NÃO GRAVADO: não identifiquei colaborador, horário ou data na mensagem.`;
+    }
 
     const systemPrompt = `Você é o assistente do Pulse IA, dashboard operacional de TV ao vivo da LiveMode.
-Hoje é ${hoje}. Usuário: ${session.nome}.
+Hoje: ${hoje}. Usuário: ${session.nome}.
 
 EQUIPE ATIVA: ${equipeTexto}
 
-ESCALA (últimos 3 dias + próximos 14 dias):
+ESCALA (3 dias atrás + 14 dias à frente):
 ${escalaTexto}
 ${acaoTexto}
 
-INSTRUÇÕES:
+REGRAS:
 - Responda em português BR, direto e objetivo.
-- Se aparece ✅, confirme ao usuário exatamente o que foi gravado.
-- Se aparece ⚠️, explique o que faltou e peça para reformular.
+- Se há ✅ acima, confirme ao usuário o que foi gravado com os detalhes exatos.
+- Se há ⚠️ acima, informe o que faltou e peça para reformular.
 - Alertas trabalhistas: interjornada mín 11h, jornada máx 10h, máx 7 dias consecutivos.
-- Nunca invente dados fora da escala fornecida.`;
+- Nunca invente dados ausentes da escala fornecida.`;
 
-    // ── chama Groq ────────────────────────────────────────────────────────────
+    // chama Groq
     const groqMessages = [
       ...history.slice(-10),
       { role: 'user', content: message },
@@ -324,7 +333,7 @@ INSTRUÇÕES:
     });
 
   } catch (err) {
-    console.error('chat.js error:', err.message);
+    console.error('chat.js ERRO:', err.message, err.stack);
     return res.status(500).json({ error: 'Erro interno', detail: err.message });
   }
 }
