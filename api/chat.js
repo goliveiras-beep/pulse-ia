@@ -1,4 +1,4 @@
-````js
+
 import { createHash, createSign } from 'crypto';
 
 // ── helpers de sessão — igual ao app.js ──────────────────────────────────────
@@ -835,4 +835,3 @@ export default async function handler(req, res) {
     });
   }
 }
-````
