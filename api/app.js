@@ -15,7 +15,7 @@ function getBRT() {
 function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; }
 function fmtAirtable(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function iniciais(n) { return n.split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
-function hash(s) { return createHash('sha256').update(s + (process.env.PULSE_SECRET || 'pulse2026')).digest('hex').slice(0,32); }
+function hash(s) { return createHash('sha256').update(s + process.env.PULSE_SECRET || 'pulse2026').digest('hex').slice(0,32); }
 function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); return hh*60+(mm||0); }
 function estaDeServico(ent,sai,horaEv) {
   if(!ent||!sai||!horaEv) return false;
@@ -752,25 +752,6 @@ export default async function handler(req, res) {
     </div>
   </div>
 
-  <div class="card" style="margin-bottom:16px">
-    <div class="card-header">
-      <span class="card-title">Escala da semana</span>
-      <span style="font-size:10px;color:var(--text3)">Clique para editar</span>
-      <a href="/api/escalas?v=semana" class="btn-sm" style="margin-left:auto">Ver completo</a>
-    </div>
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse">
-        <thead><tr>
-          <th style="padding:6px 8px;text-align:left;font-size:10px;font-weight:600;color:#888;background:#fafafa;border-bottom:1px solid #f0f0f0">Colaborador</th>
-          ${dias.map(d => {
-    const df = fmtData(d), isHoje = df === hojeStr, isD1 = df === d1Str;
-    return `<th style="padding:6px 8px;text-align:center;font-size:10px;font-weight:600;color:${isHoje ? '#22c55e' : isD1 ? '#1d4ed8' : '#888'};background:${isD1 ? '#eff6ff' : '#fafafa'};border-bottom:1px solid #f0f0f0;white-space:nowrap">${DIAS_PT[d.getDay()]}<br><span style="font-weight:400">${df}</span></th>`;
-  }).join('')}
-        </tr></thead>
-        <tbody>${tabelaHTML}</tbody>
-      </table>
-    </div>
-  </div>
 </div>
 
 <div class="modal-bg" id="modal">
