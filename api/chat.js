@@ -811,20 +811,52 @@ export default async function handler(req, res) {
       };
     }
 
-    const resposta = await gerarRespostaFinal({
-      session,
-      pagina,
-      hoje,
-      equipeTexto,
-      escalaTexto,
-      resultado,
-      messages,
-    });
+   let resposta = "";
 
-    return res.status(200).json({
-      resposta,
-      acaoRealizada: resultado,
-    });
+switch (resultado.action) {
+
+  case "add_shift":
+    if (resultado.status === "success") {
+      resposta = `✅ Horário adicionado com sucesso.
+
+Colaborador: ${resultado.colaborador}
+Horário: ${resultado.entrada} às ${resultado.saida}
+Dias: ${resultado.datas.join(", ")}`;
+    } else {
+      resposta = `⚠️ Faltam informações: ${resultado.missing.join(", ")}`;
+    }
+    break;
+
+  case "remove_shift":
+    resposta = resultado.status === "success"
+      ? "✅ Horário removido com sucesso."
+      : "⚠️ Nenhum horário encontrado.";
+    break;
+
+  case "set_dayoff":
+    resposta = "✅ Folga registrada.";
+    break;
+
+  case "set_vacation":
+    resposta = "✅ Férias registradas.";
+    break;
+
+  case "set_medical_leave":
+    resposta = "✅ Dispensa médica registrada.";
+    break;
+
+  case "ask_info":
+    resposta = `⚠️ Preciso destas informações: ${resultado.missing.join(", ")}`;
+    break;
+
+  default:
+    resposta = "Não consegui executar esse comando.";
+}
+
+return res.status(200).json({
+  resposta,
+  acaoRealizada: resultado,
+});
 
   } catch (err) {
     console.error('chat.js ERRO:', err.message, err.stack);
