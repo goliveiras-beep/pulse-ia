@@ -45,6 +45,10 @@ export default async function handler(req, res) {
     const regime=r[5]||'', status=r[6]||'Ativo', temSenha=!!r[7], perfil=r[8]||'';
     const isGestor = perfil==='gestor';
     const inativo = status==='Inativo';
+    const nomeEsc = nome.replace(/'/g,"\\'");
+    const cargoEsc = cargo.replace(/'/g,"\\'");
+    const nucleoEsc = nucleo.replace(/'/g,"\\'");
+    const emailEsc = email.replace(/'/g,"\\'");
     return `
     <div style="background:#fff;border:1px solid ${inativo?'#e5e7eb':isGestor?'#dbeafe':'#e5e5e5'};border-radius:10px;padding:14px 16px;opacity:${inativo?.6:1}">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -64,12 +68,12 @@ export default async function handler(req, res) {
         ${regime?`<div>📋 ${regime}</div>`:''}
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button onclick="abrirEditar(${linha},'${nome.replace(/'/g,"\\'")}','${cargo.replace(/'/g,"\\'")}','${nucleo.replace(/'/g,"\\'")}','${email.replace(/'/g,"\\'")}','${regime}','${status}','${perfil}')" style="flex:1;background:none;border:1px solid #e5e5e5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#555">Editar</button>
-        ${temSenha?`<button onclick="resetarSenha(${linha},'${nome.replace(/'/g,"\\'")}\')" style="flex:1;background:none;border:1px solid #fcd34d;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#92400e">Resetar senha</button>`:''}
+        <button onclick="abrirEditar(${linha},'${nomeEsc}','${cargoEsc}','${nucleoEsc}','${emailEsc}','${regime}','${status}','${perfil}')" style="flex:1;background:none;border:1px solid #e5e5e5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#555">Editar</button>
+        ${temSenha?`<button onclick="resetarSenha(${linha},'${nomeEsc}')" style="flex:1;background:none;border:1px solid #fcd34d;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#92400e">Resetar senha</button>`:''}
         ${inativo
-          ?`<button onclick="reativar(${linha},'${nome.replace(/'/g,"\\'")}\')" style="flex:1;background:none;border:1px solid #86efac;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#16a34a">Reativar</button>
-            <button onclick="remover(${linha},'${nome.replace(/'/g,"\\'")}',true)" style="flex:1;background:none;border:1px solid #fca5a5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#dc2626">Excluir</button>`
-          :`<button onclick="remover(${linha},'${nome.replace(/'/g,"\\'")}',false)" style="flex:1;background:none;border:1px solid #fca5a5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#dc2626">Desativar</button>`
+          ?`<button onclick="reativar(${linha},'${nomeEsc}')" style="flex:1;background:none;border:1px solid #86efac;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#16a34a">Reativar</button>
+            <button onclick="remover(${linha},'${nomeEsc}',true)" style="flex:1;background:none;border:1px solid #fca5a5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#dc2626">Excluir</button>`
+          :`<button onclick="remover(${linha},'${nomeEsc}',false)" style="flex:1;background:none;border:1px solid #fca5a5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#dc2626">Desativar</button>`
         }
       </div>
     </div>`;
@@ -111,7 +115,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div style="max-width:1100px;margin:0 auto;padding:16px 20px">
 
-  <!-- Métricas -->
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
     <div style="background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px 14px">
       <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Total ativo</div>
@@ -135,13 +138,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
   </div>
 
-  <!-- Ativos -->
   <div class="secao-titulo">
     <span>Equipe ativa</span>
     <span style="background:#f0fdf4;color:#16a34a;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">${ativos.length}</span>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
-    ${ativos.map((r,i)=>cardPessoa(r, equipeRaw.indexOf(r))).join('')}
+    ${ativos.map((r)=>cardPessoa(r, equipeRaw.indexOf(r))).join('')}
   </div>
 
   ${inativos.length>0?`
@@ -150,12 +152,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <span style="background:#f3f4f6;color:#6b7280;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">${inativos.length}</span>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
-    ${inativos.map((r,i)=>cardPessoa(r, equipeRaw.indexOf(r))).join('')}
+    ${inativos.map((r)=>cardPessoa(r, equipeRaw.indexOf(r))).join('')}
   </div>`:''}
 
 </div>
 
-<!-- Modal adicionar/editar -->
 <div class="modal-bg" id="modal">
   <div class="modal">
     <h3 id="modal-titulo">Adicionar colaborador</h3>
@@ -246,7 +247,7 @@ async function salvar(){
 }
 
 async function remover(linha,nome,definitivo){
-  const msg=definitivo?`Excluir ${nome} permanentemente?`:`Desativar ${nome}?`;
+  const msg=definitivo?('Excluir '+nome+' permanentemente?'):('Desativar '+nome+'?');
   if(!confirm(msg)) return;
   const r=await fetch('/api/equipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'remover',linha,nome,definitivo})});
   const d=await r.json();
@@ -262,14 +263,15 @@ async function reativar(linha,nome){
 }
 
 async function resetarSenha(linha,nome){
-  if(!confirm(`Resetar a senha de ${nome}?\nNa próxima vez, ele precisará criar uma nova senha.`)) return;
+  if(!confirm('Resetar a senha de '+nome+'?\nNa próxima vez, ele precisará criar uma nova senha.')) return;
   const r=await fetch('/api/equipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'resetar-senha',linha,nome})});
   const d=await r.json();
   if(d.ok){toast(d.msg);setTimeout(()=>location.reload(),800);}
   else toast(d.error,'#dc2626');
 }
 
-function toast(msg,bg='#1a1a1a'){
+function toast(msg,bg){
+  bg=bg||'#1a1a1a';
   const t=document.getElementById('toast');
   t.textContent=msg;t.style.background=bg;t.style.display='block';
   setTimeout(()=>t.style.display='none',2800);
