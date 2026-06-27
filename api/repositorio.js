@@ -18,7 +18,7 @@ const REPOSITORY_FOLDERS = [
 
 function hash(s) {
   return createHash('sha256')
-    .update(s + (process.env.PULSE_SECRET || 'pulse2026'))
+    .update(s + 'pulse2026')
     .digest('hex')
     .slice(0, 32);
 }
