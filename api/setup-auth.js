@@ -21,46 +21,64 @@ export default async function handler(req, res) {
     const spreadsheet = await sheetsRequest(SHEET_ID, '');
     const sheets = spreadsheet.sheets || [];
 
-    // 1. Cabeçalhos SenhaHash e Perfil na aba Equipe
-    const headersRes = await sheetsRequest(SHEET_ID, '/values/Equipe!A1:I1');
-    const headers = headersRes.values?.[0] || [];
-    if (!headers.includes('SenhaHash')) {
-      await sheetsRequest(SHEET_ID, '/values/Equipe!H1:I1?valueInputOption=USER_ENTERED', 'PUT', {
-        values: [['SenhaHash', 'Perfil']]
+    // 1. Encontra o sheetId da aba Equipe e expande para 9 colunas
+    const equipeSheet = sheets.find(s => s.properties.title === 'Equipe');
+    if (!equipeSheet) return res.status(500).json({ error: 'Aba Equipe não encontrada', log });
+
+    const equipeSheetId = equipeSheet.properties.sheetId;
+    const colAtual = equipeSheet.properties.gridProperties.columnCount;
+
+    if (colAtual < 9) {
+      await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
+        requests: [{
+          updateSheetProperties: {
+            properties: {
+              sheetId: equipeSheetId,
+              gridProperties: { columnCount: 9 }
+            },
+            fields: 'gridProperties.columnCount'
+          }
+        }]
       });
-      log.push('✓ Colunas SenhaHash e Perfil adicionadas');
+      log.push(`✓ Aba Equipe expandida de ${colAtual} para 9 colunas`);
     } else {
-      log.push('→ Colunas já existiam');
+      log.push('→ Aba Equipe já tinha colunas suficientes');
     }
 
-    // 2. Busca nomes já existentes
+    // 2. Atualiza cabeçalhos H e I
+    await sheetsRequest(SHEET_ID, '/values/Equipe!H1:I1?valueInputOption=USER_ENTERED', 'PUT', {
+      values: [['SenhaHash', 'Perfil']]
+    });
+    log.push('✓ Cabeçalhos SenhaHash e Perfil adicionados');
+
+    // 3. Busca nomes existentes
     const equipeRes = await sheetsRequest(SHEET_ID, '/values/Equipe!A2:I50');
     const linhas = equipeRes.values || [];
     const nomesExistentes = linhas.map(r => r[0]?.toLowerCase().trim());
 
-    // 3. Adiciona gestores que ainda não existem
+    // 4. Adiciona gestores que não existem
     const novos = GESTORES.filter(g => !nomesExistentes.includes(g[0].toLowerCase()));
     if (novos.length > 0) {
       await sheetsRequest(SHEET_ID, '/values/Equipe!A1:append?valueInputOption=USER_ENTERED', 'POST', {
         values: novos
       });
-      log.push(`✓ ${novos.length} gestor(es) adicionado(s): ${novos.map(g=>g[0]).join(', ')}`);
+      log.push(`✓ Adicionados: ${novos.map(g=>g[0]).join(', ')}`);
     } else {
-      log.push('→ Gestores já existiam na planilha');
+      log.push('→ Gestores já existiam');
     }
 
-    // 4. Garante que os gestores existentes têm "gestor" na coluna Perfil
+    // 5. Garante perfil gestor para quem já estava na lista
     for (const [i, linha] of linhas.entries()) {
-      const nomeGestor = GESTORES.find(g => g[0].toLowerCase() === linha[0]?.toLowerCase().trim());
-      if (nomeGestor && linha[8] !== 'gestor') {
+      const isGestor = GESTORES.find(g => g[0].toLowerCase() === linha[0]?.toLowerCase().trim());
+      if (isGestor && linha[8] !== 'gestor') {
         await sheetsRequest(SHEET_ID, `/values/Equipe!I${i+2}?valueInputOption=USER_ENTERED`, 'PUT', {
           values: [['gestor']]
         });
-        log.push(`✓ Perfil "gestor" definido para ${linha[0]}`);
+        log.push(`✓ Perfil gestor definido para ${linha[0]}`);
       }
     }
 
-    // 5. Cria aba Ajustes se não existir
+    // 6. Cria aba Ajustes se não existir
     const ajustesExiste = sheets.some(s => s.properties.title === 'Ajustes');
     if (!ajustesExiste) {
       await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
