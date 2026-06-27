@@ -106,6 +106,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
   <div style="margin-left:auto;display:flex;gap:8px">
     <button id="btn-adicionar" style="background:#fff;color:#1a1a1a;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-weight:600">+ Adicionar</button>
+    <a href="/api/app" style="background:none;border:1px solid #444;border-radius:5px;padding:5px 10px;font-size:11px;color:#ccc;text-decoration:none">&#127968; Home</a>
     <a href="/api/app" style="background:none;border:1px solid #444;border-radius:5px;padding:5px 10px;font-size:11px;color:#ccc;text-decoration:none">&#8592; Voltar</a>
   </div>
 </div>
