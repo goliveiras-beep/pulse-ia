@@ -5,6 +5,9 @@ import { createHash, createSign } from 'crypto';
 const COOKIE_NAME = 'pulse_session';
 const COOKIE_MAX  = 60 * 60 * 24 * 7;
 
+const PENDING_COOKIE_NAME = 'pulse_pending_action';
+const PENDING_MAX = 60 * 10; // 10 minutos
+
 function hash(s) {
   return createHash('sha256')
     .update(s + process.env.PULSE_SECRET || 'pulse2026')
@@ -41,6 +44,53 @@ function getSession(req) {
   } catch {
     return null;
   }
+}
+
+function encodePending(payload) {
+  const body = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+  const sig = hash(body);
+  return `${body}.${sig}`;
+}
+
+function decodePending(token) {
+  if (!token) return null;
+
+  try {
+    const [body, sig] = token.split('.');
+    if (!body || !sig) return null;
+    if (hash(body) !== sig) return null;
+
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+
+    if (!payload.createdAt) return null;
+    if (Date.now() - payload.createdAt > PENDING_MAX * 1000) return null;
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function getPendingAction(req) {
+  const cookies = parseCookies(req.headers.cookie);
+  return decodePending(cookies[PENDING_COOKIE_NAME]);
+}
+
+function setPendingAction(res, action) {
+  const token = encodePending({
+    createdAt: Date.now(),
+    action,
+  });
+
+  res.setHeader('Set-Cookie', [
+    `${PENDING_COOKIE_NAME}=${token}; Path=/; Max-Age=${PENDING_MAX}; SameSite=Lax; HttpOnly; Secure`,
+  ]);
+}
+
+function clearPendingAction(res) {
+  res.setHeader('Set-Cookie', [
+    `${PENDING_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly; Secure`,
+  ]);
 }
 
 // ── Google Sheets via fetch puro ─────────────────────────────────────────────
@@ -178,6 +228,46 @@ function hojeBrasil() {
   return new Date().toLocaleDateString('pt-BR', {
     timeZone: 'America/Sao_Paulo',
   });
+}
+
+function normalizarTexto(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function isConfirmacao(msg) {
+  const t = normalizarTexto(msg);
+  return [
+    'sim',
+    'confirmar',
+    'confirmo',
+    'confirma',
+    'pode confirmar',
+    'pode gravar',
+    'gravar',
+    'aplicar',
+    'manda',
+    'ok',
+    'fechado',
+  ].includes(t);
+}
+
+function isCancelamento(msg) {
+  const t = normalizarTexto(msg);
+  return [
+    'nao',
+    'não',
+    'cancelar',
+    'cancela',
+    'cancele',
+    'desistir',
+    'deixa',
+    'deixa pra la',
+    'deixa pra lá',
+  ].includes(t);
 }
 
 function normalizarHora(h) {
@@ -627,7 +717,44 @@ async function marcarAusencia(token, comando) {
   return updates.length + appends.length;
 }
 
-// ── resposta sem segunda chamada ao Groq ─────────────────────────────────────
+// ── confirmação / resposta ──────────────────────────────────────────────────
+
+function montarPreviewConfirmacao(action) {
+  if (action.action === 'add_shift') {
+    return `⚠️ Confirma esta inclusão de horário?
+
+Colaborador: ${action.colaborador}
+Horário: ${action.entrada} às ${action.saida}
+Dias: ${action.datas.join(', ')}
+
+Responda "confirmar" para gravar ou "cancelar" para descartar.`;
+  }
+
+  if (action.action === 'remove_shift') {
+    return `⚠️ Confirma esta remoção de horário?
+
+Colaborador: ${action.colaborador}
+Dias: ${action.datas.join(', ')}
+
+Responda "confirmar" para remover ou "cancelar" para descartar.`;
+  }
+
+  if (
+    action.action === 'set_dayoff' ||
+    action.action === 'set_vacation' ||
+    action.action === 'set_medical_leave'
+  ) {
+    return `⚠️ Confirma este lançamento?
+
+Tipo: ${action.obs}
+Colaborador: ${action.colaborador}
+Dias: ${action.datas.join(', ')}
+
+Responda "confirmar" para gravar ou "cancelar" para descartar.`;
+  }
+
+  return 'Tenho uma ação pendente. Responda "confirmar" ou "cancelar".';
+}
 
 function montarRespostaFinal(resultado) {
   switch (resultado.action) {
@@ -746,6 +873,69 @@ function validarPessoaData(comando, equipeRows) {
   };
 }
 
+async function executarAcaoPendente(token, action) {
+  if (action.action === 'add_shift') {
+    const qtd = await gravarTurnos(token, {
+      colaborador: action.colaborador,
+      entrada: action.entrada,
+      saida: action.saida,
+      datas: action.datas,
+      obs: action.obs || 'Ajustado IA',
+    });
+
+    return {
+      action: 'add_shift',
+      status: 'success',
+      colaborador: action.colaborador,
+      entrada: action.entrada,
+      saida: action.saida,
+      datas: action.datas,
+      linhasGravadas: qtd,
+    };
+  }
+
+  if (action.action === 'remove_shift') {
+    const qtd = await removerTurnos(token, {
+      colaborador: action.colaborador,
+      datas: action.datas,
+    });
+
+    return {
+      action: 'remove_shift',
+      status: qtd > 0 ? 'success' : 'not_found',
+      colaborador: action.colaborador,
+      datas: action.datas,
+      linhasAlteradas: qtd,
+    };
+  }
+
+  if (
+    action.action === 'set_dayoff' ||
+    action.action === 'set_vacation' ||
+    action.action === 'set_medical_leave'
+  ) {
+    const qtd = await marcarAusencia(token, {
+      colaborador: action.colaborador,
+      datas: action.datas,
+      obs: action.obs,
+    });
+
+    return {
+      action: action.action,
+      status: 'success',
+      colaborador: action.colaborador,
+      datas: action.datas,
+      obs: action.obs,
+      linhasGravadas: qtd,
+    };
+  }
+
+  return {
+    action: 'query',
+    status: 'consulta',
+  };
+}
+
 // ── handler principal ────────────────────────────────────────────────────────
 
 export const config = { maxDuration: 30 };
@@ -776,6 +966,42 @@ export default async function handler(req, res) {
       sheetsGet(token, 'Equipe!A2:I50'),
     ]);
 
+    const pending = getPendingAction(req);
+
+    if (pending?.action && isConfirmacao(ultimaMensagem)) {
+      const resultado = await executarAcaoPendente(token, pending.action);
+      clearPendingAction(res);
+
+      return res.status(200).json({
+        resposta: montarRespostaFinal(resultado),
+        acaoRealizada: resultado,
+      });
+    }
+
+    if (pending?.action && isCancelamento(ultimaMensagem)) {
+      clearPendingAction(res);
+
+      return res.status(200).json({
+        resposta: '✅ Alteração cancelada. Nada foi gravado na escala.',
+        acaoRealizada: {
+          action: 'cancel',
+          status: 'cancelled',
+        },
+      });
+    }
+
+    if (pending?.action) {
+      return res.status(200).json({
+        resposta: `${montarPreviewConfirmacao(pending.action)}
+
+Você ainda tem essa alteração pendente. Responda "confirmar" ou "cancelar".`,
+        acaoRealizada: {
+          action: 'pending',
+          status: 'awaiting_confirmation',
+        },
+      });
+    }
+
     const hoje = hojeBrasil();
 
     const comando = await interpretarComando({
@@ -800,26 +1026,35 @@ export default async function handler(req, res) {
           missing,
           comando,
         };
-      } else {
-        const qtd = await gravarTurnos(token, {
-          colaborador,
-          entrada,
-          saida,
-          datas,
-          obs: comando.observation || 'Ajustado IA',
-        });
 
-        resultado = {
-          action: 'add_shift',
-          status: 'success',
-          colaborador,
-          entrada,
-          saida,
-          datas,
-          linhasGravadas: qtd,
-        };
+        return res.status(200).json({
+          resposta: montarRespostaFinal(resultado),
+          acaoRealizada: resultado,
+        });
       }
-    } else if (comando.action === 'remove_shift') {
+
+      const action = {
+        action: 'add_shift',
+        colaborador,
+        entrada,
+        saida,
+        datas,
+        obs: comando.observation || 'Ajustado IA',
+      };
+
+      setPendingAction(res, action);
+
+      return res.status(200).json({
+        resposta: montarPreviewConfirmacao(action),
+        acaoRealizada: {
+          action: 'add_shift',
+          status: 'awaiting_confirmation',
+          preview: action,
+        },
+      });
+    }
+
+    if (comando.action === 'remove_shift') {
       const { colaborador, datas, missing } = validarPessoaData(comando, equipeRows);
 
       if (missing.length) {
@@ -829,21 +1064,32 @@ export default async function handler(req, res) {
           missing,
           comando,
         };
-      } else {
-        const qtd = await removerTurnos(token, {
-          colaborador,
-          datas,
-        });
 
-        resultado = {
-          action: 'remove_shift',
-          status: qtd > 0 ? 'success' : 'not_found',
-          colaborador,
-          datas,
-          linhasAlteradas: qtd,
-        };
+        return res.status(200).json({
+          resposta: montarRespostaFinal(resultado),
+          acaoRealizada: resultado,
+        });
       }
-    } else if (
+
+      const action = {
+        action: 'remove_shift',
+        colaborador,
+        datas,
+      };
+
+      setPendingAction(res, action);
+
+      return res.status(200).json({
+        resposta: montarPreviewConfirmacao(action),
+        acaoRealizada: {
+          action: 'remove_shift',
+          status: 'awaiting_confirmation',
+          preview: action,
+        },
+      });
+    }
+
+    if (
       comando.action === 'set_dayoff' ||
       comando.action === 'set_vacation' ||
       comando.action === 'set_medical_leave'
@@ -865,23 +1111,33 @@ export default async function handler(req, res) {
           missing,
           comando,
         };
-      } else {
-        const qtd = await marcarAusencia(token, {
-          colaborador,
-          datas,
-          obs,
-        });
 
-        resultado = {
-          action: comando.action,
-          status: 'success',
-          colaborador,
-          datas,
-          obs,
-          linhasGravadas: qtd,
-        };
+        return res.status(200).json({
+          resposta: montarRespostaFinal(resultado),
+          acaoRealizada: resultado,
+        });
       }
-    } else if (comando.action === 'ask_info') {
+
+      const action = {
+        action: comando.action,
+        colaborador,
+        datas,
+        obs,
+      };
+
+      setPendingAction(res, action);
+
+      return res.status(200).json({
+        resposta: montarPreviewConfirmacao(action),
+        acaoRealizada: {
+          action: comando.action,
+          status: 'awaiting_confirmation',
+          preview: action,
+        },
+      });
+    }
+
+    if (comando.action === 'ask_info') {
       resultado = {
         action: 'ask_info',
         status: 'missing_info',
@@ -896,10 +1152,8 @@ export default async function handler(req, res) {
       };
     }
 
-    const resposta = montarRespostaFinal(resultado);
-
     return res.status(200).json({
-      resposta,
+      resposta: montarRespostaFinal(resultado),
       acaoRealizada: resultado,
     });
   } catch (err) {
