@@ -526,6 +526,7 @@ export default async function handler(req, res) {
     <span style="font-size:12px;color:#666">Ola, ${nome.split(' ')[0]}</span>
     <a href="/api/escalas?v=semana" class="btn-sm">Escala</a>
     <a href="/api/equipe-view" class="btn-sm">Equipe</a>
+    <a href="/api/gerar-escala" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">&#10024; IA</a>
     <button class="btn-sm" onclick="location.reload()">&#8635;</button>
     <button id="tt" class="btn-sm" onclick="(function(){var h=document.documentElement;var dk=h.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;';})()" style="font-size:14px;padding:3px 8px">&#127769;</button>
     <form method="POST" action="/api/app?action=logout" style="display:inline"><button type="submit" class="btn-sm">Sair</button></form>
