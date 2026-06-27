@@ -444,25 +444,6 @@ export default async function handler(req, res) {
       </div>
       <div class="card-body" style="max-height:500px;overflow-y:auto">${renderEventos(eventosCruzadosAmanha, false)}</div>
     </div>
-    <div class="card">
-      <div class="card-header"><span class="card-title">Plantao amanha</span><span class="badge blue">${trabAmanha} ativos</span></div>
-      <div class="card-body" style="max-height:300px;overflow-y:auto">
-        ${escD1.filter(r=>r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Folga/Ausente').sort((a,b)=>a[3].localeCompare(b[3])).map(r=>`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #f5f5f5">${av(r[2])}<span style="flex:1;font-size:11px;font-weight:600">${r[2]}</span><span style="font-size:11px;color:#1d4ed8;font-weight:700">${r[3]}--${r[4]}</span></div>`).join('')}
-        ${escD1.filter(r=>!r[3]||r[5]==='Folga'||r[5]==='Folga/Ausente').map(r=>`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #f5f5f5;opacity:.45">${av(r[2],'#f3f4f6','#9ca3af')}<span style="flex:1;font-size:11px;font-weight:600;color:#9ca3af">${r[2]}</span><span style="background:#f3f4f6;color:#9ca3af;border-radius:3px;padding:1px 5px;font-size:10px">${r[5]||'--'}</span></div>`).join('')}
-      </div>
-    </div>
-    <div class="card full">
-      <div class="card-header"><span class="card-title">Escala semanal — clique para ajustar</span><span class="badge blue">${nomes.length} colaboradores</span></div>
-      <div class="table-wrap"><table>
-        <thead><tr><th class="tnome">Colaborador</th>${dias.map(d=>{const df=fmtData(d),isD1=df===d1Str,isHoje=df===hojeStr;return`<th class="${isD1?'td1':isHoje?'thoje':''}">${DIAS_PT[d.getDay()]}<br><span style="font-weight:400">${df}</span>${isD1?'<br><span style="font-size:8px;color:#3b82f6">amanha</span>':''}${isHoje?'<br><span style="font-size:8px;color:#888">hoje</span>':''}</th>`;}).join('')}</tr></thead>
-        <tbody>${tabelaHTML}</tbody>
-      </table></div>
-      <div class="legenda">
-        <div class="leg"><span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">Folga</span> folga</div>
-        <div class="leg"><span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">Aus.</span> ausencia via Pulse</div>
-        <div class="leg" style="color:#aaa">Clique em qualquer celula para editar</div>
-      </div>
-    </div>
   </div>
 </div>
 <div class="modal-bg" id="modal">
