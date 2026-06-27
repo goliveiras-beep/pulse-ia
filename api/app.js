@@ -706,7 +706,7 @@ window.addEventListener('load', function(){
     var pos = 0;
     var el = a.previousElementSibling;
     while(el){ pos += el.offsetHeight + 10; el = el.previousElementSibling; }
-    b.scrollTop = Math.max(0, pos - 60);
+    b.scrollTop = Math.max(0, pos - 160);
   }
 });
 
