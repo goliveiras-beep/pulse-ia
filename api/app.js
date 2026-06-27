@@ -503,12 +503,15 @@ export default async function handler(req, res) {
 
     function renderEventos(eventosCruzados, comOpacidade=false) {
       if(eventosCruzados.length===0) return `<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>`;
+      let primeiroAtivo = true;
       return eventosCruzados.map(ev=>{
         const evMin = toMin(ev.hora);
         const encerrado = comOpacidade && evMin !== null && evMin < horaAtualMin - 30;
+        const idAtivo = (!encerrado && primeiroAtivo && comOpacidade) ? 'id="primeiro-ativo-hoje"' : '';
+        if(!encerrado && primeiroAtivo && comOpacidade) primeiroAtivo = false;
         const fraseEnc = encerrado ? gerarFraseEncerrado(ev.nome) : '';
         const [bc,bb,itc]=ev.semCob?['var(--badge-red-bg)','var(--badge-red-c)','var(--badge-red-c)']:['var(--badge-green-bg)','var(--badge-green-c)','var(--badge-green-c)'];
-        return `<div style="border:1px solid ${encerrado?'var(--border)':bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado?';opacity:.35':''}">
+        return `<div ${idAtivo} style="border:1px solid ${encerrado?'var(--border)':bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado?';opacity:.35':''}">
           <div style="background:${encerrado?'var(--card)':bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
             <div style="font-size:13px;font-weight:700;color:${encerrado?'var(--text3)':'var(--today-c)'};min-width:50px">${ev.hora||'--'}</div>
             <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado?'var(--text3)':'var(--text)'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}${ev.local?' · <span style=\'font-weight:600;color:var(--text3)\'>' + ev.local + '</span>':''}</div></div>
@@ -686,20 +689,15 @@ function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.text
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
 
 // Scroll automático para o primeiro evento ativo no #NossoDia
-var _numEnc = ${numEncerradosHoje};
 function scrollParaAtivo(){
+  var alvo = document.getElementById('primeiro-ativo-hoje');
   var body = document.querySelector('#painel-dia-0 .card-body');
-  if(!body||_numEnc===0) return;
-  var divs = Array.from(body.children);
-  if(divs[_numEnc]){
-    var top = 0;
-    for(var i=0;i<_numEnc && i<divs.length;i++) top += divs[i].getBoundingClientRect().height + 10;
-    body.scrollTop = top;
-  }
+  if(!alvo || !body) return;
+  body.scrollTop = alvo.offsetTop - 8;
 }
-window.addEventListener('load', function(){ setTimeout(scrollParaAtivo, 100); });
-setTimeout(scrollParaAtivo, 300);
-setTimeout(scrollParaAtivo, 800);
+window.addEventListener('load', function(){ setTimeout(scrollParaAtivo, 50); });
+setTimeout(scrollParaAtivo, 200);
+setTimeout(scrollParaAtivo, 600);
 var diaAtual3=0;
 function navDia(dir){
   var total=5;
