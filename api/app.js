@@ -155,6 +155,7 @@ tr:hover td{background:#fafafa!important}
 .dia-card.hoje{background:#1a1a1a;border-color:#1a1a1a}
 .dia-card.d1{background:#eff6ff;border-color:#93c5fd}
 .ev-encerrado{opacity:.35;transition:opacity .3s}
+@keyframes pulsar{0%,100%{opacity:1}50%{opacity:.2}}
 @media(max-width:700px){.metrics{grid-template-columns:repeat(2,1fr)}.layout2{grid-template-columns:1fr}.wrap{padding:10px 12px}.grid7{grid-template-columns:repeat(7,1fr);gap:3px}}
 </style>
 ${conteudo}
@@ -385,7 +386,7 @@ export default async function handler(req, res) {
       return eventosCruzados.map(ev=>{
         const evMin = toMin(ev.hora);
         const encerrado = comOpacidade && evMin !== null && evMin < horaAtualMin - 30;
-        const [bc,bb,ic,itc]=ev.semCob?['#fef2f2','#fca5a5','!','#991b1b']:ev.atenc.length?['#fffbeb','#fcd34d','~','#92400e']:['#f0fdf4','#86efac','OK','#166534'];
+        const [bc,bb,ic,itc]=ev.semCob?['#fef2f2','#fca5a5','!','#991b1b']:['#f0fdf4','#86efac','OK','#166534'];
         return `<div class="${encerrado?'ev-encerrado':''}" style="border:1px solid ${encerrado?'#e5e7eb':bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado?';opacity:.35':''}">
           <div style="background:${encerrado?'#f9fafb':bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
             <div style="font-size:13px;font-weight:700;color:${encerrado?'#9ca3af':'#1d4ed8'};min-width:50px">${ev.hora||'--'}</div>
@@ -393,8 +394,8 @@ export default async function handler(req, res) {
             ${encerrado
               ? `<div style="font-size:10px;font-weight:700;color:#9ca3af">Encerrado</div>`
               : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
-                  <div style="font-size:10px;font-weight:700;color:${itc}">${ic} ${ev.semCob?'Sem cobertura':ev.atenc.length?'Troca de turno':'OK'}</div>
-                  ${ev.semAntecedencia?`<div style="font-size:9px;font-weight:600;color:#92400e;background:#fef3c7;border-radius:3px;padding:1px 6px">sem antecedencia</div>`:''}
+                  <div style="font-size:10px;font-weight:700;color:${itc}">${ic} ${ev.semCob?'Sem cobertura':'OK'}</div>
+                  ${ev.semAntecedencia?`<span style="font-size:14px;animation:pulsar 1s infinite">&#9888;</span>`:''}
                 </div>`
             }
           </div>
