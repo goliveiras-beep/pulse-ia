@@ -34,12 +34,12 @@ async function getSheet(range) {
 }
 
 const NIVEL_COR = {
-  danger:  { bg: '#fef2f2', border: '#fca5a5', txt: '#991b1b', dot: '#dc2626' },
-  warning: { bg: '#fffbeb', border: '#fcd34d', txt: '#92400e', dot: '#f59e0b' },
-  ok:      { bg: '#f0fdf4', border: '#86efac', txt: '#166534', dot: '#22c55e' },
-  folga:   { bg: '#eff6ff', border: '#93c5fd', txt: '#1d4ed8', dot: '#3b82f6' },
-  ausencia:{ bg: '#fdf4ff', border: '#d8b4fe', txt: '#6b21a8', dot: '#a855f7' },
-  livre:   { bg: '#f9fafb', border: '#e5e7eb', txt: '#9ca3af', dot: '#d1d5db' },
+  danger:  { bg: 'var(--red-m-bg)',   border: 'var(--red-m-border)',   txt: 'var(--red-m-v)',   dot: '#fc8181' },
+  warning: { bg: 'var(--amber-m-bg)', border: 'var(--amber-m-border)', txt: 'var(--amber-m-v)', dot: '#f6ad55' },
+  ok:      { bg: 'var(--badge-green-bg)', border: 'var(--badge-green-c)', txt: 'var(--badge-green-c)', dot: '#68d391' },
+  folga:   { bg: 'var(--today-bg)',   border: 'var(--today-border)',   txt: 'var(--today-c)',   dot: '#63b3ed' },
+  ausencia:{ bg: '#1a0d2e',           border: '#6b21a8',               txt: '#c084fc',          dot: '#a855f7' },
+  livre:   { bg: 'var(--card)',       border: 'var(--border)',         txt: 'var(--text3)',     dot: 'var(--border)' },
 };
 
 function alertaBadge(alerta) {
@@ -144,7 +144,7 @@ export default async function handler(req, res) {
       const a = analise[nome]?.[df];
       const cargo = equipeRaw.find(r=>r[0]===nome)?.[1]||'';
       const { perigo, atencao } = resumoPessoa[nome];
-      return `<div data-nome-busca="${nome}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px 16px">
+      return `<div data-nome-busca="${nome}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <div style="width:32px;height:32px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
           <div style="flex:1"><div style="font-size:13px;font-weight:600">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
@@ -164,7 +164,7 @@ export default async function handler(req, res) {
         const [d,m]=df.split('/');
         const dataObj=new Date(new Date().getFullYear(),parseInt(m)-1,parseInt(d));
         const isHoje=df===fmtData(hoje);
-        return `<th style="padding:6px 4px;text-align:center;font-size:10px;font-weight:600;color:${isHoje?'#1d4ed8':'#888'};text-transform:uppercase;background:${isHoje?'#eff6ff':'#fafafa'};border-bottom:${isHoje?'2px solid #3b82f6':'1px solid #f0f0f0'};white-space:nowrap;min-width:90px">
+        return `<th style="padding:6px 4px;text-align:center;font-size:10px;font-weight:600;color:${isHoje?'#1d4ed8':'#888'};text-transform:uppercase;background:${isHoje?'var(--today-bg)':'var(--th)'};border-bottom:${isHoje?'2px solid var(--today-border)':'1px solid var(--th-border)'};white-space:nowrap;min-width:90px">
           ${DIAS_PT[dataObj.getDay()]}<br><span style="font-weight:400">${df}</span>
         </th>`;
       }).join('')}
@@ -189,7 +189,7 @@ export default async function handler(req, res) {
         ${datas.map(df=>{
           const a=analise[nome]?.[df];
           const isHoje=df===fmtData(hoje);
-          return `<td style="padding:4px;border-bottom:1px solid #f5f5f5;background:${isHoje?'#eff6ff':''}">${celulaAnalise(a,null,true)}</td>`;
+          return `<td style="padding:4px;border-bottom:1px solid #f5f5f5;background:${isHoje?'var(--today-bg)':''}">${celulaAnalise(a,null,true)}</td>`;
         }).join('')}
       </tr>`;
     }).join('');
@@ -215,14 +215,14 @@ export default async function handler(req, res) {
         const isHoje=df===fmtData(hoje);
         const c=NIVEL_COR[a?.tipo||'livre'];
         const temAlerta=a?.alertas?.length>0;
-        cal+=`<div style="background:${c.bg};border:1px solid ${isHoje?'#3b82f6':c.border};border-radius:4px;padding:3px 2px;text-align:center">
+        cal+=`<div style="background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center">
           <div style="font-size:9px;font-weight:${isHoje?700:500};color:${c.txt}">${d}</div>
           ${a?.status&&a.tipo!=='livre'?`<div style="font-size:7px;color:${c.txt};overflow:hidden;white-space:nowrap">${a.status.length>8?a.status.substring(0,8):a.status}</div>`:''}
           ${temAlerta?`<div style="width:5px;height:5px;border-radius:50%;background:${c.dot};margin:1px auto 0"></div>`:''}
         </div>`;
       }
       cal+=`</div>`;
-      return `<div data-nome-busca="${nome}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" style="background:#fff;border:1px solid ${perigo>0?'#fca5a5':atencao>0?'#fcd34d':'#e5e5e5'};border-radius:10px;padding:12px 14px">
+      return `<div data-nome-busca="${nome}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" style="background:var(--card);border:1px solid ${perigo>0?'var(--red-m-border)':atencao>0?'var(--amber-m-border)':'var(--border)'};border-radius:10px;padding:12px 14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
           <div style="width:28px;height:28px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
           <div style="flex:1"><div style="font-size:12px;font-weight:600">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
@@ -356,7 +356,7 @@ a{text-decoration:none}
 
   <div style="margin-top:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
     <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#888;margin-bottom:8px">Regras aplicadas</div>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#666">
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text2)">
       <span>Interjornada minima: 11h</span>
       <span>Jornada maxima: 10h</span>
       <span>Acima de 8h: 1h descanso</span>
