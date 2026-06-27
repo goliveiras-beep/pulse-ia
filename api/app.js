@@ -228,7 +228,7 @@ export default async function handler(req, res) {
   const action = req.query.action || '';
 
   // Carrega equipe sempre
-  const equipeRaw = await getSheet('Equipe!A2:H50');
+  const equipeRaw = await getSheet('Equipe!A2:I50');
   // Colunas: Nome, Cargo, Núcleo, Email, SlackID, Regime, Status, SenhaHash, Perfil
   // Índices:    0      1       2       3       4       5       6       7           8
 
