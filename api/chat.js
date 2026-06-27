@@ -1,5 +1,6 @@
-// api/chat.js — Proxy chat IA usando Groq
+// api/chat.js — Proxy chat IA com contexto da planilha
 export const config = { maxDuration: 30 };
+import { sheetsRequest } from '../lib/google-auth.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -29,6 +30,17 @@ async function parseBody(req) {
   });
 }
 
+async function getSheet(range) {
+  try { const d = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(range)}`); return d.values||[]; }
+  catch { return []; }
+}
+
+function getBRT() {
+  const a = new Date();
+  return new Date(a.getTime() + ((-3*60) - a.getTimezoneOffset()) * 60000);
+}
+function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; }
+
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json');
   if (req.method !== 'POST') return res.status(405).json({error:'Method not allowed'});
@@ -40,11 +52,43 @@ export default async function handler(req, res) {
   const { messages, pagina } = body;
   if (!messages?.length) return res.status(400).json({error:'Mensagens inválidas'});
 
+  // Busca dados reais da planilha
+  const hoje = getBRT();
+  const d14 = new Date(hoje); d14.setDate(hoje.getDate()+14);
+
+  const [escalaRaw, equipeRaw, ausenciasRaw] = await Promise.all([
+    getSheet('Escala!A2:F500'),
+    getSheet('Equipe!A2:I50'),
+    getSheet('Ausencias!A2:I500'),
+  ]);
+
+  // Monta contexto de escala dos próximos 14 dias
+  const diasContexto = [];
+  for (let i = -3; i <= 14; i++) {
+    const d = new Date(hoje); d.setDate(hoje.getDate()+i);
+    const df = fmtData(d);
+    const escalaDia = escalaRaw.filter(r => r[0]===df && r[3] && r[4] && r[5]!=='Folga');
+    const folgasDia = escalaRaw.filter(r => r[0]===df && r[5]==='Folga');
+    const ausenciasDia = ausenciasRaw.filter(a => a[1] && (a[4]===df||a[5]===df));
+    if (escalaDia.length > 0 || folgasDia.length > 0) {
+      diasContexto.push(`${df}: ${escalaDia.map(r=>`${r[2]} ${r[3]}-${r[4]}`).join(', ')}${folgasDia.length?` | Folga: ${folgasDia.map(r=>r[2]).join(', ')}`:''}${ausenciasDia.length?` | Ausente: ${ausenciasDia.map(a=>a[1]).join(', ')}`:''}`)
+    }
+  }
+
+  const equipeAtiva = equipeRaw.filter(r=>r[0]&&r[6]!=='Inativo').map(r=>`${r[0]} (${r[1]||'Op'}, ${r[5]||'CLT'})`).join(', ');
+
+  const contextoEscala = diasContexto.length > 0
+    ? `\n\nESCALA REAL (últimos 3 dias + próximos 14 dias):\n${diasContexto.join('\n')}`
+    : '';
+
   const sistema = `Você é o assistente operacional do Pulse IA, dashboard da equipe de TV ao vivo da LiveMode.
-IMPORTANTE: Você NÃO tem acesso à planilha de escalas nem ao Airtable. Quando perguntarem sobre dados específicos (quem está trabalhando, horários, eventos), diga claramente que não tem acesso aos dados em tempo real e oriente o usuário a verificar diretamente na tela de Escala ou Home do Pulse.
-Você PODE ajudar com: dúvidas sobre regras trabalhistas, como interpretar alertas, boas práticas de escala, sugestões gerais de cobertura, e como usar o Pulse.
-Usuário: ${session.nome}. Página atual: ${pagina||'/'}.
-Responda em português brasileiro informal. Seja direto e conciso. NÃO invente dados. NÃO use tabelas markdown. Use texto simples com bullets (•) se precisar listar.`;
+Você TEM ACESSO aos dados reais de escala abaixo. Use-os para responder perguntas específicas sobre quem está trabalhando, horários, folgas e cobertura.
+Usuário: ${session.nome}. Página: ${pagina||'/'}.
+Data/hora atual BRT: ${hoje.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'})}.
+
+EQUIPE ATIVA: ${equipeAtiva}${contextoEscala}
+
+Responda em português brasileiro informal. Seja direto e conciso. Use bullets (•) para listas. Máx 4 parágrafos.`;
 
   try {
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -55,7 +99,7 @@ Responda em português brasileiro informal. Seja direto e conciso. NÃO invente 
       },
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
-        max_tokens: 600,
+        max_tokens: 700,
         messages: [
           { role: 'system', content: sistema },
           ...messages.slice(-10)
