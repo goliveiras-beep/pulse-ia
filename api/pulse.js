@@ -10,10 +10,22 @@ const DIAS_SEMANA = {
   'quarta': 3, 'quinta': 4, 'sexta': 5, 'sabado': 6, 'sábado': 6
 };
 
-function parsearData(texto) {
+function getBRT() {
   const agora = new Date();
   const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
-  const hoje = new Date(brt.toISOString().split('T')[0]);
+  return new Date(brt.toISOString().split('T')[0]);
+}
+
+function parsearDataStr(str) {
+  const hoje = getBRT();
+  const partes = str.split('/');
+  const dia = parseInt(partes[0]);
+  const mes = partes[1] ? parseInt(partes[1]) - 1 : hoje.getMonth();
+  return new Date(hoje.getFullYear(), mes, dia);
+}
+
+function parsearDataTexto(texto) {
+  const hoje = getBRT();
 
   if (/\bhoje\b/i.test(texto)) return hoje;
   if (/\bamanh[aã]\b/i.test(texto)) { const d = new Date(hoje); d.setDate(d.getDate() + 1); return d; }
@@ -42,42 +54,55 @@ function parsearData(texto) {
   return null;
 }
 
-function parsearDataStr(str) {
-  const agora = new Date();
-  const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
-  const hoje = new Date(brt.toISOString().split('T')[0]);
-  const partes = str.split('/');
-  const dia = parseInt(partes[0]);
-  const mes = partes[1] ? parseInt(partes[1]) - 1 : hoje.getMonth();
-  return new Date(hoje.getFullYear(), mes, dia);
-}
-
-function parsearIntervalo(texto) {
-  const rangeMatch = texto.match(/de\s+(\d{1,2}\/\d{1,2}|\d{1,2})\s+(?:a|até)\s+(\d{1,2}\/\d{1,2}|\d{1,2})/i)
-    || texto.match(/do\s+dia\s+(\d{1,2}(?:\/\d{1,2})?)\s+ao\s+dia\s+(\d{1,2}(?:\/\d{1,2})?)/i);
-
-  if (rangeMatch) {
-    const inicio = parsearDataStr(rangeMatch[1]);
-    const fim = parsearDataStr(rangeMatch[2]);
-    if (inicio && fim) return { inicio, fim };
-  }
-
-  const data = parsearData(texto);
-  if (data) return { inicio: data, fim: data };
-  return null;
-}
-
 function formatarData(d) {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function detectarTipoAusencia(texto) {
-  if (/f[eé]rias/i.test(texto)) return 'Férias';
-  if (/atestado|médico|medico|doente|hospital|consulta/i.test(texto)) return 'Atestado';
-  if (/folga/i.test(texto)) return 'Folga';
-  if (/licen[çc]a/i.test(texto)) return 'Licença';
-  if (/falta/i.test(texto)) return 'Falta';
-  return null;
+const TIPOS = [
+  { tipo: 'Férias',   regex: /f[eé]rias/i },
+  { tipo: 'Atestado', regex: /atestado|médico|medico|doente|hospital|consulta/i },
+  { tipo: 'Folga',    regex: /folga/i },
+  { tipo: 'Licença',  regex: /licen[çc]a/i },
+  { tipo: 'Abono',    regex: /abono/i },
+  { tipo: 'Falta',    regex: /falta/i },
+];
+
+// Extrai todos os registros de ausência de uma mensagem
+// Ex: "folga dia 30/06, férias de 10/07 a 25/07 e abono dia 05/07"
+function extrairAusencias(texto) {
+  const ausencias = [];
+
+  // Divide por separadores comuns: vírgula, " e ", " + ", ponto e vírgula
+  const segmentos = texto.split(/,|\be\b|;|\+/i).map(s => s.trim()).filter(Boolean);
+
+  for (const seg of segmentos) {
+    const tipoEncontrado = TIPOS.find(t => t.regex.test(seg));
+    if (!tipoEncontrado) continue;
+
+    // Tenta intervalo (de X a Y)
+    const rangeMatch = seg.match(/de\s+(\d{1,2}\/\d{1,2}|\d{1,2})\s+(?:a|até)\s+(\d{1,2}\/\d{1,2}|\d{1,2})/i)
+      || seg.match(/do\s+dia\s+(\d{1,2}(?:\/\d{1,2})?)\s+ao\s+dia\s+(\d{1,2}(?:\/\d{1,2})?)/i);
+
+    let inicio, fim;
+
+    if (rangeMatch) {
+      inicio = parsearDataStr(rangeMatch[1]);
+      fim = parsearDataStr(rangeMatch[2]);
+    } else {
+      const data = parsearDataTexto(seg);
+      if (!data) continue;
+      inicio = data;
+      fim = data;
+    }
+
+    // Observação após "porque", "pois", "obs:", etc.
+    const obsMatch = seg.match(/(?:porque|pois|motivo[:\s]+|obs[:\s]+|observa[çc][aã]o[:\s]+)(.*)/i);
+    const observacao = obsMatch ? obsMatch[1].trim() : '';
+
+    ausencias.push({ tipo: tipoEncontrado.tipo, inicio, fim, observacao });
+  }
+
+  return ausencias;
 }
 
 function toHoraBRT(isoString) {
@@ -134,7 +159,6 @@ async function registrarAusencia({ userId, nomeUsuario, tipo, inicio, fim, obser
   const agora = new Date();
   const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
   const registradoEm = brt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-
   const dias = inicio.getTime() === fim.getTime()
     ? '1'
     : String(Math.round((fim - inicio) / (1000 * 60 * 60 * 24)) + 1);
@@ -174,6 +198,8 @@ async function slackPost(method, body) {
   return r.json();
 }
 
+const EMOJI = { 'Férias': '🏖️', 'Atestado': '🏥', 'Folga': '😴', 'Licença': '📋', 'Abono': '🎫', 'Falta': '📝' };
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const body = req.body;
@@ -189,43 +215,48 @@ export default async function handler(req, res) {
   try {
     await slackPost("chat.postMessage", { channel: channelId, text: "_Processando..._", mrkdwn: true });
 
-    const tipoAusencia = detectarTipoAusencia(userMessage);
+    // --- Detectar ausências (uma ou múltiplas) ---
+    const temTipoAusencia = TIPOS.some(t => t.regex.test(userMessage));
 
-    if (tipoAusencia) {
-      const intervalo = parsearIntervalo(userMessage);
+    if (temTipoAusencia) {
+      const ausencias = extrairAusencias(userMessage);
 
-      if (!intervalo) {
+      if (!ausencias.length) {
         await slackPost("chat.postMessage", {
           channel: channelId,
-          text: `Entendi que você quer registrar *${tipoAusencia.toLowerCase()}*, mas não consegui identificar a data. 📅\n\nTente assim:\n• _"Folga dia 30/06"_\n• _"Atestado hoje"_\n• _"Férias de 10/07 a 25/07"_`,
+          text: `Entendi que você quer registrar uma ausência, mas não consegui identificar as datas. 📅\n\nTente assim:\n• _"Folga dia 30/06"_\n• _"Atestado hoje"_\n• _"Férias de 10/07 a 25/07"_\n• _"Folga dia 30/06, abono dia 05/07 e férias de 10/07 a 25/07"_`,
           mrkdwn: true
         });
         return res.status(200).json({ ok: true });
       }
 
       const nomeUsuario = await getNomeSlack(userId);
-      const obsMatch = userMessage.match(/(?:porque|pois|motivo[:\s]+|obs[:\s]+|observa[çc][aã]o[:\s]+)(.*)/i);
-      const observacao = obsMatch ? obsMatch[1].trim() : '';
 
-      await registrarAusencia({ userId, nomeUsuario, tipo: tipoAusencia, inicio: intervalo.inicio, fim: intervalo.fim, observacao });
+      // Registra todas em paralelo
+      await Promise.all(ausencias.map(a => registrarAusencia({ userId, nomeUsuario, ...a })));
 
-      const mesmodia = intervalo.inicio.getTime() === intervalo.fim.getTime();
-      const periodoStr = mesmodia
-        ? `em *${formatarData(intervalo.inicio)}*`
-        : `de *${formatarData(intervalo.inicio)}* a *${formatarData(intervalo.fim)}*`;
+      // Monta confirmação
+      const linhas = ausencias.map(a => {
+        const emoji = EMOJI[a.tipo] || '📅';
+        const mesmodia = a.inicio.getTime() === a.fim.getTime();
+        const periodo = mesmodia
+          ? `*${formatarData(a.inicio)}*`
+          : `*${formatarData(a.inicio)}* a *${formatarData(a.fim)}*`;
+        return `${emoji} *${a.tipo}* — ${periodo}${a.observacao ? ` _(${a.observacao})_` : ''}`;
+      }).join('\n');
 
-      const emoji = { 'Férias': '🏖️', 'Atestado': '🏥', 'Folga': '😴', 'Licença': '📋', 'Falta': '📝' }[tipoAusencia] || '📅';
+      const plural = ausencias.length > 1 ? 'registros salvos' : 'registro salvo';
 
       await slackPost("chat.postMessage", {
         channel: channelId,
-        text: `${emoji} *${tipoAusencia} registrada com sucesso!*\n\n👤 *Colaborador:* ${nomeUsuario}\n📅 *Período:* ${periodoStr}\n📋 *Tipo:* ${tipoAusencia}${observacao ? `\n💬 *Obs:* ${observacao}` : ''}\n\nRegistro salvo na planilha. O RH foi notificado! ✅`,
+        text: `✅ *${ausencias.length} ${plural} com sucesso!*\n\n👤 *Colaborador:* ${nomeUsuario}\n\n${linhas}\n\nTudo na planilha. O RH foi notificado!`,
         mrkdwn: true
       });
 
       if (process.env.SLACK_RH_CHANNEL) {
         await slackPost("chat.postMessage", {
           channel: process.env.SLACK_RH_CHANNEL,
-          text: `${emoji} *Nova solicitação de ${tipoAusencia.toLowerCase()}*\n\n👤 *Colaborador:* ${nomeUsuario}\n📅 *Período:* ${periodoStr}${observacao ? `\n💬 *Obs:* ${observacao}` : ''}\n\n_Registrado via Pulse_`,
+          text: `📋 *Nova solicitação de ${nomeUsuario}*\n\n${linhas}\n\n_Registrado via Pulse_`,
           mrkdwn: true
         });
       }
@@ -238,20 +269,16 @@ export default async function handler(req, res) {
 
     let resposta;
     if (querGrade) {
-      const dataObj = parsearData(userMessage);
-      if (dataObj) {
-        const dataStr = dataObj.toISOString().split('T')[0];
-        const dataFormatada = dataObj.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-        const records = await getGradeData(dataStr);
-        resposta = `*Grade — ${dataFormatada}*\n\n${formatEvents(records, dataFormatada)}`;
-      } else {
-        const agora = new Date();
-        const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
-        const dataStr = brt.toISOString().split('T')[0];
-        const dataFormatada = brt.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-        const records = await getGradeData(dataStr);
-        resposta = `*Grade de hoje — ${dataFormatada}*\n\n${formatEvents(records, dataFormatada)}`;
-      }
+      const hoje = getBRT();
+      const dataObj = (() => {
+        // reutiliza parsearDataTexto mas precisamos de um texto limpo
+        return parsearDataTexto(userMessage) || hoje;
+      })();
+      const dataStr = dataObj.toISOString().split('T')[0];
+      const dataFormatada = dataObj.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      const records = await getGradeData(dataStr);
+      const label = dataObj.getTime() === hoje.getTime() ? 'Grade de hoje' : 'Grade';
+      resposta = `*${label} — ${dataFormatada}*\n\n${formatEvents(records, dataFormatada)}`;
     } else {
       resposta = await askAI(userMessage);
     }
