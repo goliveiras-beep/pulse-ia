@@ -55,7 +55,32 @@ async function getEventos(dataStr) {
   } catch { return []; }
 }
 
-function parseCookies(cookieHeader) {
+async function gerarFraseEncerrado(nomeEvento) {
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 60,
+        messages: [{
+          role: 'user',
+          content: `Crie UMA frase curta e engraçada em português brasileiro (máx 6 palavras) para celebrar que o evento de TV "${nomeEvento}" acabou de encerrar. Seja criativo, use humor leve, gírias brasileiras se quiser. Responda APENAS a frase, sem aspas.`
+        }]
+      })
+    });
+    const d = await r.json();
+    return d.content?.[0]?.text?.trim() || 'Esse foi sucesso!';
+  } catch {
+    return 'Missao cumprida!';
+  }
+}
+
+
   const cookies = {};
   if (!cookieHeader) return cookies;
   cookieHeader.split(';').forEach(c => {
@@ -381,18 +406,42 @@ export default async function handler(req, res) {
 
     function av(n,bg='#dbeafe',c='#1d4ed8'){return `<div style="width:24px;height:24px;border-radius:50%;background:${bg};color:${c};font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(n)}</div>`;}
 
-    function renderEventos(eventosCruzados, comOpacidade=false) {
+    async function renderEventos(eventosCruzados, comOpacidade=false) {
       if(eventosCruzados.length===0) return `<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>`;
-      return eventosCruzados.map(ev=>{
+      const cards = await Promise.all(eventosCruzados.map(async ev=>{
         const evMin = toMin(ev.hora);
         const encerrado = comOpacidade && evMin !== null && evMin < horaAtualMin - 30;
+        const fraseEnc = encerrado ? await gerarFraseEncerrado(ev.nome) : '';
+        const frasesEncerrado = [
+          'Esse aqui ja foi!',
+          'Menos um, galera!',
+          'Esse foi sucesso!',
+          'Missao cumprida!',
+          'Ja era, proximo!',
+          'Foi la e voltou!',
+          'Check! Ta no saco.',
+          'Encerrou bonito!',
+          'Passou voando!',
+          'Era uma vez... acabou.',
+          'Deu certo, segue o baile!',
+          'Evento no retrovisor!',
+          'Esse foi, e foi bem!',
+          'Producao entregue!',
+          'Mais um na conta!',
+          'Fechou com chave de ouro!',
+          'Operacao realizada com sucesso!',
+          'Esse a gente ja dominou!',
+          'Foi de primeira!',
+          'Tcharaaaaan! Acabou.',
+        ];
+        const fraseEnc = frasesEncerrado[Math.abs(toMin(ev.hora)||0) % frasesEncerrado.length];
         const [bc,bb,ic,itc]=ev.semCob?['#fef2f2','#fca5a5','!','#991b1b']:['#f0fdf4','#86efac','OK','#166534'];
         return `<div class="${encerrado?'ev-encerrado':''}" style="border:1px solid ${encerrado?'#e5e7eb':bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado?';opacity:.35':''}">
           <div style="background:${encerrado?'#f9fafb':bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
             <div style="font-size:13px;font-weight:700;color:${encerrado?'#9ca3af':'#1d4ed8'};min-width:50px">${ev.hora||'--'}</div>
             <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado?'#9ca3af':'#1a1a1a'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}</div></div>
             ${encerrado
-              ? `<div style="font-size:10px;font-weight:700;color:#9ca3af">Encerrado</div>`
+              ? `<div style="font-size:10px;font-weight:600;color:#9ca3af;font-style:italic">${fraseEnc}</div>`
               : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
                   <div style="font-size:10px;font-weight:700;color:${itc}">${ev.semCob?'Sem cobertura':'OK'}</div>
                   ${ev.semAntecedencia?`<span style="font-size:14px;animation:pulsar 1s infinite">&#9888;</span>`:''}
@@ -406,7 +455,8 @@ export default async function handler(req, res) {
             ${ev.aus.length?`<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:3px">${ev.aus.map(p=>`<span style="background:#f3f4f6;color:#9ca3af;border-radius:3px;padding:1px 6px;font-size:10px">${p.nome.split(' ')[0]}</span>`).join('')}</div>`:''}
           </div>`:''}
         </div>`;
-      }).join('');
+      }));
+      return cards.join('');
     }
 
     let tabelaHTML='';
@@ -456,7 +506,7 @@ export default async function handler(req, res) {
         <span class="badge blue">${eventosHoje.length} eventos</span>
         <span style="font-size:10px;color:#888;margin-left:auto">${hojeStr}</span>
       </div>
-      <div class="card-body" style="max-height:500px;overflow-y:auto">${renderEventos(eventosCruzadosHoje, true)}</div>
+      <div class="card-body" style="max-height:500px;overflow-y:auto">${await renderEventos(eventosCruzadosHoje, true)}</div>
     </div>
     <div class="card">
       <div class="card-header">
@@ -464,7 +514,7 @@ export default async function handler(req, res) {
         <span class="badge ${semCob>0?'red':comAtenc>0?'amber':'green'}">${eventosAmanha.length} eventos</span>
         <span style="font-size:10px;color:#888;margin-left:auto">${d1Str}</span>
       </div>
-      <div class="card-body" style="max-height:500px;overflow-y:auto">${renderEventos(eventosCruzadosAmanha, false)}</div>
+      <div class="card-body" style="max-height:500px;overflow-y:auto">${await renderEventos(eventosCruzadosAmanha, false)}</div>
     </div>
   </div>
 </div>
