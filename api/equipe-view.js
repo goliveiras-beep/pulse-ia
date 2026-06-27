@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     const isGestor = perfil==='gestor';
     const inativo = status==='Inativo';
     return `
-    <div data-nome-busca="${esc(nome)}" data-ordem="${idx}" style="background:#fff;border:1px solid ${inativo?'#e5e7eb':isGestor?'#dbeafe':'#e5e5e5'};border-radius:10px;padding:14px 16px;opacity:${inativo?'.6':'1'}">
+    <div data-nome-busca="${esc(nome)}" data-ordem="${idx}" style="background:var(--card);border:1px solid ${inativo?'#e5e7eb':isGestor?'#dbeafe':'#e5e5e5'};border-radius:10px;padding:14px 16px;opacity:${inativo?'.6':'1'}">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <div style="width:36px;height:36px;border-radius:50%;background:${isGestor?'#dbeafe':inativo?'#f3f4f6':'#f0fdf4'};color:${isGestor?'#1d4ed8':inativo?'#9ca3af':'#16a34a'};font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
         <div style="flex:1;min-width:0">
@@ -133,7 +133,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </style>
 </head><body>
 
-<div style="background:#1a1a1a;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100">
+<div style="background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100">
   <a href="/api/app" style="width:28px;height:28px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#1a1a1a;font-size:12px;font-weight:700;flex-shrink:0;text-decoration:none">P</a>
   <div>
     <div style="font-size:14px;font-weight:600;color:#fff">Pulse - Equipe</div>
@@ -151,29 +151,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
   <!-- Barra de filtros -->
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-    <div style="display:flex;gap:4px;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:3px">
+    <div style="display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:3px">
       <button id="view-grid" title="Quadradinhos" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">⊞</button>
       <button id="view-list" title="Lista" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">☰</button>
     </div>
-    <div style="display:flex;gap:4px;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:3px">
+    <div style="display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:3px">
       <button id="sort-default" title="Ordem original" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Padrão</button>
       <button id="sort-alpha" title="Ordem alfabética" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">A→Z</button>
     </div>
-    <input id="busca" placeholder="Buscar colaborador..." style="flex:1;min-width:160px;border:1px solid #e5e5e5;border-radius:8px;padding:7px 12px;font-size:12px;outline:none">
+    <input id="busca" placeholder="Buscar colaborador..." style="flex:1;min-width:160px;border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;outline:none;background:var(--input);color:var(--text)">
   </div>
 
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
-    <div style="background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px 14px">
-      <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Total ativo</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px">
+      <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Total ativo</div>
       <div style="font-size:26px;font-weight:700">${ativos.length}</div>
       <div style="font-size:10px;color:#aaa;margin-top:2px">colaboradores</div>
     </div>
-    <div style="background:#eff6ff;border:1px solid #dbeafe;border-radius:8px;padding:12px 14px">
+    <div style="background:var(--blue-m-bg);border:1px solid var(--blue-m-border);border-radius:8px;padding:12px 14px">
       <div style="font-size:10px;color:#1d4ed8;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Gestores</div>
       <div style="font-size:26px;font-weight:700;color:#1d4ed8">${ativos.filter(r=>r[8]==='gestor').length}</div>
       <div style="font-size:10px;color:#93c5fd;margin-top:2px">com acesso gestor</div>
     </div>
-    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px">
+    <div style="background:var(--amber-m-bg);border:1px solid var(--amber-m-border);border-radius:8px;padding:12px 14px">
       <div style="font-size:10px;color:#92400e;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Sem senha</div>
       <div style="font-size:26px;font-weight:700;color:#d97706">${equipeRaw.filter(r=>r[0]&&r[6]!=='Inativo'&&!r[7]).length}</div>
       <div style="font-size:10px;color:#fbbf24;margin-top:2px">primeiro acesso pendente</div>
@@ -204,7 +204,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div class="modal-bg" id="modal">
-  <div class="modal">
+  <div class="modal" style="background:var(--modal);color:var(--text)">
     <h3 id="modal-titulo">Adicionar colaborador</h3>
     <input type="hidden" id="f-linha">
     <input type="hidden" id="f-action" value="adicionar">
