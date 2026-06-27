@@ -614,7 +614,7 @@ export default async function handler(req, res) {
         <span class="badge blue">${eventosHoje.length} eventos</span>
         <span style="font-size:10px;color:var(--text3);margin-left:auto">${hojeStr}</span>
       </div>
-      <div class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosHoje, true)}</div>
+      <div id="cb-hoje" class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosHoje, true)}</div><script>(function(){var b=document.getElementById("cb-hoje");if(!b)return;var a=b.querySelector("[id=primeiro-ativo-hoje]");if(a)b.scrollTop=a.offsetTop-8;})()</script>
     </div>
 
     <!-- Coluna 2: #NossoDiaAmanhã (fixo) -->
@@ -698,16 +698,7 @@ function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.text
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
 
 // Scroll automático para o primeiro evento ativo no #NossoDia
-function scrollParaAtivo(){
-  var alvo = document.getElementById('primeiro-ativo-hoje');
-  var body = document.querySelector('#painel-dia-0 .card-body');
-  console.log('scroll attempt: alvo=',alvo,' body=',body);
-  if(!alvo || !body) return;
-  var top = alvo.offsetTop;
-  console.log('scrolling to top='+top);
-  body.scrollTop = top > 20 ? top - 8 : 0;
-}
-[100,500,1000,2000].forEach(function(t){ setTimeout(scrollParaAtivo,t); });
+
 var diaAtual3=0;
 function navDia(dir){
   var total=5;
