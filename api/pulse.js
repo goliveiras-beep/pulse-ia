@@ -51,7 +51,9 @@ function formatEvents(records, hoje) {
     const termino = toHoraBRT(f["Data c/ Pós"] || "");
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = f["Núcleo"] || "";
-    const local = f["fldeWtlwHewgiT598"] || "";
+    // Campo Padrão de Execução — pode ser array ou string
+    const localRaw = f["fldeWtlwHewgiT598"];
+    const local = Array.isArray(localRaw) ? localRaw.join(", ") : (localRaw || "");
     const hora = inicio && termino ? `_${inicio} → ${termino}_` : inicio ? `_${inicio}_` : "";
     let linha = `${i + 1}. ${hora} *${nome}* | ${tipo} | ${nucleo}`;
     if (local) linha += ` | 📍 ${local}`;
