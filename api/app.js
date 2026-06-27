@@ -679,21 +679,24 @@ async function salvarAjuste(){
 function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.textContent=msg;t.style.background=bg;t.style.display='block';setTimeout(()=>t.style.display='none',2500);}
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
 
-// Scroll automático para o primeiro evento ativo (não encerrado) no #NossoDia
-setTimeout(function(){
+// Scroll automático para o primeiro evento ativo no #NossoDia
+function scrollParaAtivo(){
   var body = document.querySelector('#painel-dia-0 .card-body');
   if(!body) return;
-  var divs = Array.from(body.querySelectorAll(':scope > div'));
-  var alvo = null;
+  var divs = Array.from(body.children);
+  var altura = 0;
   for(var i=0;i<divs.length;i++){
     var s = divs[i].getAttribute('style')||'';
-    if(s.indexOf('opacity') === -1){
-      alvo = divs[i];
+    if(s.indexOf('opacity:.35')!==-1 || s.indexOf('opacity: .35')!==-1){
+      altura += divs[i].offsetHeight + 10;
+    } else {
       break;
     }
   }
-  if(alvo) body.scrollTop = alvo.offsetTop - 4;
-}, 600);
+  if(altura > 0) body.scrollTop = altura;
+}
+setTimeout(scrollParaAtivo, 200);
+setTimeout(scrollParaAtivo, 800);
 var diaAtual3=0;
 function navDia(dir){
   var total=5;
