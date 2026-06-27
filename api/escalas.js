@@ -243,8 +243,26 @@ export default async function handler(req, res) {
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse - Escala</title>
 <style>
+:root{
+--bg:#f5f5f5;--bg2:#fff;--bg3:#fafafa;--border:#e5e5e5;
+--text:#1a1a1a;--text2:#555;--text3:#888;--text4:#aaa;
+--header:#1a1a1a;--card:#fff;--input:#fff;--modal:#fff;
+--btn-border:#444;--btn-c:#ccc;
+}
+@media(prefers-color-scheme:dark){:root{
+--bg:#0f0f0f;--bg2:#1a1a1a;--bg3:#222;--border:#2a2a2a;
+--text:#f0f0f0;--text2:#bbb;--text3:#777;--text4:#555;
+--header:#111;--card:#1a1a1a;--input:#222;--modal:#1e1e1e;
+--btn-border:#555;--btn-c:#999;
+}}
+@media(prefers-color-scheme:dark){
+body{background:var(--bg)!important;color:var(--text)!important}
+}
+@media(max-width:600px){
+div[style*="repeat(4,1fr)"]{grid-template-columns:repeat(2,1fr)!important}
+}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 a{text-decoration:none}
 </style>
 </head><body>
