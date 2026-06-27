@@ -102,10 +102,10 @@ async function getFraseDoDia(dataStr) {
         max_tokens: 80,
         messages: [{
           role: 'system',
-          content: 'Você gera frases curtinhas, leves e divertidas para alegrar equipes de TV. Sem pressão, sem cobrança. Tipo: "Café na veia e câmera no ar!", "Hoje a magia acontece aqui!", "Sinal verde, galera nota 10!". Máx 8 palavras. Só a frase, sem aspas.'
+          content: 'Responda com APENAS UMA frase curta de até 6 palavras. Sem explicações, sem listas, sem sugestões. Só a frase. Exemplo: Café na veia, câmera no ar!'
         },{
           role: 'user',
-          content: `Frase leve e animada para a equipe de TV ao vivo do dia ${dataStr}. Algo simples, positivo e engraçado. Sem pressão!`
+          content: `Uma frase curta e animada para equipe de TV. Dia ${dataStr}.`
         }]
       })
     });
@@ -701,7 +701,13 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
 window.addEventListener('load', function(){
   var b = document.getElementById('cb-hoje');
   var a = document.getElementById('primeiro-ativo-hoje');
-  if(b && a) b.scrollTop = Math.max(0, a.offsetTop - 60);
+  if(b && a){
+    // Calcula posição somando alturas dos irmãos anteriores
+    var pos = 0;
+    var el = a.previousElementSibling;
+    while(el){ pos += el.offsetHeight + 10; el = el.previousElementSibling; }
+    b.scrollTop = Math.max(0, pos - 60);
+  }
 });
 
 // Scroll automático para o primeiro evento ativo no #NossoDia
