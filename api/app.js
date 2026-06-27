@@ -449,11 +449,11 @@ export default async function handler(req, res) {
         const evMin = toMin(ev.hora);
         const encerrado = comOpacidade && evMin !== null && evMin < horaAtualMin - 30;
         const fraseEnc = encerrado ? gerarFraseEncerrado(ev.nome) : '';
-        const [bc,bb,itc]=ev.semCob?['#fef2f2','#fca5a5','#991b1b']:['#f0fdf4','#86efac','#166534'];
-        return `<div style="border:1px solid ${encerrado?'#e5e7eb':bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado?';opacity:.35':''}">
-          <div style="background:${encerrado?'#f9fafb':bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
-            <div style="font-size:13px;font-weight:700;color:${encerrado?'#9ca3af':'#1d4ed8'};min-width:50px">${ev.hora||'--'}</div>
-            <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado?'#9ca3af':'#1a1a1a'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}</div></div>
+        const [bc,bb,itc]=ev.semCob?['var(--badge-red-bg)','var(--badge-red-c)','var(--badge-red-c)']:['var(--badge-green-bg)','var(--badge-green-c)','var(--badge-green-c)'];
+        return `<div style="border:1px solid ${encerrado?'var(--border)':bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado?';opacity:.35':''}">
+          <div style="background:${encerrado?'var(--card)':bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
+            <div style="font-size:13px;font-weight:700;color:${encerrado?'var(--text3)':'var(--today-c)'};min-width:50px">${ev.hora||'--'}</div>
+            <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado?'var(--text3)':'var(--text)'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}</div></div>
             ${encerrado
               ? `<div style="font-size:10px;font-weight:600;color:#9ca3af;font-style:italic">${fraseEnc}</div>`
               : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
@@ -462,11 +462,11 @@ export default async function handler(req, res) {
                 </div>`
             }
           </div>
-          ${!encerrado?`<div style="padding:8px 12px">
-            ${ev.disp.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f5f5f5">${av(p.nome)}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#1d4ed8;font-weight:600">${p.ent}--${p.sai}</span></div>`).join('')}
-            ${ev.atenc.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #fef9c3">${av(p.nome,'#fef3c7','#92400e')}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#555">${p.ent}--${p.sai}</span></div>`).join('')}
+          ${!encerrado?`<div style="padding:8px 12px;background:var(--bg2)">
+            ${ev.disp.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border2)">${av(p.nome)}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#1d4ed8;font-weight:600">${p.ent}--${p.sai}</span></div>`).join('')}
+            ${ev.atenc.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border2)">${av(p.nome,'#fef3c7','#92400e')}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#555">${p.ent}--${p.sai}</span></div>`).join('')}
             ${ev.semCob?`<div style="text-align:center;padding:6px;color:#991b1b;font-size:11px;font-weight:600">Sem cobertura neste horario</div>`:''}
-            ${ev.aus.length?`<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:3px">${ev.aus.map(p=>`<span style="background:#f3f4f6;color:#9ca3af;border-radius:3px;padding:1px 6px;font-size:10px">${p.nome.split(' ')[0]}</span>`).join('')}</div>`:''}
+            ${ev.aus.length?`<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:3px">${ev.aus.map(p=>`<span style="background:var(--bg3);color:var(--text3);border-radius:3px;padding:1px 6px;font-size:10px">${p.nome.split(' ')[0]}</span>`).join('')}</div>`:''}
           </div>`:''}
         </div>`;
       }).join('');
@@ -508,7 +508,7 @@ export default async function handler(req, res) {
 </div>
 <div class="wrap">
   <div class="metrics">
-    <div class="metric blue-m"><div class="ml">Trabalhando amanha</div><div class="mv">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
+    <div class="metric blue-m" style="background:var(--blue-m-bg);border-color:var(--blue-m-border)"><div class="ml">Trabalhando amanha</div><div class="mv">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
     <div class="metric ${folgAmanha>2?'amber-m':''}"><div class="ml">Folgas amanha</div><div class="mv">${folgAmanha}</div><div class="ms">${ausencias.filter(a=>a[4]===d1Str).length} via Pulse</div></div>
     <div class="metric ${semCob>0?'red-m':''}"><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanha</div></div>
   </div>
