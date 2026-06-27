@@ -12,7 +12,7 @@ function getBRT() {
 }
 function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; }
 function iniciais(n) { return n.split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
-function hash(s) { return createHash('sha256').update(s + (process.env.PULSE_SECRET || 'pulse2026')).digest('hex').slice(0,32); }
+function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
 
 function getSession(req) {
   const cookies = {};
