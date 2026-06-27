@@ -10,34 +10,27 @@ const DIAS_SEMANA = {
 
 function parsearData(texto) {
   const agora = new Date();
-  // Ajusta para BRT
   const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
   const hoje = new Date(brt.toISOString().split('T')[0]);
 
-  // "hoje"
   if (/\bhoje\b/i.test(texto)) return hoje;
 
-  // "amanha" / "amanhã"
   if (/\bamanh[aã]\b/i.test(texto)) {
     const d = new Date(hoje); d.setDate(d.getDate() + 1); return d;
   }
 
-  // "ontem"
   if (/\bontem\b/i.test(texto)) {
     const d = new Date(hoje); d.setDate(d.getDate() - 1); return d;
   }
 
-  // "dia 28", "dia 28/06", "28/06"
   const diaMatch = texto.match(/dia\s+(\d{1,2})(?:\/(\d{1,2}))?/i) || texto.match(/(\d{1,2})\/(\d{1,2})/);
   if (diaMatch) {
     const dia = parseInt(diaMatch[1]);
     const mes = diaMatch[2] ? parseInt(diaMatch[2]) - 1 : hoje.getMonth();
     const ano = hoje.getFullYear();
-    const d = new Date(ano, mes, dia);
-    return d;
+    return new Date(ano, mes, dia);
   }
 
-  // "segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"
   for (const [nome, diaSemana] of Object.entries(DIAS_SEMANA)) {
     if (new RegExp(`\\b${nome}\\b`, 'i').test(texto)) {
       const d = new Date(hoje);
@@ -47,11 +40,54 @@ function parsearData(texto) {
     }
   }
 
-  // "próxima semana"
   if (/pr[oó]xima\s+semana/i.test(texto)) {
     const d = new Date(hoje); d.setDate(d.getDate() + 7); return d;
   }
 
+  return null;
+}
+
+// Detecta intervalo de datas (ex: "de 10/07 a 20/07", "do dia 5 ao dia 10")
+function parsearIntervalo(texto) {
+  // Formato: de DD/MM a DD/MM ou do dia X ao dia Y
+  const rangeMatch = texto.match(/de\s+(\d{1,2}\/\d{1,2}|\d{1,2})\s+(?:a|até)\s+(\d{1,2}\/\d{1,2}|\d{1,2})/i)
+    || texto.match(/do\s+dia\s+(\d{1,2}(?:\/\d{1,2})?)\s+ao\s+dia\s+(\d{1,2}(?:\/\d{1,2})?)/i);
+
+  if (rangeMatch) {
+    const inicio = parsearDataStr(rangeMatch[1]);
+    const fim = parsearDataStr(rangeMatch[2]);
+    if (inicio && fim) return { inicio, fim };
+  }
+
+  // Data única
+  const data = parsearData(texto);
+  if (data) return { inicio: data, fim: data };
+
+  return null;
+}
+
+function parsearDataStr(str) {
+  const agora = new Date();
+  const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
+  const hoje = new Date(brt.toISOString().split('T')[0]);
+
+  const partes = str.split('/');
+  const dia = parseInt(partes[0]);
+  const mes = partes[1] ? parseInt(partes[1]) - 1 : hoje.getMonth();
+  const ano = hoje.getFullYear();
+  return new Date(ano, mes, dia);
+}
+
+function formatarData(d) {
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function detectarTipoAusencia(texto) {
+  if (/f[eé]rias/i.test(texto)) return 'Férias';
+  if (/atestado|médico|medico|doente|hospital|consulta/i.test(texto)) return 'Atestado';
+  if (/folga/i.test(texto)) return 'Folga';
+  if (/licen[çc]a/i.test(texto)) return 'Licença';
+  if (/falta/i.test(texto)) return 'Falta';
   return null;
 }
 
@@ -97,6 +133,53 @@ function formatEvents(records, dataFormatada) {
   }).join("\n");
 }
 
+async function getNomeSlack(userId) {
+  const res = await fetch(`https://slack.com/api/users.info?user=${userId}`, {
+    headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` }
+  });
+  const data = await res.json();
+  return data?.user?.profile?.real_name || data?.user?.name || userId;
+}
+
+async function registrarAusencia({ userId, nomeUsuario, tipo, inicio, fim, observacao }) {
+  const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Ausências!A:A:append?valueInputOption=USER_ENTERED`;
+
+  const agora = new Date();
+  const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
+  const registradoEm = brt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+  const row = [
+    registradoEm,
+    nomeUsuario,
+    userId,
+    tipo,
+    formatarData(inicio),
+    formatarData(fim),
+    inicio.getTime() === fim.getTime() ? '1' : String(Math.round((fim - inicio) / (1000 * 60 * 60 * 24)) + 1),
+    observacao || '',
+    'Pendente'
+  ];
+
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Aus%C3%AAncias!A1:append?valueInputOption=USER_ENTERED`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.GOOGLE_SERVICE_ACCOUNT_TOKEN}`
+      },
+      body: JSON.stringify({ values: [row] })
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Sheets API erro: ${err}`);
+  }
+
+  return row;
+}
+
 async function askAI(message, context = "") {
   const userContent = context ? `${context}\n\nPergunta: ${message}` : message;
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -130,10 +213,67 @@ export default async function handler(req, res) {
 
   const userMessage = event.text.trim();
   const channelId = event.channel;
+  const userId = event.user;
 
   try {
-    await slackPost("chat.postMessage", { channel: channelId, text: "_Pensando..._", mrkdwn: true });
+    await slackPost("chat.postMessage", { channel: channelId, text: "_Processando..._", mrkdwn: true });
 
+    // --- Detectar ausência ---
+    const tipoAusencia = detectarTipoAusencia(userMessage);
+
+    if (tipoAusencia) {
+      const intervalo = parsearIntervalo(userMessage);
+
+      if (!intervalo) {
+        await slackPost("chat.postMessage", {
+          channel: channelId,
+          text: `Entendi que você quer registrar *${tipoAusencia.toLowerCase()}*, mas não consegui identificar a data. 📅\n\nTente assim:\n• _"Folga dia 30/06"_\n• _"Atestado hoje"_\n• _"Férias de 10/07 a 25/07"_`,
+          mrkdwn: true
+        });
+        return res.status(200).json({ ok: true });
+      }
+
+      const nomeUsuario = await getNomeSlack(userId);
+
+      // Extrai observação (texto após "porque", "motivo:", "obs:", etc.)
+      const obsMatch = userMessage.match(/(?:porque|pois|motivo[:\s]+|obs[:\s]+|observa[çc][aã]o[:\s]+)(.*)/i);
+      const observacao = obsMatch ? obsMatch[1].trim() : '';
+
+      await registrarAusencia({
+        userId,
+        nomeUsuario,
+        tipo: tipoAusencia,
+        inicio: intervalo.inicio,
+        fim: intervalo.fim,
+        observacao
+      });
+
+      const mesmodia = intervalo.inicio.getTime() === intervalo.fim.getTime();
+      const periodoStr = mesmodia
+        ? `em *${formatarData(intervalo.inicio)}*`
+        : `de *${formatarData(intervalo.inicio)}* a *${formatarData(intervalo.fim)}*`;
+
+      const emoji = { 'Férias': '🏖️', 'Atestado': '🏥', 'Folga': '😴', 'Licença': '📋', 'Falta': '📝' }[tipoAusencia] || '📅';
+
+      await slackPost("chat.postMessage", {
+        channel: channelId,
+        text: `${emoji} *${tipoAusencia} registrada com sucesso!*\n\n👤 *Colaborador:* ${nomeUsuario}\n📅 *Período:* ${periodoStr}\n📋 *Tipo:* ${tipoAusencia}${observacao ? `\n💬 *Obs:* ${observacao}` : ''}\n\nRegistro salvo na planilha. O RH foi notificado! ✅`,
+        mrkdwn: true
+      });
+
+      // Notifica canal de RH/gestão se configurado
+      if (process.env.SLACK_RH_CHANNEL) {
+        await slackPost("chat.postMessage", {
+          channel: process.env.SLACK_RH_CHANNEL,
+          text: `${emoji} *Nova solicitação de ${tipoAusencia.toLowerCase()}*\n\n👤 *Colaborador:* ${nomeUsuario}\n📅 *Período:* ${periodoStr}${observacao ? `\n💬 *Obs:* ${observacao}` : ''}\n\n_Registrado via Pulse_`,
+          mrkdwn: true
+        });
+      }
+
+      return res.status(200).json({ ok: true });
+    }
+
+    // --- Consultar grade ---
     const querGrade = /grade|evento|agenda|transmiss|ao vivo|jogo|partida|futebol|copa|programa/i.test(userMessage);
 
     let resposta;
@@ -146,7 +286,6 @@ export default async function handler(req, res) {
         const records = await getGradeData(dataStr);
         resposta = `*Grade — ${dataFormatada}*\n\n${formatEvents(records, dataFormatada)}`;
       } else {
-        // Sem data específica → assume hoje
         const agora = new Date();
         const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
         const dataStr = brt.toISOString().split('T')[0];
@@ -160,9 +299,10 @@ export default async function handler(req, res) {
 
     await slackPost("chat.postMessage", { channel: channelId, text: resposta, mrkdwn: true });
     return res.status(200).json({ ok: true });
+
   } catch (err) {
     console.error("ERRO:", err.message);
-    await slackPost("chat.postMessage", { channel: channelId, text: `Erro: ${err.message}` });
+    await slackPost("chat.postMessage", { channel: channelId, text: `Erro interno: ${err.message}` });
     return res.status(200).json({ ok: true });
   }
 }
