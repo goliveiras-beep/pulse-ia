@@ -51,6 +51,7 @@ async function getEventos(dataStr) {
       nome:r.fields['Match ID']||'Evento',
       hora:r.fields['Horário KO']||r.fields['PGM (horário)']||'',
       tipo:r.fields['Tipo de Conteúdo']||'',
+      local:r.fields['fldeWtlwHewgiT598']||r.fields['Local']||r.fields['Estúdio']||r.fields['Studio']||'',
     })).sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
   } catch { return []; }
 }
@@ -405,11 +406,22 @@ export default async function handler(req, res) {
     return Array.from({length:7},(_,i)=>{const d=new Date(s);d.setDate(s.getDate()+i);return d;});
   });
 
-  const [escalaRaw, ausenciasRaw, eventosHoje, eventosAmanha, fraseDoDia] = await Promise.all([
+  const d2 = new Date(hoje); d2.setDate(hoje.getDate()+2);
+  const d3 = new Date(hoje); d3.setDate(hoje.getDate()+3);
+  const d4 = new Date(hoje); d4.setDate(hoje.getDate()+4);
+  const d5 = new Date(hoje); d5.setDate(hoje.getDate()+5);
+  const d6 = new Date(hoje); d6.setDate(hoje.getDate()+6);
+
+  const [escalaRaw, ausenciasRaw, eventosHoje, eventosAmanha, eventosD2, eventosD3, eventosD4, eventosD5, eventosD6, fraseDoDia] = await Promise.all([
     getSheet('Escala!A2:F500'),
     getSheet('Ausencias!A2:I500'),
     getEventos(fmtAirtable(hoje)),
     getEventos(fmtAirtable(d1)),
+    getEventos(fmtAirtable(d2)),
+    getEventos(fmtAirtable(d3)),
+    getEventos(fmtAirtable(d4)),
+    getEventos(fmtAirtable(d5)),
+    getEventos(fmtAirtable(d6)),
     getFraseDoDia(hojeStr),
   ]);
 
@@ -462,6 +474,16 @@ export default async function handler(req, res) {
     const eventosCruzadosHoje = cruzarEventos(eventosHoje, escHoje, hojeStr);
     const eventosCruzadosAmanha = cruzarEventos(eventosAmanha, escD1, d1Str);
 
+    const diasNav = [
+      {label:'#NossoDia', sublabel: hojeStr, eventos: eventosCruzadosHoje, total: eventosHoje.length, key:'hoje', data: hojeStr, comOpac: true},
+      {label:'#NossoDiaAmanhã', sublabel: d1Str, eventos: eventosCruzadosAmanha, total: eventosAmanha.length, key:'amanha', data: d1Str, comOpac: false},
+      {label:fmtData(d2), sublabel: DIAS_PT[d2.getDay()], eventos: cruzarEventos(eventosD2, escala.filter(r=>r[0]===fmtData(d2)), fmtData(d2)), total: eventosD2.length, key:'d2', data: fmtData(d2), comOpac: false},
+      {label:fmtData(d3), sublabel: DIAS_PT[d3.getDay()], eventos: cruzarEventos(eventosD3, escala.filter(r=>r[0]===fmtData(d3)), fmtData(d3)), total: eventosD3.length, key:'d3', data: fmtData(d3), comOpac: false},
+      {label:fmtData(d4), sublabel: DIAS_PT[d4.getDay()], eventos: cruzarEventos(eventosD4, escala.filter(r=>r[0]===fmtData(d4)), fmtData(d4)), total: eventosD4.length, key:'d4', data: fmtData(d4), comOpac: false},
+      {label:fmtData(d5), sublabel: DIAS_PT[d5.getDay()], eventos: cruzarEventos(eventosD5, escala.filter(r=>r[0]===fmtData(d5)), fmtData(d5)), total: eventosD5.length, key:'d5', data: fmtData(d5), comOpac: false},
+      {label:fmtData(d6), sublabel: DIAS_PT[d6.getDay()], eventos: cruzarEventos(eventosD6, escala.filter(r=>r[0]===fmtData(d6)), fmtData(d6)), total: eventosD6.length, key:'d6', data: fmtData(d6), comOpac: false},
+    ];
+
     const semCob=eventosCruzadosAmanha.filter(e=>e.semCob).length;
     const comAtenc=eventosCruzadosAmanha.filter(e=>e.atenc.length>0).length;
     const trabAmanha=escD1.filter(r=>r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Folga/Ausente').length;
@@ -481,7 +503,7 @@ export default async function handler(req, res) {
         return `<div style="border:1px solid ${encerrado?'var(--border)':bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado?';opacity:.35':''}">
           <div style="background:${encerrado?'var(--card)':bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
             <div style="font-size:13px;font-weight:700;color:${encerrado?'var(--text3)':'var(--today-c)'};min-width:50px">${ev.hora||'--'}</div>
-            <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado?'var(--text3)':'var(--text)'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}</div></div>
+            <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado?'var(--text3)':'var(--text)'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}${ev.local?' · <span style=\'font-weight:600;color:var(--text3)\'>' + ev.local + '</span>':''}</div></div>
             ${encerrado
               ? `<div style="font-size:10px;font-weight:600;color:#9ca3af;font-style:italic">${fraseEnc}</div>`
               : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
@@ -523,7 +545,19 @@ export default async function handler(req, res) {
 
     const conteudo=`
 <div class="header">
-  <div class="logo">P</div>
+  <div class="logo" style="background:none;padding:0;overflow:visible"><svg width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="hg" cx="38%" cy="35%" r="62%">
+      <stop offset="0%" stop-color="#ff6b6b"/>
+      <stop offset="45%" stop-color="#e53e3e"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/>
+  <rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/>
+  <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
+  <polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg></div>
   <div><div class="ht">Pulse <span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:4px">Gestor</span></div><div class="hs">${DIAS_FULL[d1.getDay()]} ${d1Str} · ${atualizado}</div></div>
   <div class="hr">
     <span style="font-size:12px;color:#666">Ola, ${nome.split(' ')[0]}</span>
@@ -540,24 +574,23 @@ export default async function handler(req, res) {
     <div class="metric blue-m" style="background:var(--blue-m-bg);border-color:var(--blue-m-border)"><div class="ml">Trabalhando amanha</div><div class="mv">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
     <div class="metric ${folgAmanha>2?'amber-m':''}"><div class="ml">Folgas amanha</div><div class="mv">${folgAmanha}</div><div class="ms">${ausencias.filter(a=>a[4]===d1Str).length} via Pulse</div></div>
     <div class="metric ${semCob>0?'red-m':''}"><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanha</div></div>
-    <div class="metric" style="grid-column:span 1;display:flex;align-items:center;justify-content:center;text-align:center"><div style="font-size:13px;font-style:italic;color:var(--text2);line-height:1.4">"${fraseDoDia}"<div style="font-size:9px;color:var(--text3);margin-top:4px;font-style:normal">frase do dia ✨</div></div></div>
-  </div>
-  <div class="layout2">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">#NossoDia</span>
-        <span class="badge blue">${eventosHoje.length} eventos</span>
-        <span style="font-size:10px;color:#888;margin-left:auto">${hojeStr}</span>
+    <div class="metric" style="grid-column:span 1;display:flex;align-items:center;justify-content:center;text-align:center">
+      <div>
+        <div style="display:inline-flex;align-items:center;gap:6px;background:#fef2f2;border:1px solid #fca5a5;border-radius:20px;padding:3px 10px 3px 6px;margin-bottom:6px">
+          <svg width="16" height="16" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/><path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/><polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:9px;font-weight:600;color:#991b1b;letter-spacing:.04em">FRASE DO DIA</span>
+        </div>
+        <div style="font-size:12px;font-style:italic;color:var(--text2);line-height:1.4">"${fraseDoDia}"</div>
       </div>
-      <div class="card-body" style="max-height:500px;overflow-y:auto">${renderEventos(eventosCruzadosHoje, true)}</div>
     </div>
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">#NossoDiaAmanhã</span>
-        <span class="badge ${semCob>0?'red':comAtenc>0?'amber':'green'}">${eventosAmanha.length} eventos</span>
-        <span style="font-size:10px;color:#888;margin-left:auto">${d1Str}</span>
-      </div>
-      <div class="card-body" style="max-height:500px;overflow-y:auto">${renderEventos(eventosCruzadosAmanha, false)}</div>
+  </div>
+  <!-- Navegação 7 dias -->
+  <div>
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;-webkit-overflow-scrolling:touch">
+      ${diasNav.map((d,i)=>`<button onclick="mostrarDia(${i})" id="tab-dia-${i}" style="flex-shrink:0;background:${i===0?'#e53e3e':'var(--card)'};color:${i===0?'#fff':'var(--text2)'};border:1px solid ${i===0?'#e53e3e':'var(--border)'};border-radius:8px;padding:6px 14px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;min-width:80px;text-align:center"><div style="font-size:9px;opacity:.8">${d.sublabel}</div><div>${d.label}</div><div style="font-size:9px;opacity:.7">${d.total} ev.</div></button>`).join('')}
+    </div>
+    <div style="margin-top:8px">
+      ${diasNav.map((d,i)=>`<div id="painel-dia-${i}" style="display:${i===0?'block':'none'}"><div class="card"><div class="card-header"><span class="card-title">${d.label}</span><span class="badge ${`${d.eventos.filter(e=>e.semCob).length>0?'red':'blue'}`}">${d.total} eventos</span><span style="font-size:10px;color:var(--text3);margin-left:auto">${d.data}</span></div><div class="card-body" style="max-height:500px;overflow-y:auto">${renderEventos(d.eventos, d.comOpac)}</div></div></div>`).join('')}
     </div>
   </div>
 </div>
@@ -611,6 +644,20 @@ async function salvarAjuste(){
 }
 function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.textContent=msg;t.style.background=bg;t.style.display='block';setTimeout(()=>t.style.display='none',2500);}
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
+function mostrarDia(idx){
+  for(var i=0;i<7;i++){
+    var tab=document.getElementById('tab-dia-'+i);
+    var painel=document.getElementById('painel-dia-'+i);
+    if(!tab||!painel) continue;
+    if(i===idx){
+      tab.style.background='#e53e3e';tab.style.color='#fff';tab.style.borderColor='#e53e3e';
+      painel.style.display='block';
+    } else {
+      tab.style.background='var(--card)';tab.style.color='var(--text2)';tab.style.borderColor='var(--border)';
+      painel.style.display='none';
+    }
+  }
+}
 </script>`;
 
     return res.status(200).send(baseHTML('Gestor', conteudo + CHAT_IA, script));
@@ -661,7 +708,19 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
 
     const conteudo=`
 <div class="header">
-  <div class="logo">P</div>
+  <div class="logo" style="background:none;padding:0;overflow:visible"><svg width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="hg" cx="38%" cy="35%" r="62%">
+      <stop offset="0%" stop-color="#ff6b6b"/>
+      <stop offset="45%" stop-color="#e53e3e"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/>
+  <rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/>
+  <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
+  <polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg></div>
   <div><div class="ht">Pulse</div><div class="hs">Meu turno</div></div>
   <div class="hr">
     <span style="font-size:11px;color:#666">${atualizado}</span>
