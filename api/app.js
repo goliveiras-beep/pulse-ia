@@ -246,6 +246,33 @@ tr:hover td{background:#fafafa!important}
 </style>
 ${conteudo}
 ${script}
+
+<div id="chat-ia-btn" onclick="toggleChat()" style="position:fixed;bottom:24px;right:24px;z-index:900;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);box-shadow:0 4px 20px rgba(99,102,241,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:transform .2s" title="Assistente IA">&#10024;</div>
+<div id="chat-ia-box" style="display:none;position:fixed;bottom:88px;right:24px;z-index:900;width:360px;max-width:calc(100vw - 48px);background:#1e2230;border:1px solid #3d4660;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.6);overflow:hidden;flex-direction:column">
+  <div style="background:#161920;padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2d3748">
+    <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">&#10024;</div>
+    <div style="flex:1"><div style="font-size:13px;font-weight:600;color:#e2e8f0">Pulse IA</div><div style="font-size:10px;color:#718096">Assistente operacional</div></div>
+    <button onclick="limparChat()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:14px;padding:4px">&#128465;</button>
+    <button onclick="toggleChat()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:20px;padding:4px;line-height:1">&times;</button>
+  </div>
+  <div id="chat-ia-msgs" style="height:320px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px">
+    <div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Oi! Sou o assistente do Pulse. Pergunte sobre escalas, cobertura de eventos ou alertas trabalhistas. &#128075;</div>
+  </div>
+  <div style="padding:10px 12px;border-top:1px solid #2d3748;display:flex;gap:8px;align-items:flex-end">
+    <textarea id="chat-ia-input" placeholder="Pergunte sobre a operacao..." rows="1" onkeydown="chatKeyDown(event)" oninput="autoResize(this)" style="flex:1;background:#2d3140;border:1px solid #3d4660;border-radius:8px;padding:8px 10px;font-size:12px;color:#e2e8f0;outline:none;resize:none;font-family:inherit;max-height:100px;line-height:1.4"></textarea>
+    <button onclick="enviarMensagem()" id="chat-ia-send" style="background:linear-gradient(135deg,#1d4ed8,#7c3aed);border:none;border-radius:8px;width:36px;height:36px;cursor:pointer;font-size:14px;flex-shrink:0;color:#fff">&#10148;</button>
+  </div>
+</div>
+<style>@keyframes chatpulse{0%,100%{opacity:1}50%{opacity:.3}}#chat-ia-btn:hover{transform:scale(1.1)!important}</style>
+<script>
+var chatAberto=false,chatHistorico=[],chatPagina=window.location.pathname+window.location.search;
+function toggleChat(){chatAberto=!chatAberto;var box=document.getElementById('chat-ia-box');box.style.display=chatAberto?'flex':'none';document.getElementById('chat-ia-btn').style.transform=chatAberto?'scale(0.9)':'scale(1)';if(chatAberto){setTimeout(function(){document.getElementById('chat-ia-input').focus();},100);var m=document.getElementById('chat-ia-msgs');m.scrollTop=m.scrollHeight;}}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
+function chatKeyDown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviarMensagem();}}
+function limparChat(){chatHistorico=[];document.getElementById('chat-ia-msgs').innerHTML='<div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Conversa limpa! Como posso ajudar? &#128075;</div>';}
+function addMsg(texto,tipo){var msgs=document.getElementById('chat-ia-msgs');var div=document.createElement('div');if(tipo==='user'){div.style.cssText='background:#1a2744;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;align-self:flex-end';div.textContent=texto;}else if(tipo==='load'){div.id='chat-load';div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#718096;max-width:90%';div.innerHTML='<span style="animation:chatpulse 1s infinite">&#10024; Pensando...</span>';}else{div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;white-space:pre-wrap';div.textContent=texto;}msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;}
+async function enviarMensagem(){var input=document.getElementById('chat-ia-input');var texto=input.value.trim();if(!texto)return;input.value='';input.style.height='auto';addMsg(texto,'user');chatHistorico.push({role:'user',content:texto});var load=addMsg('','load');var btn=document.getElementById('chat-ia-send');btn.disabled=true;btn.style.opacity='.5';try{var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:chatHistorico,pagina:chatPagina})});var d=await r.json();load.remove();var resp=d.resposta||'Nao consegui responder agora.';addMsg(resp,'ia');chatHistorico.push({role:'assistant',content:resp});}catch(e){load.remove();addMsg('Erro de conexao. Tenta de novo!','ia');}btn.disabled=false;btn.style.opacity='1';}
+</script>
 </html>`;
 }
 
@@ -610,7 +637,34 @@ function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.text
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
 </script>`;
 
-    return res.status(200).send(baseHTML('Gestor', conteudo, script));
+    const chatIA = `
+<div id="chat-ia-btn" onclick="toggleChat()" style="position:fixed;bottom:24px;right:24px;z-index:900;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);box-shadow:0 4px 20px rgba(99,102,241,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:transform .2s" title="Assistente IA">&#10024;</div>
+<div id="chat-ia-box" style="display:none;position:fixed;bottom:88px;right:24px;z-index:900;width:360px;max-width:calc(100vw - 48px);background:#1e2230;border:1px solid #3d4660;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.6);overflow:hidden;flex-direction:column">
+  <div style="background:#161920;padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2d3748">
+    <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">&#10024;</div>
+    <div style="flex:1"><div style="font-size:13px;font-weight:600;color:#e2e8f0">Pulse IA</div><div style="font-size:10px;color:#718096">Assistente operacional</div></div>
+    <button onclick="limparChat()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:14px;padding:4px">&#128465;</button>
+    <button onclick="toggleChat()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:20px;padding:4px;line-height:1">&times;</button>
+  </div>
+  <div id="chat-ia-msgs" style="height:320px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px">
+    <div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Oi! Sou o assistente do Pulse. Pergunte sobre escalas, cobertura de eventos ou alertas trabalhistas. &#128075;</div>
+  </div>
+  <div style="padding:10px 12px;border-top:1px solid #2d3748;display:flex;gap:8px;align-items:flex-end">
+    <textarea id="chat-ia-input" placeholder="Pergunte sobre a operacao..." rows="1" onkeydown="chatKeyDown(event)" oninput="autoResize(this)" style="flex:1;background:#2d3140;border:1px solid #3d4660;border-radius:8px;padding:8px 10px;font-size:12px;color:#e2e8f0;outline:none;resize:none;font-family:inherit;max-height:100px;line-height:1.4"></textarea>
+    <button onclick="enviarMensagem()" id="chat-ia-send" style="background:linear-gradient(135deg,#1d4ed8,#7c3aed);border:none;border-radius:8px;width:36px;height:36px;cursor:pointer;font-size:14px;flex-shrink:0;color:#fff">&#10148;</button>
+  </div>
+</div>
+<style>@keyframes chatpulse{0%,100%{opacity:1}50%{opacity:.3}}#chat-ia-btn:hover{transform:scale(1.1)!important}</style>
+<script>
+var chatAberto=false,chatHistorico=[],chatPagina=window.location.pathname+window.location.search;
+function toggleChat(){chatAberto=!chatAberto;var box=document.getElementById('chat-ia-box');box.style.display=chatAberto?'flex':'none';document.getElementById('chat-ia-btn').style.transform=chatAberto?'scale(0.9)':'scale(1)';if(chatAberto){setTimeout(function(){document.getElementById('chat-ia-input').focus();},100);var m=document.getElementById('chat-ia-msgs');m.scrollTop=m.scrollHeight;}}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
+function chatKeyDown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviarMensagem();}}
+function limparChat(){chatHistorico=[];document.getElementById('chat-ia-msgs').innerHTML='<div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Conversa limpa! Como posso ajudar? &#128075;</div>';}
+function addMsg(texto,tipo){var msgs=document.getElementById('chat-ia-msgs');var div=document.createElement('div');if(tipo==='user'){div.style.cssText='background:#1a2744;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;align-self:flex-end';div.textContent=texto;}else if(tipo==='load'){div.id='chat-load';div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#718096;max-width:90%';div.innerHTML='<span style="animation:chatpulse 1s infinite">&#10024; Pensando...</span>';}else{div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;white-space:pre-wrap';div.textContent=texto;}msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;}
+async function enviarMensagem(){var input=document.getElementById('chat-ia-input');var texto=input.value.trim();if(!texto)return;input.value='';input.style.height='auto';addMsg(texto,'user');chatHistorico.push({role:'user',content:texto});var load=addMsg('','load');var btn=document.getElementById('chat-ia-send');btn.disabled=true;btn.style.opacity='.5';try{var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:chatHistorico,pagina:chatPagina})});var d=await r.json();load.remove();var resp=d.resposta||'Nao consegui responder agora.';addMsg(resp,'ia');chatHistorico.push({role:'assistant',content:resp});}catch(e){load.remove();addMsg('Erro de conexao. Tenta de novo!','ia');}btn.disabled=false;btn.style.opacity='1';}
+</script>`;
+    return res.status(200).send(baseHTML('Gestor', conteudo + chatIA, script));
 
   } else {
     const cargo = usuario?.[1]||'', nucleo = usuario?.[2]||'Operacoes';
@@ -685,6 +739,33 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
   <div style="text-align:center;padding:16px 0;font-size:11px;color:#aaa">Para registrar folga ou ausencia, mande um DM para o Pulse no Slack</div>
 </div>`;
 
-    return res.status(200).send(baseHTML('Meu turno', conteudo));
+    const chatIAm = `
+<div id="chat-ia-btn" onclick="toggleChat()" style="position:fixed;bottom:24px;right:24px;z-index:900;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);box-shadow:0 4px 20px rgba(99,102,241,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:transform .2s" title="Assistente IA">&#10024;</div>
+<div id="chat-ia-box" style="display:none;position:fixed;bottom:88px;right:24px;z-index:900;width:360px;max-width:calc(100vw - 48px);background:#1e2230;border:1px solid #3d4660;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.6);overflow:hidden;flex-direction:column">
+  <div style="background:#161920;padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2d3748">
+    <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">&#10024;</div>
+    <div style="flex:1"><div style="font-size:13px;font-weight:600;color:#e2e8f0">Pulse IA</div><div style="font-size:10px;color:#718096">Assistente operacional</div></div>
+    <button onclick="limparChat()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:14px;padding:4px">&#128465;</button>
+    <button onclick="toggleChat()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:20px;padding:4px;line-height:1">&times;</button>
+  </div>
+  <div id="chat-ia-msgs" style="height:320px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px">
+    <div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Oi! Sou o assistente do Pulse. Pergunte sobre escalas, cobertura de eventos ou alertas trabalhistas. &#128075;</div>
+  </div>
+  <div style="padding:10px 12px;border-top:1px solid #2d3748;display:flex;gap:8px;align-items:flex-end">
+    <textarea id="chat-ia-input" placeholder="Pergunte sobre a operacao..." rows="1" onkeydown="chatKeyDown(event)" oninput="autoResize(this)" style="flex:1;background:#2d3140;border:1px solid #3d4660;border-radius:8px;padding:8px 10px;font-size:12px;color:#e2e8f0;outline:none;resize:none;font-family:inherit;max-height:100px;line-height:1.4"></textarea>
+    <button onclick="enviarMensagem()" id="chat-ia-send" style="background:linear-gradient(135deg,#1d4ed8,#7c3aed);border:none;border-radius:8px;width:36px;height:36px;cursor:pointer;font-size:14px;flex-shrink:0;color:#fff">&#10148;</button>
+  </div>
+</div>
+<style>@keyframes chatpulse{0%,100%{opacity:1}50%{opacity:.3}}#chat-ia-btn:hover{transform:scale(1.1)!important}</style>
+<script>
+var chatAberto=false,chatHistorico=[],chatPagina=window.location.pathname+window.location.search;
+function toggleChat(){chatAberto=!chatAberto;var box=document.getElementById('chat-ia-box');box.style.display=chatAberto?'flex':'none';document.getElementById('chat-ia-btn').style.transform=chatAberto?'scale(0.9)':'scale(1)';if(chatAberto){setTimeout(function(){document.getElementById('chat-ia-input').focus();},100);var m=document.getElementById('chat-ia-msgs');m.scrollTop=m.scrollHeight;}}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
+function chatKeyDown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviarMensagem();}}
+function limparChat(){chatHistorico=[];document.getElementById('chat-ia-msgs').innerHTML='<div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Conversa limpa! Como posso ajudar? &#128075;</div>';}
+function addMsg(texto,tipo){var msgs=document.getElementById('chat-ia-msgs');var div=document.createElement('div');if(tipo==='user'){div.style.cssText='background:#1a2744;border-radius:10px 10px 2px 10px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;align-self:flex-end';div.textContent=texto;}else if(tipo==='load'){div.id='chat-load';div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#718096;max-width:90%';div.innerHTML='<span style="animation:chatpulse 1s infinite">&#10024; Pensando...</span>';}else{div.style.cssText='background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%;white-space:pre-wrap';div.textContent=texto;}msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;}
+async function enviarMensagem(){var input=document.getElementById('chat-ia-input');var texto=input.value.trim();if(!texto)return;input.value='';input.style.height='auto';addMsg(texto,'user');chatHistorico.push({role:'user',content:texto});var load=addMsg('','load');var btn=document.getElementById('chat-ia-send');btn.disabled=true;btn.style.opacity='.5';try{var r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:chatHistorico,pagina:chatPagina})});var d=await r.json();load.remove();var resp=d.resposta||'Nao consegui responder agora.';addMsg(resp,'ia');chatHistorico.push({role:'assistant',content:resp});}catch(e){load.remove();addMsg('Erro de conexao. Tenta de novo!','ia');}btn.disabled=false;btn.style.opacity='1';}
+</script>`;
+    return res.status(200).send(baseHTML('Meu turno', conteudo + chatIAm));
   }
 }
