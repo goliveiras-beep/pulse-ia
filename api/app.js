@@ -346,7 +346,14 @@ export default async function handler(req, res) {
             st?atenc.push({nome:n,ent,sai,status:st}):disp.push({nome:n,ent,sai});
           }
         });
-        return{...ev,disp,atenc,aus,semCob:disp.length===0&&atenc.length===0};
+        const semCob = disp.length===0&&atenc.length===0;
+        // Verifica antecedencia: alguem com entrada >= 1h antes do evento
+        const evMin = toMin(ev.hora);
+        const temAntecedencia = evMin===null || disp.concat(atenc).some(p=>{
+          const entMin = toMin(p.ent);
+          return entMin!==null && (evMin - entMin) >= 60;
+        });
+        return{...ev,disp,atenc,aus,semCob,semAntecedencia:!semCob&&!temAntecedencia};
       });
     }
 
@@ -374,7 +381,10 @@ export default async function handler(req, res) {
             <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado?'#9ca3af':'#1a1a1a'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}</div></div>
             ${encerrado
               ? `<div style="font-size:10px;font-weight:700;color:#9ca3af">Encerrado</div>`
-              : `<div style="font-size:10px;font-weight:700;color:${itc}">${ic} ${ev.semCob?'Sem cobertura':ev.atenc.length?'Troca de turno':'OK'}</div>`
+              : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+                  <div style="font-size:10px;font-weight:700;color:${itc}">${ic} ${ev.semCob?'Sem cobertura':ev.atenc.length?'Troca de turno':'OK'}</div>
+                  ${ev.semAntecedencia?`<div style="font-size:9px;font-weight:600;color:#92400e;background:#fef3c7;border-radius:3px;padding:1px 6px">sem antecedencia</div>`:''}
+                </div>`
             }
           </div>
           ${!encerrado?`<div style="padding:8px 12px">
