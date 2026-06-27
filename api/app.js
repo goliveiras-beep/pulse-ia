@@ -159,37 +159,37 @@ html.dark{
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-.header{background:#1a1a1a;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
-.logo{width:28px;height:28px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#1a1a1a;font-size:12px;font-weight:700;flex-shrink:0}
+.header{background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
+.logo{width:28px;height:28px;background:var(--logo-bg);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--logo-c);font-size:12px;font-weight:700;flex-shrink:0}
 .ht{font-size:14px;font-weight:600;color:#fff}
-.hs{font-size:11px;color:#666}
+.hs{font-size:11px;color:var(--text3)}
 .hr{margin-left:auto;display:flex;align-items:center;gap:8px}
-.btn-sm{background:none;border:1px solid #444;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;color:#ccc;text-decoration:none;display:inline-block}
-.btn-sm:hover{background:#333}
+.btn-sm{background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;color:var(--btn-c);text-decoration:none;display:inline-block}
+.btn-sm:hover{background:var(--bg3)}
 .wrap{max-width:1100px;margin:0 auto;padding:16px 20px}
-.card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden;margin-bottom:14px}
-.card-header{padding:10px 14px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:8px}
-.card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#555}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px}
+.card-header{padding:10px 14px;border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:8px}
+.card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text2)}
 .badge{border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600}
-.blue{background:#dbeafe;color:#1d4ed8}.red{background:#fee2e2;color:#991b1b}.amber{background:#fef3c7;color:#92400e}.green{background:#dcfce7;color:#166534}.gray{background:#f3f4f6;color:#6b7280}
+.blue{background:var(--badge-blue-bg);color:var(--badge-blue-c)}.red{background:var(--badge-red-bg);color:var(--badge-red-c)}.amber{background:var(--badge-amber-bg);color:var(--badge-amber-c)}.green{background:var(--badge-green-bg);color:var(--badge-green-c)}.gray{background:var(--badge-gray-bg);color:var(--badge-gray-c)}
 .card-body{padding:12px 14px}
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
-.metric{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px 14px}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
 .metric.blue-m{border-color:#dbeafe;background:#eff6ff}
 .metric.red-m{border-color:#fca5a5;background:#fef2f2}
 .metric.amber-m{border-color:#fcd34d;background:#fffbeb}
-.ml{font-size:10px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.ml{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
 .mv{font-size:24px;font-weight:700;line-height:1}
-.ms{font-size:10px;color:#aaa;margin-top:3px}
+.ms{font-size:10px;color:var(--text4);margin-top:3px}
 .blue-m .mv{color:#1d4ed8}.red-m .mv{color:#dc2626}.amber-m .mv{color:#d97706}
 .layout2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .full{grid-column:1/-1}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;min-width:620px}
-th{padding:6px 8px;text-align:center;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#888;border-bottom:1px solid #f0f0f0;background:#fafafa;white-space:nowrap}
+th{padding:6px 8px;text-align:center;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--th-c);border-bottom:1px solid var(--th-border);background:var(--th);white-space:nowrap}
 th.tnome{text-align:left;width:145px}
-th.thoje{background:#f5f5f5;color:#555}
-th.td1{background:#eff6ff;color:#1d4ed8;border-bottom:2px solid #3b82f6}
+th.thoje{background:var(--bg3);color:var(--text2)}
+th.td1{background:var(--today-bg);color:var(--today-c);border-bottom:2px solid var(--today-border)}
 td{padding:5px 8px;border-bottom:1px solid #f5f5f5;vertical-align:middle;text-align:center}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#fafafa!important}
@@ -199,23 +199,23 @@ tr:hover td{background:#fafafa!important}
 .leg{font-size:10px;color:#888;display:flex;align-items:center;gap:4px}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
 .modal-bg.open{display:flex}
-.modal{background:#fff;border-radius:12px;padding:22px;width:340px;max-width:92vw}
-.modal h3{font-size:15px;font-weight:600;margin-bottom:16px}
+.modal{background:var(--modal);border-radius:12px;padding:22px;width:340px;max-width:92vw}
+.modal h3{font-size:15px;font-weight:600;margin-bottom:16px;color:var(--text)}
 .field{margin-bottom:12px}
-.field label{display:block;font-size:11px;color:#555;font-weight:600;margin-bottom:4px}
-.field input,.field select{width:100%;border:1px solid #e5e5e5;border-radius:7px;padding:8px 10px;font-size:13px;outline:none}
+.field label{display:block;font-size:11px;color:var(--text2);font-weight:600;margin-bottom:4px}
+.field input,.field select{width:100%;border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;outline:none;background:var(--input);color:var(--text)}
 .field input:focus,.field select:focus{border-color:#3b82f6;box-shadow:0 0 0 2px #dbeafe}
 .modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 .btn-primary{background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:7px 18px;font-size:12px;cursor:pointer;font-weight:600}
 .btn-primary:hover{background:#1e40af}
-.btn-cancel{background:none;border:1px solid #e5e5e5;border-radius:7px;padding:7px 14px;font-size:12px;cursor:pointer;color:#555}
-.btn-cancel:hover{background:#f5f5f5}
+.btn-cancel{background:none;border:1px solid var(--border);border-radius:7px;padding:7px 14px;font-size:12px;cursor:pointer;color:var(--text2)}
+.btn-cancel:hover{background:var(--bg3)}
 .toast{position:fixed;bottom:20px;right:20px;background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:500;z-index:300;display:none;max-width:280px}
 .semana-titulo{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .grid7{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:18px}
-.dia-card{border-radius:8px;padding:8px 5px;text-align:center;min-height:72px;border:1px solid #e5e5e5;background:#fff}
-.dia-card.hoje{background:#1a1a1a;border-color:#1a1a1a}
-.dia-card.d1{background:#eff6ff;border-color:#93c5fd}
+.dia-card{border-radius:8px;padding:8px 5px;text-align:center;min-height:72px;border:1px solid var(--border);background:var(--card)}
+.dia-card.hoje{background:var(--header);border-color:var(--header)}
+.dia-card.d1{background:var(--today-bg);border-color:var(--today-border)}
 .ev-encerrado{opacity:.35;transition:opacity .3s}
 @keyframes pulsar{0%,100%{opacity:1}50%{opacity:.2}}
 @media(max-width:700px){.metrics{grid-template-columns:repeat(2,1fr)}.layout2{grid-template-columns:1fr}.wrap{padding:10px 12px}.grid7{grid-template-columns:repeat(7,1fr);gap:3px}}
@@ -511,7 +511,6 @@ export default async function handler(req, res) {
     <div class="metric blue-m"><div class="ml">Trabalhando amanha</div><div class="mv">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
     <div class="metric ${folgAmanha>2?'amber-m':''}"><div class="ml">Folgas amanha</div><div class="mv">${folgAmanha}</div><div class="ms">${ausencias.filter(a=>a[4]===d1Str).length} via Pulse</div></div>
     <div class="metric ${semCob>0?'red-m':''}"><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanha</div></div>
-    <div class="mv">${comAtenc}</div><div class="ms">eventos com entrada/saida</div></div>
   </div>
   <div class="layout2">
     <div class="card">
