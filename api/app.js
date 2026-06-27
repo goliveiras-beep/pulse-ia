@@ -243,7 +243,9 @@ tr:hover td{background:#fafafa!important}
 .dia-card.d1{background:var(--today-bg);border-color:var(--today-border)}
 .ev-encerrado{opacity:.35;transition:opacity .3s}
 @keyframes pulsar{0%,100%{opacity:1}50%{opacity:.2}}
-@media(max-width:700px){.metrics{grid-template-columns:repeat(2,1fr)}.layout2{grid-template-columns:1fr}.wrap{padding:10px 12px}.grid7{grid-template-columns:repeat(7,1fr);gap:3px}}
+@keyframes heartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.2)}30%{transform:scale(0.95)}45%{transform:scale(1.1)}60%{transform:scale(1)}}
+.pulse-heart-anim{animation:heartbeat 1.4s ease-in-out infinite;transform-origin:center}
+@media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}.layout2{grid-template-columns:1fr}.wrap{padding:10px 12px}.grid7{grid-template-columns:repeat(7,1fr);gap:3px}}
 </style>
 ${conteudo}
 ${script}
@@ -575,23 +577,55 @@ export default async function handler(req, res) {
     <div class="metric ${folgAmanha>2?'amber-m':''}"><div class="ml">Folgas amanha</div><div class="mv">${folgAmanha}</div><div class="ms">${ausencias.filter(a=>a[4]===d1Str).length} via Pulse</div></div>
     <div class="metric ${semCob>0?'red-m':''}"><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanha</div></div>
     <div class="metric" style="grid-column:span 1;display:flex;align-items:center;justify-content:center;text-align:center">
-      <div>
-        <div style="display:inline-flex;align-items:center;gap:6px;background:#fef2f2;border:1px solid #fca5a5;border-radius:20px;padding:3px 10px 3px 6px;margin-bottom:6px">
-          <svg width="16" height="16" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/><path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/><polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span style="font-size:9px;font-weight:600;color:#991b1b;letter-spacing:.04em">FRASE DO DIA</span>
+      <div style="width:100%">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px">
+          <svg class="pulse-heart-anim" width="28" height="28" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/><rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/><path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/><polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:10px;font-weight:700;color:#e53e3e;letter-spacing:.06em;text-transform:uppercase">Frase do dia</span>
         </div>
-        <div style="font-size:12px;font-style:italic;color:var(--text2);line-height:1.4">"${fraseDoDia}"</div>
+        <div style="font-size:13px;font-weight:600;font-style:italic;color:#22c55e;line-height:1.5;text-shadow:0 0 12px rgba(34,197,94,.3)">"${fraseDoDia}"</div>
       </div>
     </div>
   </div>
-  <!-- Navegação 7 dias -->
-  <div>
-    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none;-webkit-overflow-scrolling:touch">
-      ${diasNav.map((d,i)=>`<button onclick="mostrarDia(${i})" id="tab-dia-${i}" style="flex-shrink:0;background:${i===0?'#e53e3e':'var(--card)'};color:${i===0?'#fff':'var(--text2)'};border:1px solid ${i===0?'#e53e3e':'var(--border)'};border-radius:8px;padding:6px 14px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;min-width:80px;text-align:center"><div style="font-size:9px;opacity:.8">${d.sublabel}</div><div>${d.label}</div><div style="font-size:9px;opacity:.7">${d.total} ev.</div></button>`).join('')}
+  <!-- Layout 3 colunas: Hoje | Amanhã | Próximos (navegável) -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+
+    <!-- Coluna 1: #NossoDia (fixo) -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" style="color:#e53e3e">#NossoDia</span>
+        <span class="badge blue">${eventosHoje.length} eventos</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:auto">${hojeStr}</span>
+      </div>
+      <div class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosHoje, true)}</div>
     </div>
-    <div style="margin-top:8px">
-      ${diasNav.map((d,i)=>`<div id="painel-dia-${i}" style="display:${i===0?'block':'none'}"><div class="card"><div class="card-header"><span class="card-title">${d.label}</span><span class="badge ${`${d.eventos.filter(e=>e.semCob).length>0?'red':'blue'}`}">${d.total} eventos</span><span style="font-size:10px;color:var(--text3);margin-left:auto">${d.data}</span></div><div class="card-body" style="max-height:500px;overflow-y:auto">${renderEventos(d.eventos, d.comOpac)}</div></div></div>`).join('')}
+
+    <!-- Coluna 2: #NossoDiaAmanhã (fixo) -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" style="color:#3b82f6">#NossoDiaAmanhã</span>
+        <span class="badge ${semCob>0?'red':comAtenc>0?'amber':'green'}">${eventosAmanha.length} eventos</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:auto">${d1Str}</span>
+      </div>
+      <div class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosAmanha, false)}</div>
     </div>
+
+    <!-- Coluna 3: Próximos dias (navegável D+2 a D+6) -->
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:center;gap:6px">
+        <button onclick="navDia(-1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8249;</button>
+        <div style="flex:1;text-align:center">
+          ${diasNav.slice(2).map((d,i)=>`<div id="tab3-label-${i}" style="display:${i===0?'block':'none'}">
+            <span class="card-title" id="tab3-hashtag-${i}" style="color:#a855f7">#${d.sublabel}${d.label}</span>
+            <span class="badge" style="background:#f3e8ff;color:#6b21a8;margin-left:4px">${d.total} ev.</span>
+          </div>`).join('')}
+        </div>
+        <button onclick="navDia(1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8250;</button>
+      </div>
+      <div class="card-body" style="max-height:520px;overflow-y:auto">
+        ${diasNav.slice(2).map((d,i)=>`<div id="painel3-${i}" style="display:${i===0?'block':'none'}">${renderEventos(d.eventos, false)}</div>`).join('')}
+      </div>
+    </div>
+
   </div>
 </div>
 <div class="modal-bg" id="modal">
@@ -644,18 +678,15 @@ async function salvarAjuste(){
 }
 function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.textContent=msg;t.style.background=bg;t.style.display='block';setTimeout(()=>t.style.display='none',2500);}
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
-function mostrarDia(idx){
-  for(var i=0;i<7;i++){
-    var tab=document.getElementById('tab-dia-'+i);
-    var painel=document.getElementById('painel-dia-'+i);
-    if(!tab||!painel) continue;
-    if(i===idx){
-      tab.style.background='#e53e3e';tab.style.color='#fff';tab.style.borderColor='#e53e3e';
-      painel.style.display='block';
-    } else {
-      tab.style.background='var(--card)';tab.style.color='var(--text2)';tab.style.borderColor='var(--border)';
-      painel.style.display='none';
-    }
+var diaAtual3=0;
+function navDia(dir){
+  var total=5;
+  diaAtual3=(diaAtual3+dir+total)%total;
+  for(var i=0;i<total;i++){
+    var p=document.getElementById('painel3-'+i);
+    var l=document.getElementById('tab3-label-'+i);
+    if(p) p.style.display=i===diaAtual3?'block':'none';
+    if(l) l.style.display=i===diaAtual3?'block':'none';
   }
 }
 </script>`;
