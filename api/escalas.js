@@ -240,26 +240,43 @@ export default async function handler(req, res) {
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR"><head>
+<script>(function(){var d=localStorage.getItem("pulse-theme");if(d==="dark")document.documentElement.classList.add("dark");})()</script>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse - Escala</title>
 <style>
 :root{
---bg:#f5f5f5;--bg2:#fff;--bg3:#fafafa;--border:#e5e5e5;
+--bg:#f5f5f5;--bg2:#fff;--bg3:#fafafa;--border:#e5e5e5;--border2:#f0f0f0;
 --text:#1a1a1a;--text2:#555;--text3:#888;--text4:#aaa;
---header:#1a1a1a;--card:#fff;--input:#fff;--modal:#fff;
+--header:#1a1a1a;--logo-bg:#fff;--logo-c:#1a1a1a;
+--card:#fff;--input:#fff;--modal:#fff;
+--th:#fafafa;--th-c:#888;--th-border:#f0f0f0;--td-border:#f5f5f5;
 --btn-border:#444;--btn-c:#ccc;
+--blue-m-bg:#eff6ff;--blue-m-border:#dbeafe;--blue-m-v:#1d4ed8;
+--red-m-bg:#fef2f2;--red-m-border:#fca5a5;--red-m-v:#dc2626;
+--amber-m-bg:#fffbeb;--amber-m-border:#fcd34d;--amber-m-v:#d97706;
+--badge-blue-bg:#dbeafe;--badge-blue-c:#1d4ed8;
+--badge-green-bg:#dcfce7;--badge-green-c:#166534;
+--badge-red-bg:#fee2e2;--badge-red-c:#991b1b;
+--badge-amber-bg:#fef3c7;--badge-amber-c:#92400e;
+--badge-gray-bg:#f3f4f6;--badge-gray-c:#6b7280;
+--today-bg:#eff6ff;--today-border:#3b82f6;--today-c:#1d4ed8;
 }
-@media(prefers-color-scheme:dark){:root{
---bg:#0f0f0f;--bg2:#1a1a1a;--bg3:#222;--border:#2a2a2a;
+html.dark{
+--bg:#0f0f0f;--bg2:#1a1a1a;--bg3:#222;--border:#2a2a2a;--border2:#222;
 --text:#f0f0f0;--text2:#bbb;--text3:#777;--text4:#555;
---header:#111;--card:#1a1a1a;--input:#222;--modal:#1e1e1e;
+--header:#111;--logo-bg:#333;--logo-c:#f0f0f0;
+--card:#1a1a1a;--input:#222;--modal:#1e1e1e;
+--th:#1e1e1e;--th-c:#666;--th-border:#2a2a2a;--td-border:#1e1e1e;
 --btn-border:#555;--btn-c:#999;
-}}
-@media(prefers-color-scheme:dark){
-body{background:var(--bg)!important;color:var(--text)!important}
-}
-@media(max-width:600px){
-div[style*="repeat(4,1fr)"]{grid-template-columns:repeat(2,1fr)!important}
+--blue-m-bg:#0d1f3c;--blue-m-border:#1e3a5f;--blue-m-v:#60a5fa;
+--red-m-bg:#1f0d0d;--red-m-border:#5f1e1e;--red-m-v:#f87171;
+--amber-m-bg:#1f1700;--amber-m-border:#5f4500;--amber-m-v:#fbbf24;
+--badge-blue-bg:#1e3a5f;--badge-blue-c:#60a5fa;
+--badge-green-bg:#0d2010;--badge-green-c:#4ade80;
+--badge-red-bg:#2d1010;--badge-red-c:#f87171;
+--badge-amber-bg:#2d1f00;--badge-amber-c:#fbbf24;
+--badge-gray-bg:#222;--badge-gray-c:#888;
+--today-bg:#0d1f3c;--today-border:#1e3a5f;--today-c:#60a5fa;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
@@ -275,7 +292,8 @@ a{text-decoration:none}
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
     <span style="font-size:11px;color:#555">${atualizado}</span>
-    <a href="/api/app" style="background:none;border:1px solid #444;border-radius:5px;padding:4px 10px;font-size:11px;color:#ccc">Home</a>
+    <button id="tt" class="btn-sm" onclick="toggleTheme()" style="font-size:14px;padding:3px 8px">&#127769;</button>
+    <a href="/api/app" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--btn-c)">Home</a>
   </div>
 </div>
 
@@ -424,6 +442,14 @@ document.getElementById('sort-default').addEventListener('click',function(){ sor
 document.getElementById('sort-alpha').addEventListener('click',function(){ sortAtual='alpha'; setBtn('sort-alpha'); aplicarFiltros(); });
 document.getElementById('sort-alerta').addEventListener('click',function(){ sortAtual='alerta'; setBtn('sort-alerta'); aplicarFiltros(); });
 document.getElementById('busca').addEventListener('input', aplicarFiltros);
+</script>
+<script>
+function toggleTheme(){
+  var dk=document.documentElement.classList.toggle('dark');
+  localStorage.setItem('pulse-theme',dk?'dark':'light');
+  var btn=document.getElementById('tt');
+  if(btn) btn.textContent=dk?'\u2600\uFE0F':'\uD83C\uDF19';
+}
 </script>
 </body></html>`;
 
