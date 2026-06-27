@@ -193,25 +193,104 @@ function renderHTML({ session, docs, q, folder }) {
     </a>`).join('') : '<div class="empty">Nenhum documento encontrado.</div>';
 
   return `<!DOCTYPE html>
-<html lang="pt-BR"><head>
+<html lang="pt-BR">
+<head>
+<script>(function(){var d=localStorage.getItem("pulse-theme");if(d==="dark")document.documentElement.classList.add("dark");})()</script>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse - Repositorio</title>
 <style>
-:root{--bg:#f5f5f5;--card:#fff;--text:#1a1a1a;--muted:#777;--border:#e5e5e5;--header:#161920;--blue:#1d4ed8}
-*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}a{text-decoration:none;color:inherit}
-.header{background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10}.logo{width:28px;height:28px;border-radius:6px;background:#fff;color:#111;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}.ht{font-size:14px;font-weight:700;color:#fff}.hs{font-size:11px;color:#889}.hr{margin-left:auto;display:flex;gap:8px;align-items:center}.btn{border:1px solid #3d4660;border-radius:6px;padding:5px 10px;font-size:11px;color:#cbd5e1;background:none;cursor:pointer}
-.wrap{max-width:1080px;margin:0 auto;padding:18px 20px}.top{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:14px}.title{font-size:22px;font-weight:800}.sub{font-size:12px;color:var(--muted);margin-top:3px}.search{margin-left:auto;display:flex;gap:8px;min-width:320px}.search input{flex:1;border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px}.search button{border:none;border-radius:8px;background:var(--blue);color:#fff;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.chip{border:1px solid var(--border);border-radius:999px;padding:5px 10px;background:#fff;font-size:12px;color:#555}.chip.active{background:#111;color:#fff;border-color:#111}.grid{background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}.doc{display:grid;grid-template-columns:38px 1fr 88px;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid #f0f0f0}.doc:last-child{border-bottom:none}.doc:hover{background:#f8fafc}.doc-ic{width:30px;height:30px;border-radius:7px;background:#eff6ff;color:#1d4ed8;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800}.doc-title{font-size:13px;font-weight:700}.doc-meta{font-size:11px;color:var(--muted);margin-top:2px}.doc-date{font-size:11px;color:#999;text-align:right}.empty{padding:24px;text-align:center;color:#999;font-size:13px}.hint{margin-top:12px;font-size:11px;color:#777;line-height:1.5}
-@media(max-width:700px){.search{min-width:100%;margin-left:0}.doc{grid-template-columns:34px 1fr}.doc-date{display:none}.wrap{padding:14px 12px}}
-</style></head><body>
-<div class="header"><a class="logo" href="/api/app">P</a><div><div class="ht">Pulse - Repositorio</div><div class="hs">Documentos internos no Google Drive</div></div><div class="hr"><span class="hs">Ola, ${esc(session.nome.split(' ')[0])}</span><a class="btn" href="/api/app">Home</a></div></div>
-<div class="wrap">
-  <div class="top"><div><div class="title">Repositorio Pulse</div><div class="sub">Busca rapida nos documentos oficiais e nas pastas do Drive.</div></div><form class="search" method="GET" action="/api/repositorio"><input name="q" value="${esc(q)}" placeholder="Buscar documentos, fluxos, politicas..."><input type="hidden" name="folder" value="${esc(folder || 'todos')}"><button>Buscar</button></form></div>
-  <div class="chips">${chips.map(c => '<a class="chip ' + (String(folder || 'todos') === c.id ? 'active' : '') + '" href="/api/repositorio?folder=' + encodeURIComponent(c.id) + (q ? '&q=' + encodeURIComponent(q) : '') + '">' + esc(c.label) + '</a>').join('')}</div>
-  <div class="grid">${cards}</div>
-  <div class="hint">A IA deve usar este mesmo repositorio como fonte de consulta. Consulta nao altera nada; ela apenas retorna documento, categoria e link.</div>
+:root{
+  --bg:#f5f5f5;--card:#fff;--text:#1a1a1a;--muted:#777;--border:#e5e5e5;
+  --header:#161920;--blue:#1d4ed8;--blue-bg:#eff6ff;
+  --chip-bg:#fff;--chip-c:#555;--chip-border:#e5e5e5;
+  --doc-hover:#f8fafc;--doc-ic-bg:#eff6ff;--doc-ic-c:#1d4ed8;
+  --input-bg:#fff;--input-border:#e5e5e5;
+}
+html.dark{
+  --bg:#1c1f26;--card:#242836;--text:#e2e8f0;--muted:#718096;--border:#2d3748;
+  --header:#0f1117;--blue:#63b3ed;--blue-bg:#1a2744;
+  --chip-bg:#242836;--chip-c:#a0aec0;--chip-border:#2d3748;
+  --doc-hover:#2d3140;--doc-ic-bg:#1a2744;--doc-ic-c:#63b3ed;
+  --input-bg:#2d3140;--input-border:#3d4660;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
+a{text-decoration:none;color:inherit}
+.header{background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10}
+.logo{width:28px;height:28px;border-radius:6px;background:#e53e3e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+.ht{font-size:14px;font-weight:700;color:#fff}
+.hs{font-size:11px;color:#889}
+.hr{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{border:1px solid #3d4660;border-radius:6px;padding:5px 10px;font-size:11px;color:#cbd5e1;background:none;cursor:pointer;text-decoration:none}
+.btn:hover{border-color:#6b7280;color:#e2e8f0}
+.btn-theme{border:1px solid #3d4660;border-radius:6px;padding:4px 8px;font-size:14px;background:none;cursor:pointer}
+.wrap{max-width:1080px;margin:0 auto;padding:18px 20px}
+.top{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.title{font-size:22px;font-weight:800}
+.sub{font-size:12px;color:var(--muted);margin-top:3px}
+.search{margin-left:auto;display:flex;gap:8px;min-width:320px}
+.search input{flex:1;border:1px solid var(--input-border);border-radius:8px;padding:9px 12px;font-size:13px;background:var(--input-bg);color:var(--text);outline:none}
+.search input:focus{border-color:var(--blue)}
+.search button{border:none;border-radius:8px;background:var(--blue);color:#fff;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.chip{border:1px solid var(--chip-border);border-radius:999px;padding:5px 10px;background:var(--chip-bg);font-size:12px;color:var(--chip-c);transition:all .15s}
+.chip:hover{border-color:var(--blue);color:var(--blue)}
+.chip.active{background:var(--text);color:var(--bg);border-color:var(--text)}
+.grid{background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.doc{display:grid;grid-template-columns:38px 1fr 88px;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border)}
+.doc:last-child{border-bottom:none}
+.doc:hover{background:var(--doc-hover)}
+.doc-ic{width:30px;height:30px;border-radius:7px;background:var(--doc-ic-bg);color:var(--doc-ic-c);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800}
+.doc-title{font-size:13px;font-weight:700}
+.doc-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.doc-date{font-size:11px;color:var(--muted);text-align:right}
+.empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+.hint{margin-top:12px;font-size:11px;color:var(--muted);line-height:1.5}
+@media(max-width:700px){
+  .search{min-width:100%;margin-left:0}
+  .doc{grid-template-columns:34px 1fr}
+  .doc-date{display:none}
+  .wrap{padding:14px 12px}
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <a class="logo" href="/api/app">P</a>
+  <div><div class="ht">Pulse - Repositorio</div><div class="hs">Documentos internos no Google Drive</div></div>
+  <div class="hr">
+    <span class="hs">Ola, ${esc(session.nome.split(' ')[0])}</span>
+    <button id="tt" class="btn-theme" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'\u2600\uFE0F':'\uD83C\uDF19';})()" title="Alternar tema">&#127769;</button>
+    <a class="btn" href="/api/app">Home</a>
+  </div>
 </div>
-</body></html>`;
+<div class="wrap">
+  <div class="top">
+    <div>
+      <div class="title">Repositorio Pulse</div>
+      <div class="sub">Busca rapida nos documentos oficiais e nas pastas do Drive.</div>
+    </div>
+    <form class="search" method="GET" action="/api/repositorio">
+      <input name="q" value="${esc(q)}" placeholder="Buscar documentos, fluxos, politicas...">
+      <input type="hidden" name="folder" value="${esc(folder || 'todos')}">
+      <button>Buscar</button>
+    </form>
+  </div>
+  <div class="chips">
+    ${chips.map(c => `<a class="chip ${String(folder || 'todos') === c.id ? 'active' : ''}" href="/api/repositorio?folder=${encodeURIComponent(c.id)}${q ? '&q=' + encodeURIComponent(q) : ''}">${esc(c.label)}</a>`).join('')}
+  </div>
+  <div class="grid">${cards}</div>
+  <div class="hint">A IA usa este repositorio como fonte de consulta. Consulta nao altera nada; retorna apenas documento, categoria e link.</div>
+</div>
+<script>
+(function(){
+  var dk = document.documentElement.classList.contains('dark');
+  var btn = document.getElementById('tt');
+  if(btn) btn.textContent = dk ? '\u2600\uFE0F' : '\uD83C\uDF19';
+})();
+</script>
+</body>
+</html>`;
 }
 
 export default async function handler(req, res) {
