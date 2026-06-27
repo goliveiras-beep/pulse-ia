@@ -15,14 +15,13 @@ async function slackPost(channel, text) {
   });
 }
 
-async function getGradeHoje() {
-  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-  const filter = `OR(DATESTR({fldRnfbwPVzFiHMqs}) = '${hoje}', DATESTR({fld8hthI7oI4MY5aP}) = '${hoje}')`;
+async function getGradeDia(data) {
+  const filter = `OR(DATESTR({fldRnfbwPVzFiHMqs}) = '${data}', DATESTR({fld8hthI7oI4MY5aP}) = '${data}')`;
   const url = `https://api.airtable.com/v0/${BASE}/${TABELA}?view=${VIEW}&filterByFormula=${encodeURIComponent(filter)}&maxRecords=100`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
-  const data = await res.json();
+  const d = await res.json();
   const snapshot = {};
-  for (const r of (data.records || [])) {
+  for (const r of (d.records || [])) {
     const f = r.fields;
     snapshot[r.id] = {
       nome: f["Match ID"] || "",
@@ -48,16 +47,15 @@ async function getSnapshotGitHub() {
 }
 
 async function salvarSnapshotGitHub(snapshot, sha) {
-  const content = btoa(JSON.stringify(snapshot));
-  const body = {
-    message: "chore: atualizar snapshot da grade",
-    content,
-    ...(sha ? { sha } : {})
-  };
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(snapshot))));
   await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${SNAPSHOT_PATH}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", Authorization: `token ${process.env.GITHUB_TOKEN}` },
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      message: "chore: atualizar snapshot grade D+1",
+      content,
+      ...(sha ? { sha } : {})
+    })
   });
 }
 
@@ -97,26 +95,34 @@ export default async function handler(req, res) {
   if (token !== process.env.CRON_TOKEN) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    const gradeAtual = await getGradeHoje();
+    // Calcula D+1 em BRT
+    const amanha = new Date();
+    amanha.setTime(amanha.getTime() + ((-3 * 60) - amanha.getTimezoneOffset()) * 60000);
+    amanha.setDate(amanha.getDate() + 1);
+    const dataAmanha = amanha.toISOString().split('T')[0];
+    const dataAmanhaFormatada = amanha.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+    const gradeAtual = await getGradeDia(dataAmanha);
     const resultado = await getSnapshotGitHub();
 
-    if (!resultado) {
-      await salvarSnapshotGitHub(gradeAtual, null);
-      return res.status(200).json({ ok: true, msg: "Snapshot inicial criado", total: Object.keys(gradeAtual).length });
+    if (!resultado || Object.keys(resultado.snapshot).length === 0) {
+      await salvarSnapshotGitHub(gradeAtual, resultado?.sha || null);
+      return res.status(200).json({ ok: true, msg: "Snapshot inicial criado", dia: dataAmanha, total: Object.keys(gradeAtual).length });
     }
 
     const { snapshot: snapshotAnterior, sha } = resultado;
     const mudancas = compararGrades(snapshotAnterior, gradeAtual);
 
     if (mudancas.length > 0) {
-      const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
-      const msg = `🔔 *Mudanças na grade — ${hoje}*\n\n${mudancas.join("\n\n")}`;
+      const msg = `🔔 *Mudanças na grade de amanhã — ${dataAmanhaFormatada}*\n\n${mudancas.join("\n\n")}`;
       await slackPost(CANAL, msg);
       await salvarSnapshotGitHub(gradeAtual, sha);
-      console.log("Mudanças:", mudancas.length);
+      console.log("Mudanças detectadas:", mudancas.length);
+    } else {
+      console.log("Sem mudanças na grade de", dataAmanha);
     }
 
-    return res.status(200).json({ ok: true, mudancas: mudancas.length });
+    return res.status(200).json({ ok: true, mudancas: mudancas.length, dia: dataAmanha });
   } catch (err) {
     console.error("Erro:", err.message);
     return res.status(500).json({ error: err.message });
