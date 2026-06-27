@@ -1,30 +1,41 @@
 import { createHash, createSign } from 'crypto';
 
-// ── helpers de sessão ─────────────────────────────────────────────────────────
+// ── helpers de sessão — igual ao app.js ──────────────────────────────────────
+
+const COOKIE_NAME = 'pulse_session';
+const COOKIE_MAX  = 60 * 60 * 24 * 7;
 
 function hash(s) {
   return createHash('sha256')
-    .update(s + (process.env.PULSE_SECRET || 'pulse2026'))
+    .update(s + process.env.PULSE_SECRET || 'pulse2026')
     .digest('hex')
     .slice(0, 32);
 }
 
-function parseSession(req) {
-  const raw = req.headers.cookie?.split(';')
-    .map(c => c.trim())
-    .find(c => c.startsWith('pulse_session='))
-    ?.split('=')[1];
-  if (!raw) return null;
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  if (!cookieHeader) return cookies;
+  cookieHeader.split(';').forEach(c => {
+    const [k, ...v] = c.trim().split('=');
+    cookies[k.trim()] = v.join('=');
+  });
+  return cookies;
+}
+
+function getSession(req) {
+  const cookies = parseCookies(req.headers.cookie);
+  const token   = cookies[COOKIE_NAME];
+  if (!token) return null;
   try {
-    const decoded = Buffer.from(raw, 'base64').toString('utf8');
+    const decoded      = Buffer.from(token, 'base64').toString('utf8');
     const [nome, h, ts] = decoded.split('|');
-    if (hash(nome + ts) !== h) return null;
-    if (Date.now() - Number(ts) > 7 * 24 * 60 * 60 * 1000) return null;
+    if (Date.now() - parseInt(ts) > COOKIE_MAX * 1000) return null;
+    if (h !== hash(nome + ts)) return null;
     return { nome };
   } catch { return null; }
 }
 
-// ── Google Sheets via fetch (sem googleapis) ──────────────────────────────────
+// ── Google Sheets via fetch puro (sem googleapis) ─────────────────────────────
 
 function base64url(str) {
   return Buffer.from(str).toString('base64')
@@ -32,7 +43,7 @@ function base64url(str) {
 }
 
 async function getAccessToken() {
-  const sa = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  const sa  = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
   const now = Math.floor(Date.now() / 1000);
 
   const header  = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
@@ -45,56 +56,51 @@ async function getAccessToken() {
   }));
 
   const sigInput = `${header}.${payload}`;
-  const sign = createSign('RSA-SHA256');
+  const sign     = createSign('RSA-SHA256');
   sign.update(sigInput);
   const sig = sign.sign(sa.private_key, 'base64')
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-  const jwt = `${sigInput}.${sig}`;
-
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
+    method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+    body:    `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${sigInput}.${sig}`,
   });
 
   const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) {
-    throw new Error('Token error: ' + JSON.stringify(tokenData));
-  }
+  if (!tokenData.access_token) throw new Error('Token error: ' + JSON.stringify(tokenData));
   return tokenData.access_token;
 }
-
-// ── Sheets helpers ────────────────────────────────────────────────────────────
 
 async function sheetsGet(token, range) {
   const id  = process.env.GOOGLE_SHEET_ID;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const data = await res.json();
-  if (data.error) throw new Error('Sheets GET error: ' + JSON.stringify(data.error));
+  if (data.error) throw new Error('Sheets GET: ' + JSON.stringify(data.error));
   return data.values || [];
 }
 
 async function sheetsBatchUpdate(token, updates) {
   const id  = process.env.GOOGLE_SHEET_ID;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`;
-  const res = await fetch(url, {
-    method: 'POST',
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
+    method:  'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: updates }),
+    body:    JSON.stringify({ valueInputOption: 'USER_ENTERED', data: updates }),
   });
   return res.json();
 }
 
 async function sheetsAppend(token, range, values) {
   const id  = process.env.GOOGLE_SHEET_ID;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values }),
-  });
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,
+    {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ values }),
+    }
+  );
   return res.json();
 }
 
@@ -125,19 +131,19 @@ function temIntencaoEscrita(msg) {
   return WRITE_PATTERNS.some(p => p.test(msg));
 }
 
-// ── parser de turno ───────────────────────────────────────────────────────────
+// ── parser de turno da mensagem ───────────────────────────────────────────────
 
 function parseTurnosDaMensagem(msg, equipe) {
   // Horários: 10h00, 10:00, 10h
   const reHora = /(\d{1,2})[h:](\d{0,2})/g;
-  const horas  = [...msg.matchAll(reHora)].map(m => {
-    return `${m[1].padStart(2,'0')}:${(m[2]||'00').padStart(2,'0')}`;
-  });
+  const horas  = [...msg.matchAll(reHora)].map(m =>
+    `${m[1].padStart(2,'0')}:${(m[2]||'00').padStart(2,'0')}`
+  );
   if (horas.length < 2) return null;
   const entrada = horas[0];
   const saida   = horas[1];
 
-  // Datas: 22/06, 22-06
+  // Datas: 22/06 ou 22-06
   const reDatas = /(\d{1,2})[\/\-](\d{1,2})/g;
   const datas   = [...msg.matchAll(reDatas)].map(m =>
     `${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}`
@@ -194,19 +200,16 @@ async function gravarTurnos(token, turno) {
       r[0] === data &&
       (r[2] || '').trim().toLowerCase() === turno.colaborador.toLowerCase()
     );
-
     if (idx >= 0) {
-      // linha existente — atualiza
       updates.push({
-        range: `Escala!C${idx + 2}:E${idx + 2}`,
+        range:  `Escala!C${idx + 2}:E${idx + 2}`,
         values: [[turno.colaborador, turno.entrada, turno.saida]],
       });
     } else {
-      // procura linha do dia sem colaborador
       const idxData = rows.findIndex(r => r[0] === data && !r[2]);
       if (idxData >= 0) {
         updates.push({
-          range: `Escala!A${idxData + 2}:F${idxData + 2}`,
+          range:  `Escala!A${idxData + 2}:F${idxData + 2}`,
           values: [[data, '', turno.colaborador, turno.entrada, turno.saida, '']],
         });
       } else {
@@ -218,7 +221,7 @@ async function gravarTurnos(token, turno) {
   if (updates.length > 0) await sheetsBatchUpdate(token, updates);
   for (const linha of appends) await sheetsAppend(token, 'Escala!A:F', [linha]);
 
-  // Log Ajustes
+  // Log na aba Ajustes
   const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
   await sheetsAppend(token, 'Ajustes!A:G', [[
     agora, turno.colaborador, turno.datas.join(', '),
@@ -230,14 +233,21 @@ async function gravarTurnos(token, turno) {
 
 // ── handler principal ─────────────────────────────────────────────────────────
 
+export const config = { maxDuration: 30 };
+
 export default async function handler(req, res) {
-  const session = parseSession(req);
+  const session = getSession(req);
   if (!session) return res.status(401).json({ error: 'Não autenticado' });
 
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { message, history = [] } = req.body || {};
-  if (!message) return res.status(400).json({ error: 'message obrigatório' });
+  // app.js envia { messages: [{role, content}], pagina }
+  // Extrai última mensagem do usuário e histórico anterior
+  const { messages = [], pagina = '' } = req.body || {};
+  if (!messages.length) return res.status(400).json({ error: 'messages obrigatório' });
+
+  const ultimaMensagem = messages[messages.length - 1]?.content || '';
+  const history        = messages.slice(0, -1); // tudo antes da última
 
   try {
     const token = await getAccessToken();
@@ -248,19 +258,19 @@ export default async function handler(req, res) {
     ]);
 
     const escalaRelevante = filtrarEscalaRelevante(escalaRows);
-    const isEscrita = temIntencaoEscrita(message);
+    const isEscrita       = temIntencaoEscrita(ultimaMensagem);
 
     // tenta gravar se for intenção de escrita
     let acaoRealizada = null;
     if (isEscrita) {
-      const turno = parseTurnosDaMensagem(message, equipeRows);
+      const turno = parseTurnosDaMensagem(ultimaMensagem, equipeRows);
       if (turno) {
-        const qtd = await gravarTurnos(token, turno);
+        const qtd     = await gravarTurnos(token, turno);
         acaoRealizada = { ...turno, linhasGravadas: qtd };
       }
     }
 
-    // contexto para o modelo
+    // monta contexto para o modelo
     const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
     const equipeTexto = equipeRows
@@ -270,50 +280,45 @@ export default async function handler(req, res) {
 
     const escalaTexto = escalaRelevante.length > 0
       ? escalaRelevante.map(r =>
-          `${r[0]}: ${r[2]||'-'} ${r[3]||''}-${r[4]||''}${r[5]?' ['+r[5]+']':''}`
+          `${r[0]}: ${r[2]||'-'} ${r[3]||''}-${r[4]||''}${r[5] ? ' ['+r[5]+']' : ''}`
         ).join('\n')
       : 'Sem registros nesse período.';
 
     let acaoTexto = '';
     if (acaoRealizada) {
-      acaoTexto = `\n\n✅ GRAVADO: ${acaoRealizada.colaborador} ${acaoRealizada.entrada}–${acaoRealizada.saida} nos dias ${acaoRealizada.datas.join(', ')} (${acaoRealizada.linhasGravadas} linha(s)).`;
+      acaoTexto = `\n\n✅ GRAVADO COM SUCESSO: ${acaoRealizada.colaborador} das ${acaoRealizada.entrada} às ${acaoRealizada.saida} nos dias: ${acaoRealizada.datas.join(', ')} (${acaoRealizada.linhasGravadas} linha(s) salvas na planilha).`;
     } else if (isEscrita) {
-      acaoTexto = `\n\n⚠️ NÃO GRAVADO: não identifiquei colaborador, horário ou data na mensagem.`;
+      acaoTexto = `\n\n⚠️ NÃO GRAVADO: não consegui identificar colaborador, horário ou data na mensagem. Peça ao usuário para reformular.`;
     }
 
     const systemPrompt = `Você é o assistente do Pulse IA, dashboard operacional de TV ao vivo da LiveMode.
-Hoje: ${hoje}. Usuário: ${session.nome}.
+Hoje: ${hoje}. Usuário logado: ${session.nome}. Página atual: ${pagina}.
 
 EQUIPE ATIVA: ${equipeTexto}
 
-ESCALA (3 dias atrás + 14 dias à frente):
+ESCALA (últimos 3 dias + próximos 14 dias):
 ${escalaTexto}
 ${acaoTexto}
 
 REGRAS:
-- Responda em português BR, direto e objetivo.
-- Se há ✅ acima, confirme ao usuário o que foi gravado com os detalhes exatos.
-- Se há ⚠️ acima, informe o que faltou e peça para reformular.
-- Alertas trabalhistas: interjornada mín 11h, jornada máx 10h, máx 7 dias consecutivos.
-- Nunca invente dados ausentes da escala fornecida.`;
+- Responda em português BR, direto e objetivo. Máximo 4 parágrafos curtos.
+- Se há ✅ acima, confirme ao usuário exatamente o que foi gravado com os detalhes.
+- Se há ⚠️ acima, informe o que faltou e peça para reformular com colaborador, horário e data.
+- Alertas trabalhistas: interjornada mínima 11h, jornada máxima 10h, máximo 7 dias consecutivos.
+- Nunca invente dados que não estejam na escala fornecida.`;
 
-    // chama Groq
-    const groqMessages = [
-      ...history.slice(-10),
-      { role: 'user', content: message },
-    ];
-
+    // chama Groq com o histórico completo (formato openai)
     const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        Authorization:  `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [{ role: 'system', content: systemPrompt }, ...groqMessages],
+        model:       'llama-3.1-8b-instant',
+        messages:    [{ role: 'system', content: systemPrompt }, ...messages],
         temperature: 0.3,
-        max_tokens: 600,
+        max_tokens:  600,
       }),
     });
 
@@ -324,13 +329,10 @@ REGRAS:
     }
 
     const groqData = await groqRes.json();
-    const reply = groqData.choices?.[0]?.message?.content || 'Não consegui processar.';
+    const resposta = groqData.choices?.[0]?.message?.content || 'Não consegui processar.';
 
-    return res.status(200).json({
-      reply,
-      acaoRealizada,
-      updatedHistory: [...groqMessages, { role: 'assistant', content: reply }],
-    });
+    // Retorna "resposta" — campo que o app.js lê: d.resposta
+    return res.status(200).json({ resposta, acaoRealizada });
 
   } catch (err) {
     console.error('chat.js ERRO:', err.message, err.stack);
