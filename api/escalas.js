@@ -32,6 +32,12 @@ async function getSheet(range) {
   try { const d = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(range)}`); return d.values||[]; }
   catch { return []; }
 }
+async function setSheet(range, values) {
+  await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,'PUT',{values});
+}
+async function appendSheet(range, values) {
+  await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,'POST',{values});
+}
 
 const NIVEL_COR = {
   danger:  { bg: 'var(--red-m-bg)',   border: 'var(--red-m-border)',   txt: 'var(--red-m-v)',   dot: '#fc8181' },
@@ -72,6 +78,26 @@ function celulaAnalise(analise, turno, compacto=false) {
 export default async function handler(req, res) {
   const session = getSession(req);
   if (!session) return res.redirect(302, '/api/app');
+
+  // POST — salvar edição de célula
+  if (req.method === 'POST') {
+    const equipeRaw2 = await getSheet('Equipe!A2:I50');
+    const usuario2 = equipeRaw2.find(r=>r[0]===session.nome);
+    if (usuario2?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});
+    const {data, colaborador, ent, sai, tipo} = req.body||{};
+    if (!data || !colaborador) return res.status(400).json({error:'Dados inválidos'});
+    const escalaRaw2 = await getSheet('Escala!A2:F500');
+    const idx = escalaRaw2.findIndex(r=>r[0]===data&&r[2]===colaborador);
+    const obs = tipo==='folga'?'Folga':tipo==='dispensa'?'Dispensa Médica':tipo==='ferias'?'Férias':'';
+    const entVal = (tipo==='folga'||tipo==='ausencia')?'':( ent||'');
+    const saiVal = (tipo==='folga'||tipo==='ausencia')?'':( sai||'');
+    if (idx >= 0) {
+      await setSheet(`Escala!D${idx+2}:F${idx+2}`, [[entVal, saiVal, obs]]);
+    } else {
+      await appendSheet('Escala!A:F', [[data,'',colaborador,entVal,saiVal,obs]]);
+    }
+    return res.status(200).json({ok:true});
+  }
 
   const [equipeRaw, escalaRaw, ausenciasRaw] = await Promise.all([
     getSheet('Equipe!A2:I50'),
@@ -189,7 +215,8 @@ export default async function handler(req, res) {
         ${datas.map(df=>{
           const a=analise[nome]?.[df];
           const isHoje=df===fmtData(hoje);
-          return `<td style="padding:4px;border-bottom:1px solid #f5f5f5;background:${isHoje?'var(--today-bg)':''}">${celulaAnalise(a,null,true)}</td>`;
+          const escReg=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
+          return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${isHoje?'var(--today-bg)':''};cursor:pointer" onclick="abrirEditor(this,'${df}','${nome}','${escReg?.[3]||''}','${escReg?.[4]||''}','${escReg?.[5]||''}')">${celulaAnalise(a,null,true)}</td>`;
         }).join('')}
       </tr>`;
     }).join('');
@@ -215,7 +242,8 @@ export default async function handler(req, res) {
         const isHoje=df===fmtData(hoje);
         const c=NIVEL_COR[a?.tipo||'livre'];
         const temAlerta=a?.alertas?.length>0;
-        cal+=`<div style="background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center">
+        const escRegMes=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
+        cal+=`<div style="background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;cursor:pointer" onclick="abrirEditor(event.currentTarget,'${df}','${nome}','${escRegMes?.[3]||''}','${escRegMes?.[4]||''}','${escRegMes?.[5]||''}')">
           <div style="font-size:9px;font-weight:${isHoje?700:500};color:${c.txt}">${d}</div>
           ${a?.status&&a.tipo!=='livre'?`<div style="font-size:7px;color:${c.txt};overflow:hidden;white-space:nowrap">${a.status.length>8?a.status.substring(0,8):a.status}</div>`:''}
           ${temAlerta?`<div style="width:5px;height:5px;border-radius:50%;background:${c.dot};margin:1px auto 0"></div>`:''}
@@ -450,6 +478,158 @@ function toggleTheme(){
   var btn=document.getElementById('tt');
   if(btn) btn.textContent=dk?'\u2600\uFE0F':'\uD83C\uDF19';
 }
+</script>
+
+<div id="editor-popup" style="display:none;position:fixed;z-index:500;background:#242836;border:1px solid #3d4660;border-radius:10px;padding:16px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+  <div style="font-size:11px;font-weight:600;color:#a0aec0;margin-bottom:10px" id="editor-titulo">Editar turno</div>
+  <div id="editor-tipo-btns" style="display:flex;gap:4px;margin-bottom:12px">
+    <button onclick="setTipo('turno')" id="btn-tipo-turno" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:#1a2744;color:#63b3ed">Turno</button>
+    <button onclick="setTipo('folga')" id="btn-tipo-folga" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:none;color:#a0aec0">Folga</button>
+    <button onclick="setTipo('dispensa')" id="btn-tipo-dispensa" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:none;color:#a0aec0">Dispensa</button>
+    <button onclick="setTipo('ferias')" id="btn-tipo-ferias" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:none;color:#a0aec0">Férias</button>
+  </div>
+  <div id="editor-horarios">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <div>
+        <div style="font-size:10px;color:#718096;margin-bottom:3px">Entrada</div>
+        <input id="editor-ent" type="time" style="width:100%;background:#1e2230;border:1px solid #3d4660;border-radius:5px;padding:6px 8px;font-size:13px;color:#e2e8f0;outline:none">
+      </div>
+      <div>
+        <div style="font-size:10px;color:#718096;margin-bottom:3px">Saída</div>
+        <input id="editor-sai" type="time" style="width:100%;background:#1e2230;border:1px solid #3d4660;border-radius:5px;padding:6px 8px;font-size:13px;color:#e2e8f0;outline:none">
+      </div>
+    </div>
+  </div>
+  <div style="display:flex;gap:6px;margin-top:4px">
+    <button onclick="copiarTurno()" title="Copiar (Ctrl+C)" style="background:#1e2230;border:1px solid #3d4660;border-radius:5px;padding:6px 10px;font-size:11px;color:#a0aec0;cursor:pointer">Copiar</button>
+    <button onclick="fecharEditor()" style="background:none;border:1px solid #3d4660;border-radius:5px;padding:6px 12px;font-size:11px;color:#a0aec0;cursor:pointer">Cancelar</button>
+    <button onclick="salvarEdicao()" style="flex:1;background:#1d4ed8;color:#fff;border:none;border-radius:5px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">Salvar</button>
+  </div>
+</div>
+<div id="editor-overlay" onclick="fecharEditor()" style="display:none;position:fixed;inset:0;z-index:499"></div>
+<div id="toast-esc" style="position:fixed;bottom:20px;right:20px;background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:500;z-index:600;display:none;max-width:280px"></div>
+
+<script>
+var editorData = {};
+var clipboard = null;
+
+function abrirEditor(el, data, nome, ent, sai, obs) {
+  editorData = {el, data, nome, ent, sai, obs};
+  document.getElementById('editor-titulo').textContent = nome + ' · ' + data;
+  
+  // Detecta tipo atual
+  var tipo = 'turno';
+  if(obs==='Folga') tipo='folga';
+  else if(obs==='Dispensa Médica') tipo='dispensa';
+  else if(obs==='Férias') tipo='ferias';
+  
+  setTipo(tipo, false);
+  document.getElementById('editor-ent').value = ent||'';
+  document.getElementById('editor-sai').value = sai||'';
+
+  // Posiciona popup perto do elemento
+  var rect = el.getBoundingClientRect();
+  var popup = document.getElementById('editor-popup');
+  popup.style.display = 'block';
+  document.getElementById('editor-overlay').style.display = 'block';
+  
+  var top = rect.bottom + 4;
+  var left = rect.left;
+  if(top + 200 > window.innerHeight) top = rect.top - 220;
+  if(left + 250 > window.innerWidth) left = window.innerWidth - 260;
+  popup.style.top = top + 'px';
+  popup.style.left = left + 'px';
+  
+  // Foca no campo de entrada
+  setTimeout(function(){ document.getElementById('editor-ent').focus(); }, 100);
+}
+
+function setTipo(tipo, resetHorarios) {
+  editorData.tipo = tipo;
+  ['turno','folga','dispensa','ferias'].forEach(function(t){
+    var btn = document.getElementById('btn-tipo-'+t);
+    if(t===tipo){
+      var bgs={'turno':'#1a2744','folga':'#1f1a0d','dispensa':'#1a0d2e','ferias':'#0d2010'};
+      var clrs={'turno':'#63b3ed','folga':'#f6ad55','dispensa':'#c084fc','ferias':'#68d391'};
+      var bds={'turno':'#2a4080','folga':'#3d3010','dispensa':'#6b21a8','ferias':'#166534'};
+      btn.style.background=bgs[t]||'none'; btn.style.color=clrs[t]||'#a0aec0'; btn.style.borderColor=bds[t]||'#3d4660';
+    }
+    else{ btn.style.background='none'; btn.style.color='#a0aec0'; btn.style.borderColor='#3d4660'; }
+  });
+  document.getElementById('editor-horarios').style.display = tipo==='turno' ? 'block' : 'none';
+}
+
+function fecharEditor() {
+  document.getElementById('editor-popup').style.display = 'none';
+  document.getElementById('editor-overlay').style.display = 'none';
+}
+
+function copiarTurno() {
+  clipboard = {
+    ent: document.getElementById('editor-ent').value,
+    sai: document.getElementById('editor-sai').value,
+    tipo: editorData.tipo
+  };
+  toast('Turno copiado! Clique em outra célula e cole.', '#166534');
+  fecharEditor();
+}
+
+async function salvarEdicao() {
+  var ent = document.getElementById('editor-ent').value;
+  var sai = document.getElementById('editor-sai').value;
+  var tipo = editorData.tipo||'turno';
+  
+  if(tipo==='turno' && (!ent||!sai)){ toast('Informe entrada e saída','#dc2626'); return; }
+  
+  var btn = document.querySelector('#editor-popup button:last-child');
+  btn.textContent = 'Salvando...'; btn.disabled = true;
+  
+  try {
+    var r = await fetch('/api/escalas', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({data:editorData.data, colaborador:editorData.nome, ent, sai, tipo})
+    });
+    var d = await r.json();
+    if(d.ok){
+      fecharEditor();
+      toast('Salvo!', '#166534');
+      setTimeout(function(){ location.reload(); }, 800);
+    } else {
+      toast('Erro: '+d.error, '#dc2626');
+      btn.textContent='Salvar'; btn.disabled=false;
+    }
+  } catch(e) {
+    toast('Erro de conexão','#dc2626');
+    btn.textContent='Salvar'; btn.disabled=false;
+  }
+}
+
+function toast(msg,bg){
+  var t=document.getElementById('toast-esc');
+  t.textContent=msg; t.style.background=bg||'#1a1a1a'; t.style.display='block';
+  setTimeout(function(){t.style.display='none';},2500);
+}
+
+// Ctrl+C copia turno atual, Ctrl+V cola na célula aberta
+document.addEventListener('keydown', function(e) {
+  if((e.ctrlKey||e.metaKey) && e.key==='c' && document.getElementById('editor-popup').style.display!=='none') {
+    e.preventDefault(); copiarTurno();
+  }
+  if((e.ctrlKey||e.metaKey) && e.key==='v' && clipboard) {
+    // Cola nos campos abertos se editor estiver aberto
+    if(document.getElementById('editor-popup').style.display!=='none'){
+      setTipo(clipboard.tipo||'turno', false);
+      document.getElementById('editor-ent').value = clipboard.ent||'';
+      document.getElementById('editor-sai').value = clipboard.sai||'';
+      toast('Turno colado!','#166534');
+    }
+  }
+  if(e.key==='Escape') fecharEditor();
+  if(e.key==='Enter' && document.getElementById('editor-popup').style.display!=='none') {
+    e.preventDefault(); salvarEdicao();
+  }
+});
 </script>
 </body></html>`;
 
