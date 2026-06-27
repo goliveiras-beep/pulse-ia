@@ -170,7 +170,8 @@ export default async function handler(req, res) {
       const a = analise[nome]?.[df];
       const cargo = equipeRaw.find(r=>r[0]===nome)?.[1]||'';
       const { perigo, atencao } = resumoPessoa[nome];
-      return `<div data-nome-busca="${nome}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+      const escRegDia=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
+      return `<div data-nome-busca="${nome}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-df="${df}" data-nome2="${nome}" data-ent="${escRegDia?.[3]||''}" data-sai="${escRegDia?.[4]||''}" data-obs="${escRegDia?.[5]||''}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome2,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <div style="width:32px;height:32px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
           <div style="flex:1"><div style="font-size:13px;font-weight:600">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
@@ -216,7 +217,8 @@ export default async function handler(req, res) {
           const a=analise[nome]?.[df];
           const isHoje=df===fmtData(hoje);
           const escReg=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
-          return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${isHoje?'var(--today-bg)':''};cursor:pointer" onclick="abrirEditor(this,'${df}','${nome}','${escReg?.[3]||''}','${escReg?.[4]||''}','${escReg?.[5]||''}')">${celulaAnalise(a,null,true)}</td>`;
+          const _ent=(escReg?.[3]||'');const _sai=(escReg?.[4]||'');const _obs=(escReg?.[5]||'');
+          return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${isHoje?'var(--today-bg)':''};cursor:pointer" data-df="${df}" data-nome="${nome}" data-ent="${_ent}" data-sai="${_sai}" data-obs="${_obs}" onclick="var el=this;abrirEditor(el,el.dataset.df,el.dataset.nome,el.dataset.ent,el.dataset.sai,el.dataset.obs)">${celulaAnalise(a,null,true)}</td>`;
         }).join('')}
       </tr>`;
     }).join('');
@@ -243,7 +245,7 @@ export default async function handler(req, res) {
         const c=NIVEL_COR[a?.tipo||'livre'];
         const temAlerta=a?.alertas?.length>0;
         const escRegMes=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
-        cal+=`<div style="background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;cursor:pointer" onclick="abrirEditor(event.currentTarget,'${df}','${nome}','${escRegMes?.[3]||''}','${escRegMes?.[4]||''}','${escRegMes?.[5]||''}')">
+        cal+=`<div style="background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;cursor:pointer" data-df="${df}" data-nome="${nome}" data-ent="${escRegMes?.[3]||''}" data-sai="${escRegMes?.[4]||''}" data-obs="${escRegMes?.[5]||''}" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
           <div style="font-size:9px;font-weight:${isHoje?700:500};color:${c.txt}">${d}</div>
           ${a?.status&&a.tipo!=='livre'?`<div style="font-size:7px;color:${c.txt};overflow:hidden;white-space:nowrap">${a.status.length>8?a.status.substring(0,8):a.status}</div>`:''}
           ${temAlerta?`<div style="width:5px;height:5px;border-radius:50%;background:${c.dot};margin:1px auto 0"></div>`:''}
