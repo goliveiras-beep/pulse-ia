@@ -6,7 +6,7 @@ import { createHash } from 'crypto';
 const AIRTABLE_BASE = 'appwE9LmmTxynTGFY';
 const AIRTABLE_TABLE = 'tblpibvwAIGBQXr0H';
 const COOKIE_NAME = 'pulse_session';
-const COOKIE_MAX = 60 * 60 * 24 * 7; // 7 dias
+const COOKIE_MAX = 60 * 60 * 24 * 7;
 
 function getBRT() {
   const a = new Date();
@@ -89,7 +89,6 @@ function clearSession(res) {
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=; Path=/; Max-Age=0`);
 }
 
-// HTML base com estilos
 function baseHTML(titulo, conteudo, script='') {
   return `<!DOCTYPE html>
 <html lang="pt-BR"><head>
@@ -155,6 +154,7 @@ tr:hover td{background:#fafafa!important}
 .dia-card{border-radius:8px;padding:8px 5px;text-align:center;min-height:72px;border:1px solid #e5e5e5;background:#fff}
 .dia-card.hoje{background:#1a1a1a;border-color:#1a1a1a}
 .dia-card.d1{background:#eff6ff;border-color:#93c5fd}
+.ev-encerrado{opacity:.35;transition:opacity .3s}
 @media(max-width:700px){.metrics{grid-template-columns:repeat(2,1fr)}.layout2{grid-template-columns:1fr}.wrap{padding:10px 12px}.grid7{grid-template-columns:repeat(7,1fr);gap:3px}}
 </style>
 ${conteudo}
@@ -162,7 +162,6 @@ ${script}
 </html>`;
 }
 
-// Página de login
 function paginaLogin(equipe, erro='') {
   const opcoes = equipe.map(r=>`<option value="${r[0]}">${r[0]}</option>`).join('');
   return baseHTML('Entrar', `
@@ -191,7 +190,6 @@ function paginaLogin(equipe, erro='') {
 </div>`);
 }
 
-// Página de primeiro acesso
 function paginaPrimeiroAcesso(equipe, erro='') {
   const opcoes = equipe.filter(r=>!r[7]).map(r=>`<option value="${r[0]}">${r[0]}</option>`).join('');
   return baseHTML('Primeiro acesso', `
@@ -227,12 +225,8 @@ function paginaPrimeiroAcesso(equipe, erro='') {
 export default async function handler(req, res) {
   const action = req.query.action || '';
 
-  // Carrega equipe sempre
   const equipeRaw = await getSheet('Equipe!A2:I50');
-  // Colunas: Nome, Cargo, Núcleo, Email, SlackID, Regime, Status, SenhaHash, Perfil
-  // Índices:    0      1       2       3       4       5       6       7           8
 
-  // POST: login
   if (req.method === 'POST' && action === 'login') {
     const { nome, senha } = req.body || {};
     const usuario = equipeRaw.find(r => r[0] === nome);
@@ -243,7 +237,6 @@ export default async function handler(req, res) {
     return res.redirect(302, '/api/app');
   }
 
-  // POST: criar senha (primeiro acesso)
   if (req.method === 'POST' && action === 'criar-senha') {
     const { nome, senha, confirmar } = req.body || {};
     if (senha !== confirmar) return res.redirect(302, '/api/app?action=primeiro-acesso&erro=senhas');
@@ -251,20 +244,17 @@ export default async function handler(req, res) {
     const idx = equipeRaw.findIndex(r => r[0] === nome);
     if (idx < 0) return res.redirect(302, '/api/app?action=primeiro-acesso&erro=usuario');
     if (equipeRaw[idx][7]) return res.redirect(302, '/api/app?erro=ja-tem-senha');
-    // Salva hash na coluna H (índice 7) da aba Equipe
     const row = idx + 2;
     await setSheet(`Equipe!H${row}`, [[hash(senha)]]);
     setSessionCookie(res, nome);
     return res.redirect(302, '/api/app');
   }
 
-  // POST: logout
   if (req.method === 'POST' && action === 'logout') {
     clearSession(res);
     return res.redirect(302, '/api/app');
   }
 
-  // POST: ajuste de escala (só gestor)
   if (req.method === 'POST' && action === 'ajuste') {
     const session = getSession(req);
     if (!session) return res.status(401).json({error:'Não autorizado'});
@@ -281,115 +271,121 @@ export default async function handler(req, res) {
     } else {
       await appendSheet('Escala!A:F', [[data,'',colaborador,entVal,saiVal,obsVal]]);
     }
-    // Log em Ajustes
     const agora = getBRT();
     await appendSheet('Ajustes!A:G', [[agora.toLocaleString('pt-BR'), data, colaborador, acao, entVal, saiVal, obsVal]]);
     return res.status(200).json({ok:true});
   }
 
-  // GET: logout
   if (action === 'logout') {
     clearSession(res);
     return res.redirect(302, '/api/app');
   }
 
-  // GET: primeiro acesso
   if (action === 'primeiro-acesso') {
     const erros = {usuario:'Usuário não encontrado.','sem-senha':'Crie uma senha primeiro.',senhas:'As senhas não coincidem.',curta:'Senha muito curta (mín. 4 caracteres).'};
     return res.status(200).send(paginaPrimeiroAcesso(equipeRaw, erros[req.query.erro]||''));
   }
 
-  // Verifica sessão
   const session = getSession(req);
   if (!session) {
     const erros = {usuario:'Usuário não encontrado.',senha:'Senha incorreta.','ja-tem-senha':'Conta já criada. Faça login.'};
     return res.status(200).send(paginaLogin(equipeRaw, erros[req.query.erro]||''));
   }
 
-  // Usuário logado
   const usuario = equipeRaw.find(r => r[0] === session.nome);
   const isGestor = usuario?.[8] === 'gestor';
   const nome = session.nome;
 
-  // Carrega dados
   const hoje = getBRT();
   const d1 = new Date(hoje); d1.setDate(hoje.getDate()+1);
   const hojeStr = fmtData(hoje), d1Str = fmtData(d1);
-  const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  const DIAS_FULL = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab'];
+  const DIAS_FULL = ['Domingo','Segunda','Terca','Quarta','Quinta','Sexta','Sabado'];
 
   const dow = hoje.getDay();
   const seg = new Date(hoje); seg.setDate(hoje.getDate()-dow+1);
   const dias = Array.from({length:7},(_,i)=>{const d=new Date(seg);d.setDate(seg.getDate()+i);return d;});
   const segStr = fmtData(dias[0]), domStr = fmtData(dias[6]);
 
-  // Próxima semana
   const segProx = new Date(seg); segProx.setDate(seg.getDate()+7);
   const diasProx = Array.from({length:7},(_,i)=>{const d=new Date(segProx);d.setDate(segProx.getDate()+i);return d;});
 
-  // Semanas anteriores (2)
   const semanasAnt = [-2,-1].map(offset=>{
     const s=new Date(seg); s.setDate(seg.getDate()+offset*7);
     return Array.from({length:7},(_,i)=>{const d=new Date(s);d.setDate(s.getDate()+i);return d;});
   });
 
-  const [escalaRaw, ausenciasRaw, eventosD1] = await Promise.all([
+  const [escalaRaw, ausenciasRaw, eventosHoje, eventosAmanha] = await Promise.all([
     getSheet('Escala!A2:F500'),
-    getSheet('Ausências!A2:I500'),
+    getSheet('Ausencias!A2:I500'),
+    getEventos(fmtAirtable(hoje)),
     getEventos(fmtAirtable(d1)),
   ]);
 
   const escala = escalaRaw;
   const ausencias = ausenciasRaw;
+  // hora atual em minutos para comparar com eventos
+  const horaAtualMin = hoje.getHours()*60 + hoje.getMinutes();
 
   if (isGestor) {
-    // ========== VISÃO GESTOR ==========
     const escSem = escala.filter(r=>r[0]>=segStr&&r[0]<=domStr);
     const ausSem = ausencias.filter(r=>r[4]>=segStr&&r[4]<=domStr);
+    const escHoje = escala.filter(r=>r[0]===hojeStr);
     const escD1 = escala.filter(r=>r[0]===d1Str);
     const nomes = equipeRaw.map(r=>r[0]);
 
-    const eventosCruzados = eventosD1.map(ev=>{
-      const disp=[],atenc=[],aus=[];
-      escD1.forEach(r=>{
-        const [,,n,,, obs]=[...r], ent=r[3], sai=r[4];
-        const ausente=ausSem.find(a=>a[1]===n&&(a[4]===d1Str||a[5]===d1Str));
-        if(ausente||obs==='Folga'||obs==='Folga/Ausente'||(!ent&&!sai)){aus.push({nome:n,motivo:ausente?ausente[3]:'Folga'});return;}
-        if(estaDeServico(ent,sai,ev.hora)){
-          const st=statusTurno(ent,sai,ev.hora);
-          st?atenc.push({nome:n,ent,sai,status:st}):disp.push({nome:n,ent,sai});
-        }
+    function cruzarEventos(eventos, escDia, dataStr) {
+      return eventos.map(ev=>{
+        const disp=[],atenc=[],aus=[];
+        escDia.forEach(r=>{
+          const n=r[2], ent=r[3], sai=r[4], obs=r[5];
+          const ausente=ausSem.find(a=>a[1]===n&&(a[4]===dataStr||a[5]===dataStr));
+          if(ausente||obs==='Folga'||obs==='Folga/Ausente'||(!ent&&!sai)){aus.push({nome:n,motivo:ausente?ausente[3]:'Folga'});return;}
+          if(estaDeServico(ent,sai,ev.hora)){
+            const st=statusTurno(ent,sai,ev.hora);
+            st?atenc.push({nome:n,ent,sai,status:st}):disp.push({nome:n,ent,sai});
+          }
+        });
+        return{...ev,disp,atenc,aus,semCob:disp.length===0&&atenc.length===0};
       });
-      return{...ev,disp,atenc,aus,semCob:disp.length===0&&atenc.length===0};
-    });
+    }
 
-    const semCob=eventosCruzados.filter(e=>e.semCob).length;
-    const comAtenc=eventosCruzados.filter(e=>e.atenc.length>0).length;
-    const trabD1=escD1.filter(r=>r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Folga/Ausente').length;
-    const folgD1=escD1.filter(r=>!r[3]||r[5]==='Folga'||r[5]==='Folga/Ausente').length;
-    const cobPct=equipeRaw.length>0?Math.round(trabD1/equipeRaw.length*100):0;
+    const eventosCruzadosHoje = cruzarEventos(eventosHoje, escHoje, hojeStr);
+    const eventosCruzadosAmanha = cruzarEventos(eventosAmanha, escD1, d1Str);
+
+    const semCob=eventosCruzadosAmanha.filter(e=>e.semCob).length;
+    const comAtenc=eventosCruzadosAmanha.filter(e=>e.atenc.length>0).length;
+    const trabAmanha=escD1.filter(r=>r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Folga/Ausente').length;
+    const folgAmanha=escD1.filter(r=>!r[3]||r[5]==='Folga'||r[5]==='Folga/Ausente').length;
+    const cobPct=equipeRaw.length>0?Math.round(trabAmanha/equipeRaw.length*100):0;
     const atualizado=hoje.toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 
     function av(n,bg='#dbeafe',c='#1d4ed8'){return `<div style="width:24px;height:24px;border-radius:50%;background:${bg};color:${c};font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(n)}</div>`;}
 
-    const eventosHTML = eventosCruzados.length===0
-      ?`<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento para ${d1Str}</div>`
-      :eventosCruzados.map(ev=>{
-        const [bc,bb,ic,itc]=ev.semCob?['#fef2f2','#fca5a5','⚠️','#991b1b']:ev.atenc.length?['#fffbeb','#fcd34d','⚡','#92400e']:['#f0fdf4','#86efac','✓','#166534'];
-        return `<div style="border:1px solid ${bb};border-radius:8px;margin-bottom:10px;overflow:hidden">
-          <div style="background:${bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
-            <div style="font-size:13px;font-weight:700;color:#1d4ed8;min-width:50px">${ev.hora||'—'}</div>
-            <div style="flex:1"><div style="font-size:12px;font-weight:700">${ev.nome}</div><div style="font-size:10px;color:#888">${ev.tipo}</div></div>
-            <div style="font-size:10px;font-weight:700;color:${itc}">${ic} ${ev.semCob?'Sem cobertura':ev.atenc.length?'Troca de turno':'OK'}</div>
+    function renderEventos(eventosCruzados, comOpacidade=false) {
+      if(eventosCruzados.length===0) return `<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>`;
+      return eventosCruzados.map(ev=>{
+        const evMin = toMin(ev.hora);
+        const encerrado = comOpacidade && evMin !== null && evMin < horaAtualMin - 30;
+        const [bc,bb,ic,itc]=ev.semCob?['#fef2f2','#fca5a5','!','#991b1b']:ev.atenc.length?['#fffbeb','#fcd34d','~','#92400e']:['#f0fdf4','#86efac','OK','#166534'];
+        return `<div class="${encerrado?'ev-encerrado':''}" style="border:1px solid ${encerrado?'#e5e7eb':bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado?';opacity:.35':''}">
+          <div style="background:${encerrado?'#f9fafb':bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
+            <div style="font-size:13px;font-weight:700;color:${encerrado?'#9ca3af':'#1d4ed8'};min-width:50px">${ev.hora||'--'}</div>
+            <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado?'#9ca3af':'#1a1a1a'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}</div></div>
+            ${encerrado
+              ? `<div style="font-size:10px;font-weight:700;color:#9ca3af">Encerrado</div>`
+              : `<div style="font-size:10px;font-weight:700;color:${itc}">${ic} ${ev.semCob?'Sem cobertura':ev.atenc.length?'Troca de turno':'OK'}</div>`
+            }
           </div>
-          <div style="padding:8px 12px">
-            ${ev.disp.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f5f5f5">${av(p.nome)}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#1d4ed8;font-weight:600">${p.ent}→${p.sai}</span></div>`).join('')}
-            ${ev.atenc.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #fef9c3">${av(p.nome,'#fef3c7','#92400e')}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#555">${p.ent}→${p.sai}</span><span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">${p.status}</span></div>`).join('')}
-            ${ev.semCob?`<div style="text-align:center;padding:6px;color:#991b1b;font-size:11px;font-weight:600">Sem cobertura neste horário</div>`:''}
+          ${!encerrado?`<div style="padding:8px 12px">
+            ${ev.disp.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f5f5f5">${av(p.nome)}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#1d4ed8;font-weight:600">${p.ent}--${p.sai}</span></div>`).join('')}
+            ${ev.atenc.map(p=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #fef9c3">${av(p.nome,'#fef3c7','#92400e')}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#555">${p.ent}--${p.sai}</span><span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700">${p.status}</span></div>`).join('')}
+            ${ev.semCob?`<div style="text-align:center;padding:6px;color:#991b1b;font-size:11px;font-weight:600">Sem cobertura neste horario</div>`:''}
             ${ev.aus.length?`<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:3px">${ev.aus.map(p=>`<span style="background:#f3f4f6;color:#9ca3af;border-radius:3px;padding:1px 6px;font-size:10px">${p.nome.split(' ')[0]}</span>`).join('')}</div>`:''}
-          </div>
+          </div>`:''}
         </div>`;
       }).join('');
+    }
 
     let tabelaHTML='';
     nomes.forEach(n=>{
@@ -404,8 +400,8 @@ export default async function handler(req, res) {
         if(ausente) tabelaHTML+=`<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">${ausente[3]||'Aus.'}</span>`;
         else if(reg){
           if(reg[5]==='Folga') tabelaHTML+=`<span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">Folga</span>`;
-          else if(!reg[3]&&!reg[4]) tabelaHTML+=`<span style="color:#d1d5db;font-size:11px">—</span>`;
-          else tabelaHTML+=`<span style="font-size:11px;color:${isD1?'#1d4ed8':'#333'};font-weight:${isD1?700:500}">${reg[3]}→${reg[4]}</span>`;
+          else if(!reg[3]&&!reg[4]) tabelaHTML+=`<span style="color:#d1d5db;font-size:11px">--</span>`;
+          else tabelaHTML+=`<span style="font-size:11px;color:${isD1?'#1d4ed8':'#333'};font-weight:${isD1?700:500}">${reg[3]}--${reg[4]}</span>`;
         } else tabelaHTML+=`<span style="color:#e5e7eb;font-size:11px">+</span>`;
         tabelaHTML+=`</td>`;
       });
@@ -415,44 +411,56 @@ export default async function handler(req, res) {
     const conteudo=`
 <div class="header">
   <div class="logo">P</div>
-  <div><div class="ht">Pulse <span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:4px">Gestor</span></div><div class="hs">D+1: ${DIAS_FULL[d1.getDay()]} ${d1Str} · ${atualizado}</div></div>
+  <div><div class="ht">Pulse <span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:4px">Gestor</span></div><div class="hs">${DIAS_FULL[d1.getDay()]} ${d1Str} · ${atualizado}</div></div>
   <div class="hr">
-    <span style="font-size:12px;color:#666">Olá, ${nome.split(' ')[0]}</span>
+    <span style="font-size:12px;color:#666">Ola, ${nome.split(' ')[0]}</span>
     <a href="/api/escalas?v=semana" class="btn-sm">Escala</a>
     <a href="/api/equipe-view" class="btn-sm">Equipe</a>
-    <button class="btn-sm" onclick="location.reload()">↻</button>
+    <button class="btn-sm" onclick="location.reload()">&#8635;</button>
     <form method="POST" action="/api/app?action=logout" style="display:inline"><button type="submit" class="btn-sm">Sair</button></form>
   </div>
 </div>
 <div class="wrap">
   <div class="metrics">
-    <div class="metric blue-m"><div class="ml">Trabalhando D+1</div><div class="mv">${trabD1}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
-    <div class="metric ${folgD1>2?'amber-m':''}"><div class="ml">Folgas D+1</div><div class="mv">${folgD1}</div><div class="ms">${ausencias.filter(a=>a[4]===d1Str).length} via Pulse</div></div>
-    <div class="metric ${semCob>0?'red-m':''}"><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">de ${eventosD1.length} eventos D+1</div></div>
-    <div class="metric ${comAtenc>0?'amber-m':''}"><div class="ml">Trocas de turno</div><div class="mv">${comAtenc}</div><div class="ms">eventos com entrada/saída</div></div>
+    <div class="metric blue-m"><div class="ml">Trabalhando amanha</div><div class="mv">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
+    <div class="metric ${folgAmanha>2?'amber-m':''}"><div class="ml">Folgas amanha</div><div class="mv">${folgAmanha}</div><div class="ms">${ausencias.filter(a=>a[4]===d1Str).length} via Pulse</div></div>
+    <div class="metric ${semCob>0?'red-m':''}"><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanha</div></div>
+    <div class="metric ${comAtenc>0?'amber-m':''}"><div class="ml">Trocas de turno</div><div class="mv">${comAtenc}</div><div class="ms">eventos com entrada/saida</div></div>
   </div>
   <div class="layout2">
     <div class="card">
-      <div class="card-header"><span class="card-title">Eventos D+1 × escala</span><span class="badge ${semCob>0?'red':comAtenc>0?'amber':'green'}">${eventosD1.length} eventos</span></div>
-      <div class="card-body" style="max-height:500px;overflow-y:auto">${eventosHTML}</div>
+      <div class="card-header">
+        <span class="card-title">#NossoDia</span>
+        <span class="badge blue">${eventosHoje.length} eventos</span>
+        <span style="font-size:10px;color:#888;margin-left:auto">${hojeStr}</span>
+      </div>
+      <div class="card-body" style="max-height:500px;overflow-y:auto">${renderEventos(eventosCruzadosHoje, true)}</div>
     </div>
     <div class="card">
-      <div class="card-header"><span class="card-title">Plantão D+1</span><span class="badge blue">${trabD1} ativos</span></div>
-      <div class="card-body" style="max-height:500px;overflow-y:auto">
-        ${escD1.filter(r=>r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Folga/Ausente').sort((a,b)=>a[3].localeCompare(b[3])).map(r=>`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #f5f5f5">${av(r[2])}<span style="flex:1;font-size:11px;font-weight:600">${r[2]}</span><span style="font-size:11px;color:#1d4ed8;font-weight:700">${r[3]}→${r[4]}</span></div>`).join('')}
-        ${escD1.filter(r=>!r[3]||r[5]==='Folga'||r[5]==='Folga/Ausente').map(r=>`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #f5f5f5;opacity:.45">${av(r[2],'#f3f4f6','#9ca3af')}<span style="flex:1;font-size:11px;font-weight:600;color:#9ca3af">${r[2]}</span><span style="background:#f3f4f6;color:#9ca3af;border-radius:3px;padding:1px 5px;font-size:10px">${r[5]||'—'}</span></div>`).join('')}
+      <div class="card-header">
+        <span class="card-title">#NossoDiaAmanha</span>
+        <span class="badge ${semCob>0?'red':comAtenc>0?'amber':'green'}">${eventosAmanha.length} eventos</span>
+        <span style="font-size:10px;color:#888;margin-left:auto">${d1Str}</span>
+      </div>
+      <div class="card-body" style="max-height:500px;overflow-y:auto">${renderEventos(eventosCruzadosAmanha, false)}</div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Plantao amanha</span><span class="badge blue">${trabAmanha} ativos</span></div>
+      <div class="card-body" style="max-height:300px;overflow-y:auto">
+        ${escD1.filter(r=>r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Folga/Ausente').sort((a,b)=>a[3].localeCompare(b[3])).map(r=>`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #f5f5f5">${av(r[2])}<span style="flex:1;font-size:11px;font-weight:600">${r[2]}</span><span style="font-size:11px;color:#1d4ed8;font-weight:700">${r[3]}--${r[4]}</span></div>`).join('')}
+        ${escD1.filter(r=>!r[3]||r[5]==='Folga'||r[5]==='Folga/Ausente').map(r=>`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid #f5f5f5;opacity:.45">${av(r[2],'#f3f4f6','#9ca3af')}<span style="flex:1;font-size:11px;font-weight:600;color:#9ca3af">${r[2]}</span><span style="background:#f3f4f6;color:#9ca3af;border-radius:3px;padding:1px 5px;font-size:10px">${r[5]||'--'}</span></div>`).join('')}
       </div>
     </div>
     <div class="card full">
       <div class="card-header"><span class="card-title">Escala semanal — clique para ajustar</span><span class="badge blue">${nomes.length} colaboradores</span></div>
       <div class="table-wrap"><table>
-        <thead><tr><th class="tnome">Colaborador</th>${dias.map(d=>{const df=fmtData(d),isD1=df===d1Str,isHoje=df===hojeStr;return`<th class="${isD1?'td1':isHoje?'thoje':''}">${DIAS_PT[d.getDay()]}<br><span style="font-weight:400">${df}</span>${isD1?'<br><span style="font-size:8px;color:#3b82f6">D+1</span>':''}${isHoje?'<br><span style="font-size:8px;color:#888">hoje</span>':''}</th>`;}).join('')}</tr></thead>
+        <thead><tr><th class="tnome">Colaborador</th>${dias.map(d=>{const df=fmtData(d),isD1=df===d1Str,isHoje=df===hojeStr;return`<th class="${isD1?'td1':isHoje?'thoje':''}">${DIAS_PT[d.getDay()]}<br><span style="font-weight:400">${df}</span>${isD1?'<br><span style="font-size:8px;color:#3b82f6">amanha</span>':''}${isHoje?'<br><span style="font-size:8px;color:#888">hoje</span>':''}</th>`;}).join('')}</tr></thead>
         <tbody>${tabelaHTML}</tbody>
       </table></div>
       <div class="legenda">
         <div class="leg"><span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">Folga</span> folga</div>
-        <div class="leg"><span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">Aus.</span> ausência via Pulse</div>
-        <div class="leg" style="color:#aaa">Clique em qualquer célula para editar</div>
+        <div class="leg"><span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">Aus.</span> ausencia via Pulse</div>
+        <div class="leg" style="color:#aaa">Clique em qualquer celula para editar</div>
       </div>
     </div>
   </div>
@@ -463,18 +471,18 @@ export default async function handler(req, res) {
     <input type="hidden" id="aj-data"><input type="hidden" id="aj-nome">
     <div class="field"><label>Colaborador</label><input id="aj-colab" readonly style="background:#f9fafb;color:#888"></div>
     <div class="field"><label>Data</label><input id="aj-data-show" readonly style="background:#f9fafb;color:#888"></div>
-    <div class="field"><label>Ação</label>
+    <div class="field"><label>Acao</label>
       <select id="aj-acao" onchange="toggleAcao()">
-        <option value="horario">Alterar horário</option>
+        <option value="horario">Alterar horario</option>
         <option value="folga">Colocar folga</option>
         <option value="remover">Remover da escala</option>
       </select>
     </div>
     <div id="aj-horarios">
       <div class="field"><label>Entrada</label><input type="time" id="aj-entrada"></div>
-      <div class="field"><label>Saída</label><input type="time" id="aj-saida"></div>
+      <div class="field"><label>Saida</label><input type="time" id="aj-saida"></div>
     </div>
-    <div class="field"><label>Observação</label><input type="text" id="aj-obs" placeholder="opcional"></div>
+    <div class="field"><label>Observacao</label><input type="text" id="aj-obs" placeholder="opcional"></div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="fecharModal()">Cancelar</button>
       <button class="btn-primary" onclick="salvarAjuste()">Salvar</button>
@@ -512,38 +520,35 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
     return res.status(200).send(baseHTML('Gestor', conteudo, script));
 
   } else {
-    // ========== VISÃO EQUIPE ==========
-    const cargo = usuario?.[1]||'', nucleo = usuario?.[2]||'Operações';
+    const cargo = usuario?.[1]||'', nucleo = usuario?.[2]||'Operacoes';
     const turnoHoje = escala.find(r=>r[0]===hojeStr&&r[2]===nome);
     const turnoD1 = escala.find(r=>r[0]===d1Str&&r[2]===nome);
     const ausHoje = ausencias.find(a=>a[1]===nome&&(a[4]===hojeStr||a[5]===hojeStr));
     const ausD1 = ausencias.find(a=>a[1]===nome&&(a[4]===d1Str||a[5]===d1Str));
 
-    function cardTurno(turno, aus, label, isD1=false) {
-      if(aus) return `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#991b1b;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:20px;font-weight:700;color:#991b1b">${aus[3]||'Ausência'}</div></div>`;
+    function cardTurno(turno, aus, label, isAmanha=false) {
+      if(aus) return `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#991b1b;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:20px;font-weight:700;color:#991b1b">${aus[3]||'Ausencia'}</div></div>`;
       if(!turno||(!turno[3]&&!turno[4])) return `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:15px;color:#9ca3af">Sem escala</div></div>`;
       if(turno[5]==='Folga') return `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#92400e;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:20px;font-weight:700;color:#d97706">Folga</div></div>`;
-      const [bg,bc,tc]=isD1?['#eff6ff','#93c5fd','#1d4ed8']:['#fff','#e5e5e5','#1a1a1a'];
-      const evsDia = eventosD1.filter(()=>isD1);
-      return `<div style="background:${bg};border:1px solid ${bc};border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:${isD1?'#3b82f6':'#888'};font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:22px;font-weight:700;color:${tc}">${turno[3]} → ${turno[4]}</div>${evsDia.length?`<div style="margin-top:8px;border-top:1px solid ${bc};padding-top:6px">${evsDia.map(e=>`<div style="font-size:11px;color:#555;padding:2px 0">${e.hora?e.hora+' · ':''}${e.nome}</div>`).join('')}</div>`:''}</div>`;
+      const [bg,bc,tc]=isAmanha?['#eff6ff','#93c5fd','#1d4ed8']:['#fff','#e5e5e5','#1a1a1a'];
+      return `<div style="background:${bg};border:1px solid ${bc};border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:${isAmanha?'#3b82f6':'#888'};font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:22px;font-weight:700;color:${tc}">${turno[3]} -- ${turno[4]}</div></div>`;
     }
 
     function renderSemana(diasSem, labelSem, isAtual=false, isProx=false) {
-      const s=fmtData(diasSem[0]), e=fmtData(diasSem[6]);
       return `<div style="margin-bottom:20px">
         <div class="semana-titulo" style="color:${isAtual?'#1d4ed8':isProx?'#059669':'#888'}">
-          ${labelSem} ${isAtual?'<span style="background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:1px 6px;font-size:9px">atual</span>':''}${isProx?'<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 6px;font-size:9px">próxima</span>':''}
+          ${labelSem} ${isAtual?'<span style="background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:1px 6px;font-size:9px">atual</span>':''}${isProx?'<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 6px;font-size:9px">proxima</span>':''}
         </div>
         <div class="grid7">
           ${diasSem.map(d=>{
             const df=fmtData(d), isHoje=df===hojeStr, isDiaD1=df===d1Str;
             const turno=escala.find(r=>r[0]===df&&r[2]===nome);
             const aus=ausencias.find(a=>a[1]===nome&&(a[4]===df||a[5]===df));
-            let turnoTxt='—', tc=isHoje?'#aaa':'#9ca3af', saiTxt='';
+            let turnoTxt='--', tc=isHoje?'#aaa':'#9ca3af', saiTxt='';
             if(aus){turnoTxt=aus[3]||'Aus.';tc=isHoje?'#fca5a5':'#dc2626';}
             else if(turno){
               if(turno[5]==='Folga'){turnoTxt='Folga';tc=isHoje?'#fde68a':'#d97706';}
-              else if(turno[3]&&turno[4]){turnoTxt=turno[3];saiTxt='→'+turno[4];tc=isHoje?'#fff':isDiaD1?'#1d4ed8':'#1a1a1a';}
+              else if(turno[3]&&turno[4]){turnoTxt=turno[3];saiTxt='--'+turno[4];tc=isHoje?'#fff':isDiaD1?'#1d4ed8':'#1a1a1a';}
             }
             return `<div class="dia-card ${isHoje?'hoje':isDiaD1?'d1':''}">
               <div style="font-size:9px;font-weight:600;color:${isHoje?'#888':isDiaD1?'#3b82f6':'#aaa'};text-transform:uppercase">${DIAS_PT[d.getDay()]}</div>
@@ -573,18 +578,18 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
     <div><div style="font-size:16px;font-weight:700">${nome}</div><div style="font-size:12px;color:#888">${cargo||'Colaborador'} · ${nucleo}</div></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
-    ${cardTurno(turnoHoje,ausHoje,'Hoje — '+DIAS_FULL[hoje.getDay()])}
-    ${cardTurno(turnoD1,ausD1,'Amanhã — '+DIAS_FULL[d1.getDay()],true)}
+    ${cardTurno(turnoHoje,ausHoje,'#NossoDia -- '+DIAS_FULL[hoje.getDay()])}
+    ${cardTurno(turnoD1,ausD1,'#NossoDiaAmanha -- '+DIAS_FULL[d1.getDay()],true)}
   </div>
   <div class="card">
     <div class="card-header"><span class="card-title">Minha escala</span></div>
     <div class="card-body">
-      ${semanasAnt.map((s,i)=>renderSemana(s,`Semana ${fmtData(s[0])}–${fmtData(s[6])}`)  ).join('')}
+      ${semanasAnt.map(s=>renderSemana(s,`Semana ${fmtData(s[0])}--${fmtData(s[6])}`)).join('')}
       ${renderSemana(dias,'Semana atual',true)}
-      ${renderSemana(diasProx,'Próxima semana',false,true)}
+      ${renderSemana(diasProx,'Proxima semana',false,true)}
     </div>
   </div>
-  <div style="text-align:center;padding:16px 0;font-size:11px;color:#aaa">Para registrar folga ou ausência, mande um DM para o Pulse no Slack</div>
+  <div style="text-align:center;padding:16px 0;font-size:11px;color:#aaa">Para registrar folga ou ausencia, mande um DM para o Pulse no Slack</div>
 </div>`;
 
     return res.status(200).send(baseHTML('Meu turno', conteudo));
