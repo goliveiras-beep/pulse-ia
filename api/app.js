@@ -524,7 +524,7 @@ export default async function handler(req, res) {
     </div>
     <div class="card">
       <div class="card-header">
-        <span class="card-title">#NossoDiaAmanha</span>
+        <span class="card-title">#NossoDiaAmanhã</span>
         <span class="badge ${semCob>0?'red':comAtenc>0?'amber':'green'}">${eventosAmanha.length} eventos</span>
         <span style="font-size:10px;color:#888;margin-left:auto">${d1Str}</span>
       </div>
@@ -645,8 +645,8 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
     <div><div style="font-size:16px;font-weight:700">${nome}</div><div style="font-size:12px;color:#888">${cargo||'Colaborador'} · ${nucleo}</div></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
-    ${cardTurno(turnoHoje,ausHoje,'#NossoDia -- '+DIAS_FULL[hoje.getDay()])}
-    ${cardTurno(turnoD1,ausD1,'#NossoDiaAmanha -- '+DIAS_FULL[d1.getDay()],true)}
+    ${cardTurno(turnoHoje,ausHoje,'#NossoDia — '+DIAS_FULL[hoje.getDay()])}
+    ${cardTurno(turnoD1,ausD1,'#NossoDiaAmanhã — '+DIAS_FULL[d1.getDay()],true)}
   </div>
   <div class="card">
     <div class="card-header"><span class="card-title">Minha escala</span></div>
