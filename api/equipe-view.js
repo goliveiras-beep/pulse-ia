@@ -81,18 +81,36 @@ export default async function handler(req, res) {
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse - Equipe</title>
 <style>
+:root{
+--bg:#f5f5f5;--bg2:#fff;--bg3:#fafafa;--border:#e5e5e5;
+--text:#1a1a1a;--text2:#555;--text3:#888;--text4:#aaa;
+--header:#1a1a1a;--card:#fff;--input:#fff;--modal:#fff;
+--btn-border:#444;--btn-c:#ccc;
+}
+@media(prefers-color-scheme:dark){:root{
+--bg:#0f0f0f;--bg2:#1a1a1a;--bg3:#222;--border:#2a2a2a;
+--text:#f0f0f0;--text2:#bbb;--text3:#777;--text4:#555;
+--header:#111;--card:#1a1a1a;--input:#222;--modal:#1e1e1e;
+--btn-border:#555;--btn-c:#999;
+}}
+@media(prefers-color-scheme:dark){
+body{background:var(--bg)!important;color:var(--text)!important}
+}
+@media(max-width:600px){
+div[style*="repeat(4,1fr)"]{grid-template-columns:repeat(2,1fr)!important}
+}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 .field{margin-bottom:12px}
-.field label{display:block;font-size:11px;color:#555;font-weight:600;margin-bottom:4px}
-.field input,.field select{width:100%;border:1px solid #e5e5e5;border-radius:7px;padding:8px 10px;font-size:13px;outline:none;background:#fff}
+.field label{display:block;font-size:11px;color:var(--text2);font-weight:600;margin-bottom:4px}
+.field input,.field select{width:100%;border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;outline:none;background:var(--input);color:var(--text)}
 .field input:focus,.field select:focus{border-color:#3b82f6;box-shadow:0 0 0 2px #dbeafe}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-start;justify-content:center;padding-top:40px;overflow-y:auto}
 .modal-bg.open{display:flex}
-.modal{background:#fff;border-radius:12px;padding:22px;width:100%;max-width:460px;margin:0 16px 40px}
+.modal{background:var(--modal);border-radius:12px;padding:22px;width:100%;max-width:460px;margin:0 16px 40px;color:var(--text)}
 .modal h3{font-size:15px;font-weight:600;margin-bottom:16px}
 .btn-primary{background:#1d4ed8;color:#fff;border:none;border-radius:7px;padding:8px 18px;font-size:13px;cursor:pointer;font-weight:600}
-.btn-cancel{background:none;border:1px solid #e5e5e5;border-radius:7px;padding:8px 14px;font-size:13px;cursor:pointer;color:#555}
+.btn-cancel{background:none;border:1px solid var(--border);border-radius:7px;padding:8px 14px;font-size:13px;cursor:pointer;color:var(--text2)}
 .toast{position:fixed;bottom:20px;right:20px;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:500;z-index:300;display:none;max-width:300px;color:#fff}
 .secao-titulo{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.05em;margin:20px 0 10px;display:flex;align-items:center;gap:8px}
 </style>
