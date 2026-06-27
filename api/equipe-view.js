@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     const isGestor = perfil==='gestor';
     const inativo = status==='Inativo';
     return `
-    <div style="background:#fff;border:1px solid ${inativo?'#e5e7eb':isGestor?'#dbeafe':'#e5e5e5'};border-radius:10px;padding:14px 16px;opacity:${inativo?'.6':'1'}">
+    <div data-nome-busca="${esc(nome)}" data-ordem="${idx}" style="background:#fff;border:1px solid ${inativo?'#e5e7eb':isGestor?'#dbeafe':'#e5e5e5'};border-radius:10px;padding:14px 16px;opacity:${inativo?'.6':'1'}">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <div style="width:36px;height:36px;border-radius:50%;background:${isGestor?'#dbeafe':inativo?'#f3f4f6':'#f0fdf4'};color:${isGestor?'#1d4ed8':inativo?'#9ca3af':'#16a34a'};font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
         <div style="flex:1;min-width:0">
@@ -111,6 +111,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div style="max-width:1100px;margin:0 auto;padding:16px 20px">
+
+  <!-- Barra de filtros -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <div style="display:flex;gap:4px;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:3px">
+      <button id="view-grid" title="Quadradinhos" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">⊞</button>
+      <button id="view-list" title="Lista" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">☰</button>
+    </div>
+    <div style="display:flex;gap:4px;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:3px">
+      <button id="sort-default" title="Ordem original" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Padrão</button>
+      <button id="sort-alpha" title="Ordem alfabética" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">A→Z</button>
+    </div>
+    <input id="busca" placeholder="Buscar colaborador..." style="flex:1;min-width:160px;border:1px solid #e5e5e5;border-radius:8px;padding:7px 12px;font-size:12px;outline:none">
+  </div>
+
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
     <div style="background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px 14px">
       <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Total ativo</div>
@@ -136,9 +150,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
   <div class="secao-titulo">
     <span>Equipe ativa</span>
-    <span style="background:#f0fdf4;color:#16a34a;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">${ativos.length}</span>
+    <span id="count-ativos" style="background:#f0fdf4;color:#16a34a;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">${ativos.length}</span>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+  <div id="grid-ativos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
     ${ativos.map(r=>cardPessoa(r, equipeRaw.indexOf(r))).join('')}
   </div>
 
@@ -147,7 +161,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <span>Inativos</span>
     <span style="background:#f3f4f6;color:#6b7280;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">${inativos.length}</span>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+  <div id="grid-inativos" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
     ${inativos.map(r=>cardPessoa(r, equipeRaw.indexOf(r))).join('')}
   </div>`:''}
 </div>
@@ -272,6 +286,79 @@ function toast(msg,bg){
   t.textContent=msg;t.style.background=bg;t.style.display='block';
   setTimeout(function(){t.style.display='none';},2800);
 }
+
+// Filtros
+var viewAtual = 'grid';
+var sortAtual = 'default';
+
+function aplicarFiltros(){
+  var busca = document.getElementById('busca').value.toLowerCase();
+  var grids = ['grid-ativos','grid-inativos'];
+  grids.forEach(function(gid){
+    var grid = document.getElementById(gid);
+    if(!grid) return;
+    var cards = Array.from(grid.querySelectorAll('[data-nome-busca]'));
+
+    // Filtrar por busca
+    cards.forEach(function(c){
+      var nome = c.getAttribute('data-nome-busca').toLowerCase();
+      c.style.display = nome.includes(busca) ? '' : 'none';
+    });
+
+    // Ordenar
+    var visiveis = cards.filter(function(c){ return c.style.display !== 'none'; });
+    if(sortAtual === 'alpha'){
+      visiveis.sort(function(a,b){
+        return a.getAttribute('data-nome-busca').localeCompare(b.getAttribute('data-nome-busca'),'pt-BR');
+      });
+      visiveis.forEach(function(c){ grid.appendChild(c); });
+    } else {
+      visiveis.sort(function(a,b){
+        return parseInt(a.getAttribute('data-ordem')) - parseInt(b.getAttribute('data-ordem'));
+      });
+      visiveis.forEach(function(c){ grid.appendChild(c); });
+    }
+
+    // Aplicar modo de exibição
+    if(viewAtual === 'grid'){
+      grid.style.display = 'grid';
+      grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(260px,1fr))';
+      grid.style.gap = '12px';
+      cards.forEach(function(c){ c.style.width=''; });
+    } else {
+      grid.style.display = 'flex';
+      grid.style.flexDirection = 'column';
+      grid.style.gap = '6px';
+      cards.forEach(function(c){ c.style.width='100%'; });
+    }
+  });
+}
+
+document.getElementById('view-grid').addEventListener('click',function(){
+  viewAtual='grid';
+  this.style.background='#1a1a1a';this.style.color='#fff';
+  document.getElementById('view-list').style.background='none';document.getElementById('view-list').style.color='#888';
+  aplicarFiltros();
+});
+document.getElementById('view-list').addEventListener('click',function(){
+  viewAtual='list';
+  this.style.background='#1a1a1a';this.style.color='#fff';
+  document.getElementById('view-grid').style.background='none';document.getElementById('view-grid').style.color='#888';
+  aplicarFiltros();
+});
+document.getElementById('sort-alpha').addEventListener('click',function(){
+  sortAtual='alpha';
+  this.style.background='#1a1a1a';this.style.color='#fff';
+  document.getElementById('sort-default').style.background='none';document.getElementById('sort-default').style.color='#888';
+  aplicarFiltros();
+});
+document.getElementById('sort-default').addEventListener('click',function(){
+  sortAtual='default';
+  this.style.background='#1a1a1a';this.style.color='#fff';
+  document.getElementById('sort-alpha').style.background='none';document.getElementById('sort-alpha').style.color='#888';
+  aplicarFiltros();
+});
+document.getElementById('busca').addEventListener('input',aplicarFiltros);
 
 document.getElementById('btn-adicionar').addEventListener('click',abrirAdicionar);
 document.getElementById('btn-cancelar').addEventListener('click',fecharModal);
