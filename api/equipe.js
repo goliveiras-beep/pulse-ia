@@ -1,11 +1,10 @@
 // api/equipe.js — API de gerenciamento de equipe (CRUD)
-// Usado pelo dashboard do gestor via fetch()
 export const config = { maxDuration: 30 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
-function hash(s) { return createHash('sha256').update(s+(process.env.PULSE_SECRET||'pulse2026')).digest('hex').slice(0,32); }
+function hash(s) { return createHash('sha256').update(s + process.env.PULSE_SECRET || 'pulse2026').digest('hex').slice(0,32); }
 
 function getSession(req) {
   const cookies = {};
@@ -75,12 +74,11 @@ export default async function handler(req, res) {
     return res.status(200).json({ok:true, msg:`${nome} atualizado`});
   }
 
-  // Remover pessoa (marca como Inativo ou remove linha)
+  // Remover pessoa
   if (action === 'remover') {
     const { linha, nome, definitivo } = body;
     if (!linha) return res.status(400).json({error:'Linha não informada'});
     if (definitivo) {
-      // Remove linha via batchUpdate
       const spreadsheet = await sheetsRequest(process.env.GOOGLE_SHEET_ID, '');
       const equipeSheet = spreadsheet.sheets?.find(s=>s.properties.title==='Equipe');
       if (!equipeSheet) return res.status(500).json({error:'Aba não encontrada'});
@@ -93,9 +91,6 @@ export default async function handler(req, res) {
       });
       return res.status(200).json({ok:true, msg:`${nome} removido definitivamente`});
     } else {
-      // Só marca como Inativo
-      const linhaAtual = equipeRaw[linha-2] || [];
-      linhaAtual[6] = 'Inativo';
       await sheetsRequest(process.env.GOOGLE_SHEET_ID,
         `/values/Equipe!G${linha}?valueInputOption=USER_ENTERED`,'PUT',
         {values:[['Inativo']]});
