@@ -1,5 +1,5 @@
 // api/escalas.js — Visão dia/semana/mês com alertas trabalhistas
-export const config = { maxDuration: 30 };
+export const config = { maxDuration: 60 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { analisarEscala, duracaoTurno } from '../lib/escalas-engine.js';
 import { createHash } from 'crypto';
@@ -245,12 +245,12 @@ export default async function handler(req, res) {
         const c=NIVEL_COR[a?.tipo||'livre'];
         const temAlerta=a?.alertas?.length>0;
         const escRegMes=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
-        cal+=`<div style="background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;cursor:pointer" data-df="${df}" data-nome="${nome}" data-ent="${escRegMes?.[3]||''}" data-sai="${escRegMes?.[4]||''}" data-obs="${escRegMes?.[5]||''}" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
+        const _mEnt=escRegMes?.[3]||'';const _mSai=escRegMes?.[4]||'';const _mObs=(escRegMes?.[5]||'').replace(/['"]/g,'');
+        cal+=`<div style="background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;cursor:pointer" data-df="${df}" data-nome="${nome}" data-ent="${_mEnt}" data-sai="${_mSai}" data-obs="${_mObs}" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
           <div style="font-size:9px;font-weight:${isHoje?700:500};color:${c.txt}">${d}</div>
           ${a?.status&&a.tipo!=='livre'?`<div style="font-size:7px;color:${c.txt};overflow:hidden;white-space:nowrap">${a.status.length>8?a.status.substring(0,8):a.status}</div>`:''}
           ${temAlerta?`<div style="width:5px;height:5px;border-radius:50%;background:${c.dot};margin:1px auto 0"></div>`:''}
-        </div>`;
-      }
+        </div>`;      }
       cal+=`</div>`;
       return `<div data-nome-busca="${nome}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" style="background:var(--card);border:1px solid ${perigo>0?'var(--red-m-border)':atencao>0?'var(--amber-m-border)':'var(--border)'};border-radius:10px;padding:12px 14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
