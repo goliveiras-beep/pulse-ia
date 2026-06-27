@@ -1,5 +1,7 @@
 export const config = { maxDuration: 30 };
 
+import { sheetsRequest } from '../lib/google-auth.js';
+
 const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode. Ajuda o time com informações internas, documentos, agenda e suporte geral.
 Responda sempre em português brasileiro. Seja objetivo e amigável.`;
 
@@ -14,21 +16,14 @@ function parsearData(texto) {
   const hoje = new Date(brt.toISOString().split('T')[0]);
 
   if (/\bhoje\b/i.test(texto)) return hoje;
-
-  if (/\bamanh[aã]\b/i.test(texto)) {
-    const d = new Date(hoje); d.setDate(d.getDate() + 1); return d;
-  }
-
-  if (/\bontem\b/i.test(texto)) {
-    const d = new Date(hoje); d.setDate(d.getDate() - 1); return d;
-  }
+  if (/\bamanh[aã]\b/i.test(texto)) { const d = new Date(hoje); d.setDate(d.getDate() + 1); return d; }
+  if (/\bontem\b/i.test(texto)) { const d = new Date(hoje); d.setDate(d.getDate() - 1); return d; }
 
   const diaMatch = texto.match(/dia\s+(\d{1,2})(?:\/(\d{1,2}))?/i) || texto.match(/(\d{1,2})\/(\d{1,2})/);
   if (diaMatch) {
     const dia = parseInt(diaMatch[1]);
     const mes = diaMatch[2] ? parseInt(diaMatch[2]) - 1 : hoje.getMonth();
-    const ano = hoje.getFullYear();
-    return new Date(ano, mes, dia);
+    return new Date(hoje.getFullYear(), mes, dia);
   }
 
   for (const [nome, diaSemana] of Object.entries(DIAS_SEMANA)) {
@@ -47,9 +42,17 @@ function parsearData(texto) {
   return null;
 }
 
-// Detecta intervalo de datas (ex: "de 10/07 a 20/07", "do dia 5 ao dia 10")
+function parsearDataStr(str) {
+  const agora = new Date();
+  const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
+  const hoje = new Date(brt.toISOString().split('T')[0]);
+  const partes = str.split('/');
+  const dia = parseInt(partes[0]);
+  const mes = partes[1] ? parseInt(partes[1]) - 1 : hoje.getMonth();
+  return new Date(hoje.getFullYear(), mes, dia);
+}
+
 function parsearIntervalo(texto) {
-  // Formato: de DD/MM a DD/MM ou do dia X ao dia Y
   const rangeMatch = texto.match(/de\s+(\d{1,2}\/\d{1,2}|\d{1,2})\s+(?:a|até)\s+(\d{1,2}\/\d{1,2}|\d{1,2})/i)
     || texto.match(/do\s+dia\s+(\d{1,2}(?:\/\d{1,2})?)\s+ao\s+dia\s+(\d{1,2}(?:\/\d{1,2})?)/i);
 
@@ -59,23 +62,9 @@ function parsearIntervalo(texto) {
     if (inicio && fim) return { inicio, fim };
   }
 
-  // Data única
   const data = parsearData(texto);
   if (data) return { inicio: data, fim: data };
-
   return null;
-}
-
-function parsearDataStr(str) {
-  const agora = new Date();
-  const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
-  const hoje = new Date(brt.toISOString().split('T')[0]);
-
-  const partes = str.split('/');
-  const dia = parseInt(partes[0]);
-  const mes = partes[1] ? parseInt(partes[1]) - 1 : hoje.getMonth();
-  const ano = hoje.getFullYear();
-  return new Date(ano, mes, dia);
 }
 
 function formatarData(d) {
@@ -142,40 +131,22 @@ async function getNomeSlack(userId) {
 }
 
 async function registrarAusencia({ userId, nomeUsuario, tipo, inicio, fim, observacao }) {
-  const sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Ausências!A:A:append?valueInputOption=USER_ENTERED`;
-
   const agora = new Date();
   const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
   const registradoEm = brt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
-  const row = [
-    registradoEm,
-    nomeUsuario,
-    userId,
-    tipo,
-    formatarData(inicio),
-    formatarData(fim),
-    inicio.getTime() === fim.getTime() ? '1' : String(Math.round((fim - inicio) / (1000 * 60 * 60 * 24)) + 1),
-    observacao || '',
-    'Pendente'
-  ];
+  const dias = inicio.getTime() === fim.getTime()
+    ? '1'
+    : String(Math.round((fim - inicio) / (1000 * 60 * 60 * 24)) + 1);
 
-  const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Aus%C3%AAncias!A1:append?valueInputOption=USER_ENTERED`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.GOOGLE_SERVICE_ACCOUNT_TOKEN}`
-      },
-      body: JSON.stringify({ values: [row] })
-    }
+  const row = [registradoEm, nomeUsuario, userId, tipo, formatarData(inicio), formatarData(fim), dias, observacao || '', 'Pendente'];
+
+  await sheetsRequest(
+    process.env.GOOGLE_SHEET_ID,
+    `/values/Aus%C3%AAncias!A1:append?valueInputOption=USER_ENTERED`,
+    'POST',
+    { values: [row] }
   );
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Sheets API erro: ${err}`);
-  }
 
   return row;
 }
@@ -218,7 +189,6 @@ export default async function handler(req, res) {
   try {
     await slackPost("chat.postMessage", { channel: channelId, text: "_Processando..._", mrkdwn: true });
 
-    // --- Detectar ausência ---
     const tipoAusencia = detectarTipoAusencia(userMessage);
 
     if (tipoAusencia) {
@@ -234,19 +204,10 @@ export default async function handler(req, res) {
       }
 
       const nomeUsuario = await getNomeSlack(userId);
-
-      // Extrai observação (texto após "porque", "motivo:", "obs:", etc.)
       const obsMatch = userMessage.match(/(?:porque|pois|motivo[:\s]+|obs[:\s]+|observa[çc][aã]o[:\s]+)(.*)/i);
       const observacao = obsMatch ? obsMatch[1].trim() : '';
 
-      await registrarAusencia({
-        userId,
-        nomeUsuario,
-        tipo: tipoAusencia,
-        inicio: intervalo.inicio,
-        fim: intervalo.fim,
-        observacao
-      });
+      await registrarAusencia({ userId, nomeUsuario, tipo: tipoAusencia, inicio: intervalo.inicio, fim: intervalo.fim, observacao });
 
       const mesmodia = intervalo.inicio.getTime() === intervalo.fim.getTime();
       const periodoStr = mesmodia
@@ -261,7 +222,6 @@ export default async function handler(req, res) {
         mrkdwn: true
       });
 
-      // Notifica canal de RH/gestão se configurado
       if (process.env.SLACK_RH_CHANNEL) {
         await slackPost("chat.postMessage", {
           channel: process.env.SLACK_RH_CHANNEL,
@@ -273,13 +233,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
 
-    // --- Consultar grade ---
+    // --- Grade Airtable ---
     const querGrade = /grade|evento|agenda|transmiss|ao vivo|jogo|partida|futebol|copa|programa/i.test(userMessage);
 
     let resposta;
     if (querGrade) {
       const dataObj = parsearData(userMessage);
-
       if (dataObj) {
         const dataStr = dataObj.toISOString().split('T')[0];
         const dataFormatada = dataObj.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
