@@ -82,7 +82,7 @@ function gerarFraseEncerrado(nomeEvento) {
   return frases[idx];
 }
 
-
+function parseCookies(cookieHeader) {
   const cookies = {};
   if (!cookieHeader) return cookies;
   cookieHeader.split(';').forEach(c => {
@@ -434,7 +434,6 @@ export default async function handler(req, res) {
             ${ev.aus.length?`<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:3px">${ev.aus.map(p=>`<span style="background:#f3f4f6;color:#9ca3af;border-radius:3px;padding:1px 6px;font-size:10px">${p.nome.split(' ')[0]}</span>`).join('')}</div>`:''}
           </div>`:''}
         </div>`;
-      }));
       }).join('');
     }
 
