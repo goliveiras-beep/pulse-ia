@@ -1,4 +1,4 @@
-// api/equipe-view.js — Página de gerenciamento de equipe
+// api/equipe-view.js
 export const config = { maxDuration: 30 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { createHash } from 'crypto';
@@ -26,6 +26,7 @@ async function getSheet(range) {
 }
 
 function iniciais(n) { return n.split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 export default async function handler(req, res) {
   const session = getSession(req);
@@ -45,17 +46,13 @@ export default async function handler(req, res) {
     const regime=r[5]||'', status=r[6]||'Ativo', temSenha=!!r[7], perfil=r[8]||'';
     const isGestor = perfil==='gestor';
     const inativo = status==='Inativo';
-    const nomeEsc = nome.replace(/'/g,"\\'");
-    const cargoEsc = cargo.replace(/'/g,"\\'");
-    const nucleoEsc = nucleo.replace(/'/g,"\\'");
-    const emailEsc = email.replace(/'/g,"\\'");
     return `
-    <div style="background:#fff;border:1px solid ${inativo?'#e5e7eb':isGestor?'#dbeafe':'#e5e5e5'};border-radius:10px;padding:14px 16px;opacity:${inativo?.6:1}">
+    <div style="background:#fff;border:1px solid ${inativo?'#e5e7eb':isGestor?'#dbeafe':'#e5e5e5'};border-radius:10px;padding:14px 16px;opacity:${inativo?'.6':'1'}">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <div style="width:36px;height:36px;border-radius:50%;background:${isGestor?'#dbeafe':inativo?'#f3f4f6':'#f0fdf4'};color:${isGestor?'#1d4ed8':inativo?'#9ca3af':'#16a34a'};font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nome}</div>
-          <div style="font-size:11px;color:#888">${cargo||'—'} · ${nucleo||'—'}</div>
+          <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(nome)}</div>
+          <div style="font-size:11px;color:#888">${esc(cargo)||'&mdash;'} &middot; ${esc(nucleo)||'&mdash;'}</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           ${isGestor?'<span style="background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700">Gestor</span>':''}
@@ -64,16 +61,16 @@ export default async function handler(req, res) {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;color:#888;margin-bottom:10px">
-        ${email?`<div>Email: ${email}</div>`:''}
-        ${regime?`<div>Regime: ${regime}</div>`:''}
+        ${email?`<div>Email: ${esc(email)}</div>`:''}
+        ${regime?`<div>Regime: ${esc(regime)}</div>`:''}
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button onclick="abrirEditar(${linha},'${nomeEsc}','${cargoEsc}','${nucleoEsc}','${emailEsc}','${regime}','${status}','${perfil}')" style="flex:1;background:none;border:1px solid #e5e5e5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#555">Editar</button>
-        ${temSenha?`<button onclick="resetarSenha(${linha},'${nomeEsc}')" style="flex:1;background:none;border:1px solid #fcd34d;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#92400e">Resetar senha</button>`:''}
+        <button class="btn-editar" data-linha="${linha}" data-nome="${esc(nome)}" data-cargo="${esc(cargo)}" data-nucleo="${esc(nucleo)}" data-email="${esc(email)}" data-regime="${esc(regime)}" data-status="${esc(status)}" data-perfil="${esc(perfil)}" style="flex:1;background:none;border:1px solid #e5e5e5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#555">Editar</button>
+        ${temSenha?`<button class="btn-resetar" data-linha="${linha}" data-nome="${esc(nome)}" style="flex:1;background:none;border:1px solid #fcd34d;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#92400e">Resetar senha</button>`:''}
         ${inativo
-          ?`<button onclick="reativar(${linha},'${nomeEsc}')" style="flex:1;background:none;border:1px solid #86efac;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#16a34a">Reativar</button>
-            <button onclick="remover(${linha},'${nomeEsc}',true)" style="flex:1;background:none;border:1px solid #fca5a5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#dc2626">Excluir</button>`
-          :`<button onclick="remover(${linha},'${nomeEsc}',false)" style="flex:1;background:none;border:1px solid #fca5a5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#dc2626">Desativar</button>`
+          ?`<button class="btn-reativar" data-linha="${linha}" data-nome="${esc(nome)}" style="flex:1;background:none;border:1px solid #86efac;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#16a34a">Reativar</button>
+            <button class="btn-remover" data-linha="${linha}" data-nome="${esc(nome)}" data-definitivo="true" style="flex:1;background:none;border:1px solid #fca5a5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#dc2626">Excluir</button>`
+          :`<button class="btn-remover" data-linha="${linha}" data-nome="${esc(nome)}" data-definitivo="false" style="flex:1;background:none;border:1px solid #fca5a5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#dc2626">Desativar</button>`
         }
       </div>
     </div>`;
@@ -82,7 +79,7 @@ export default async function handler(req, res) {
   const html = `<!DOCTYPE html>
 <html lang="pt-BR"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pulse — Equipe</title>
+<title>Pulse - Equipe</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a}
@@ -104,17 +101,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div style="background:#1a1a1a;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100">
   <a href="/api/app" style="width:28px;height:28px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#1a1a1a;font-size:12px;font-weight:700;flex-shrink:0;text-decoration:none">P</a>
   <div>
-    <div style="font-size:14px;font-weight:600;color:#fff">Pulse — Equipe</div>
-    <div style="font-size:11px;color:#666">${ativos.length} ativos · ${inativos.length} inativos · ${atualizado}</div>
+    <div style="font-size:14px;font-weight:600;color:#fff">Pulse - Equipe</div>
+    <div style="font-size:11px;color:#666">${ativos.length} ativos &middot; ${inativos.length} inativos &middot; ${atualizado}</div>
   </div>
   <div style="margin-left:auto;display:flex;gap:8px">
-    <button onclick="abrirAdicionar()" style="background:#fff;color:#1a1a1a;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-weight:600">+ Adicionar</button>
-    <a href="/api/app" style="background:none;border:1px solid #444;border-radius:5px;padding:5px 10px;font-size:11px;color:#ccc;text-decoration:none">← Voltar</a>
+    <button id="btn-adicionar" style="background:#fff;color:#1a1a1a;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-weight:600">+ Adicionar</button>
+    <a href="/api/app" style="background:none;border:1px solid #444;border-radius:5px;padding:5px 10px;font-size:11px;color:#ccc;text-decoration:none">&#8592; Voltar</a>
   </div>
 </div>
 
 <div style="max-width:1100px;margin:0 auto;padding:16px 20px">
-
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
     <div style="background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px 14px">
       <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Total ativo</div>
@@ -143,7 +139,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <span style="background:#f0fdf4;color:#16a34a;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">${ativos.length}</span>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
-    ${ativos.map((r)=>cardPessoa(r, equipeRaw.indexOf(r))).join('')}
+    ${ativos.map(r=>cardPessoa(r, equipeRaw.indexOf(r))).join('')}
   </div>
 
   ${inativos.length>0?`
@@ -152,9 +148,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <span style="background:#f3f4f6;color:#6b7280;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">${inativos.length}</span>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
-    ${inativos.map((r)=>cardPessoa(r, equipeRaw.indexOf(r))).join('')}
+    ${inativos.map(r=>cardPessoa(r, equipeRaw.indexOf(r))).join('')}
   </div>`:''}
-
 </div>
 
 <div class="modal-bg" id="modal">
@@ -163,13 +158,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <input type="hidden" id="f-linha">
     <input type="hidden" id="f-action" value="adicionar">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="field" style="grid-column:1/-1"><label>Nome completo *</label><input id="f-nome" placeholder="Ex: João Silva"></div>
+      <div class="field" style="grid-column:1/-1"><label>Nome completo *</label><input id="f-nome" placeholder="Ex: Joao Silva"></div>
       <div class="field"><label>Cargo</label><input id="f-cargo" placeholder="Ex: Operador"></div>
-      <div class="field"><label>Núcleo</label><input id="f-nucleo" placeholder="Ex: Operações" value="Operações"></div>
+      <div class="field"><label>Nucleo</label><input id="f-nucleo" placeholder="Ex: Operacoes" value="Operacoes"></div>
       <div class="field" style="grid-column:1/-1"><label>E-mail</label><input id="f-email" type="email" placeholder="nome@livemode.com"></div>
       <div class="field"><label>Regime</label>
         <select id="f-regime">
-          <option value="">—</option>
+          <option value="">--</option>
           <option value="CLT">CLT</option>
           <option value="PJ">PJ</option>
         </select>
@@ -182,14 +177,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
       <div class="field" style="grid-column:1/-1"><label>Perfil de acesso</label>
         <select id="f-perfil">
-          <option value="">Colaborador (visão própria)</option>
-          <option value="gestor">Gestor (visão completa + edição)</option>
+          <option value="">Colaborador (visao propria)</option>
+          <option value="gestor">Gestor (visao completa + edicao)</option>
         </select>
       </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
-      <button class="btn-cancel" onclick="fecharModal()">Cancelar</button>
-      <button class="btn-primary" onclick="salvar()">Salvar</button>
+      <button class="btn-cancel" id="btn-cancelar">Cancelar</button>
+      <button class="btn-primary" id="btn-salvar">Salvar</button>
     </div>
   </div>
 </div>
@@ -203,7 +198,7 @@ function abrirAdicionar(){
   document.getElementById('f-linha').value='';
   document.getElementById('f-nome').value='';
   document.getElementById('f-cargo').value='';
-  document.getElementById('f-nucleo').value='Operações';
+  document.getElementById('f-nucleo').value='Operacoes';
   document.getElementById('f-email').value='';
   document.getElementById('f-regime').value='';
   document.getElementById('f-status').value='Ativo';
@@ -211,17 +206,17 @@ function abrirAdicionar(){
   document.getElementById('modal').classList.add('open');
 }
 
-function abrirEditar(linha,nome,cargo,nucleo,email,regime,status,perfil){
+function abrirEditar(d){
   document.getElementById('modal-titulo').textContent='Editar colaborador';
   document.getElementById('f-action').value='editar';
-  document.getElementById('f-linha').value=linha;
-  document.getElementById('f-nome').value=nome;
-  document.getElementById('f-cargo').value=cargo;
-  document.getElementById('f-nucleo').value=nucleo;
-  document.getElementById('f-email').value=email;
-  document.getElementById('f-regime').value=regime;
-  document.getElementById('f-status').value=status;
-  document.getElementById('f-perfil').value=perfil;
+  document.getElementById('f-linha').value=d.linha;
+  document.getElementById('f-nome').value=d.nome;
+  document.getElementById('f-cargo').value=d.cargo;
+  document.getElementById('f-nucleo').value=d.nucleo;
+  document.getElementById('f-email').value=d.email;
+  document.getElementById('f-regime').value=d.regime;
+  document.getElementById('f-status').value=d.status;
+  document.getElementById('f-perfil').value=d.perfil;
   document.getElementById('modal').classList.add('open');
 }
 
@@ -230,7 +225,8 @@ function fecharModal(){ document.getElementById('modal').classList.remove('open'
 async function salvar(){
   const action=document.getElementById('f-action').value;
   const body={
-    action, linha:document.getElementById('f-linha').value,
+    action,
+    linha:document.getElementById('f-linha').value,
     nome:document.getElementById('f-nome').value.trim(),
     cargo:document.getElementById('f-cargo').value.trim(),
     nucleo:document.getElementById('f-nucleo').value.trim(),
@@ -239,45 +235,81 @@ async function salvar(){
     status:document.getElementById('f-status').value,
     perfil:document.getElementById('f-perfil').value,
   };
-  if(!body.nome){toast('Nome é obrigatório','#dc2626');return;}
+  if(!body.nome){toast('Nome e obrigatorio','#dc2626');return;}
   const r=await fetch('/api/equipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const d=await r.json();
-  if(d.ok){fecharModal();toast(d.msg);setTimeout(()=>location.reload(),1000);}
+  if(d.ok){fecharModal();toast(d.msg);setTimeout(function(){location.reload();},1000);}
   else toast(d.error,'#dc2626');
 }
 
 async function remover(linha,nome,definitivo){
   const msg=definitivo?('Excluir '+nome+' permanentemente?'):('Desativar '+nome+'?');
   if(!confirm(msg)) return;
-  const r=await fetch('/api/equipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'remover',linha,nome,definitivo})});
+  const r=await fetch('/api/equipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'remover',linha:linha,nome:nome,definitivo:definitivo})});
   const d=await r.json();
-  if(d.ok){toast(d.msg);setTimeout(()=>location.reload(),1000);}
+  if(d.ok){toast(d.msg);setTimeout(function(){location.reload();},1000);}
   else toast(d.error,'#dc2626');
 }
 
 async function reativar(linha,nome){
-  const r=await fetch('/api/equipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reativar',linha,nome})});
+  const r=await fetch('/api/equipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reativar',linha:linha,nome:nome})});
   const d=await r.json();
-  if(d.ok){toast(d.msg);setTimeout(()=>location.reload(),1000);}
+  if(d.ok){toast(d.msg);setTimeout(function(){location.reload();},1000);}
   else toast(d.error,'#dc2626');
 }
 
 async function resetarSenha(linha,nome){
-  if(!confirm('Resetar a senha de '+nome+'?\nNa próxima vez, ele precisará criar uma nova senha.')) return;
-  const r=await fetch('/api/equipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'resetar-senha',linha,nome})});
+  if(!confirm('Resetar a senha de '+nome+'?')) return;
+  const r=await fetch('/api/equipe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'resetar-senha',linha:linha,nome:nome})});
   const d=await r.json();
-  if(d.ok){toast(d.msg);setTimeout(()=>location.reload(),800);}
+  if(d.ok){toast(d.msg);setTimeout(function(){location.reload();},800);}
   else toast(d.error,'#dc2626');
 }
 
 function toast(msg,bg){
   bg=bg||'#1a1a1a';
-  const t=document.getElementById('toast');
+  var t=document.getElementById('toast');
   t.textContent=msg;t.style.background=bg;t.style.display='block';
-  setTimeout(()=>t.style.display='none',2800);
+  setTimeout(function(){t.style.display='none';},2800);
 }
 
-document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
+document.getElementById('btn-adicionar').addEventListener('click',abrirAdicionar);
+document.getElementById('btn-cancelar').addEventListener('click',fecharModal);
+document.getElementById('btn-salvar').addEventListener('click',salvar);
+document.getElementById('modal').addEventListener('click',function(e){if(e.target===e.currentTarget)fecharModal();});
+
+document.querySelectorAll('.btn-editar').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    abrirEditar({
+      linha:this.dataset.linha,
+      nome:this.dataset.nome,
+      cargo:this.dataset.cargo,
+      nucleo:this.dataset.nucleo,
+      email:this.dataset.email,
+      regime:this.dataset.regime,
+      status:this.dataset.status,
+      perfil:this.dataset.perfil
+    });
+  });
+});
+
+document.querySelectorAll('.btn-remover').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    remover(this.dataset.linha, this.dataset.nome, this.dataset.definitivo==='true');
+  });
+});
+
+document.querySelectorAll('.btn-reativar').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    reativar(this.dataset.linha, this.dataset.nome);
+  });
+});
+
+document.querySelectorAll('.btn-resetar').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    resetarSenha(this.dataset.linha, this.dataset.nome);
+  });
+});
 </script>
 </body></html>`;
 
