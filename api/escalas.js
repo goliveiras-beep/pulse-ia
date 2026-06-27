@@ -178,7 +178,7 @@ export default async function handler(req, res) {
           <div style="display:flex;align-items:center;gap:6px">
             <div style="width:24px;height:24px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
             <div>
-              <div style="font-size:11px;font-weight:600;white-space:nowrap">${nome.split(' ')[0]}</div>
+              <div style="font-size:11px;font-weight:600;white-space:nowrap;color:var(--text)">${nome}</div>
               <div style="display:flex;gap:3px;margin-top:1px">
                 ${perigo>0?`<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 4px;font-size:9px;font-weight:700">${perigo}</span>`:''}
                 ${atencao>0?`<span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:0 4px;font-size:9px;font-weight:700">${atencao}</span>`:''}
