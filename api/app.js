@@ -96,10 +96,10 @@ async function getFraseDoDia(dataStr) {
         max_tokens: 80,
         messages: [{
           role: 'system',
-          content: 'Você gera frases curtas, engraçadas e com alto astral para equipes de TV ao vivo brasileiras. Use gírias, humor, referências a futebol, Copa do Mundo, transmissão ao vivo. Seja criativo e divertido. Máx 12 palavras. Responda SÓ a frase, sem aspas.'
+          content: 'Você gera frases curtinhas, leves e divertidas para alegrar equipes de TV. Sem pressão, sem cobrança. Tipo: "Café na veia e câmera no ar!", "Hoje a magia acontece aqui!", "Sinal verde, galera nota 10!". Máx 8 palavras. Só a frase, sem aspas.'
         },{
           role: 'user',
-          content: `Gera uma frase animada e engraçada para a equipe de operações de TV ao vivo no dia ${dataStr}. Pode fazer piada com plantão, câmera, ao vivo, Copa do Mundo, transmissão. Seja bem-humorado!`
+          content: `Frase leve e animada para a equipe de TV ao vivo do dia ${dataStr}. Algo simples, positivo e engraçado. Sem pressão!`
         }]
       })
     });
@@ -693,11 +693,14 @@ function scrollParaAtivo(){
   var alvo = document.getElementById('primeiro-ativo-hoje');
   var body = document.querySelector('#painel-dia-0 .card-body');
   if(!alvo || !body) return;
-  body.scrollTop = alvo.offsetTop - 8;
+  // offsetTop relativo ao pai
+  var top = alvo.offsetTop;
+  body.scrollTop = top > 20 ? top - 8 : 0;
+  // Log para debug
+  console.log('scroll: alvo.offsetTop='+top+' body.scrollHeight='+body.scrollHeight);
 }
-window.addEventListener('load', function(){ setTimeout(scrollParaAtivo, 50); });
-setTimeout(scrollParaAtivo, 200);
-setTimeout(scrollParaAtivo, 600);
+// Múltiplas tentativas com delay crescente
+[100,300,600,1200].forEach(function(t){ setTimeout(scrollParaAtivo,t); });
 var diaAtual3=0;
 function navDia(dir){
   var total=5;
