@@ -284,7 +284,7 @@ a{text-decoration:none}
 </style>
 </head><body>
 
-<div style="background:#1a1a1a;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100">
+<div style="background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100">
   <a href="/api/app" style="width:28px;height:28px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#1a1a1a;font-size:12px;font-weight:700;flex-shrink:0;text-decoration:none">P</a>
   <div>
     <div style="font-size:14px;font-weight:600;color:#fff">Pulse - Escala</div>
@@ -300,8 +300,8 @@ a{text-decoration:none}
 <div style="max-width:1200px;margin:0 auto;padding:16px 20px">
 
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
-    <div style="background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px 14px">
-      <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Periodo</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px">
+      <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Periodo</div>
       <div style="font-size:18px;font-weight:700">${datas.length} dia${datas.length>1?'s':''}</div>
       <div style="font-size:10px;color:#aaa;margin-top:2px">${nomes.length} colaboradores</div>
     </div>
@@ -315,46 +315,46 @@ a{text-decoration:none}
       <div style="font-size:24px;font-weight:700;color:${totalAtencao>0?'#d97706':'#1a1a1a'}">${totalAtencao}</div>
       <div style="font-size:10px;color:#aaa;margin-top:2px">descanso obrigatorio, 6 dia</div>
     </div>
-    <div style="background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px 14px">
-      <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Saude da escala</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px">
+      <div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Saude da escala</div>
       <div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':totalAtencao>0?'#d97706':'#16a34a'}">${totalPerigo>0?'Critica':totalAtencao>0?'Atencao':'OK'}</div>
       <div style="font-size:10px;color:#aaa;margin-top:2px">${totalPerigo+totalAtencao} ocorrencia(s) no periodo</div>
     </div>
   </div>
 
   <!-- Nav visao + periodo -->
-  <div style="background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
     <div style="display:flex;gap:4px">
       <a href="/api/escalas?v=dia&offset=0" style="background:${visao==='dia'?'#1a1a1a':'none'};color:${visao==='dia'?'#fff':'#555'};border:1px solid ${visao==='dia'?'#1a1a1a':'#e5e5e5'};border-radius:6px;padding:5px 14px;font-size:12px;font-weight:${visao==='dia'?600:400}">Dia</a>
       <a href="/api/escalas?v=semana&offset=0" style="background:${visao==='semana'?'#1a1a1a':'none'};color:${visao==='semana'?'#fff':'#555'};border:1px solid ${visao==='semana'?'#1a1a1a':'#e5e5e5'};border-radius:6px;padding:5px 14px;font-size:12px;font-weight:${visao==='semana'?600:400}">Semana</a>
       <a href="/api/escalas?v=mes&offset=0" style="background:${visao==='mes'?'#1a1a1a':'none'};color:${visao==='mes'?'#fff':'#555'};border:1px solid ${visao==='mes'?'#1a1a1a':'#e5e5e5'};border-radius:6px;padding:5px 14px;font-size:12px;font-weight:${visao==='mes'?600:400}">Mes</a>
     </div>
     <div style="width:1px;height:20px;background:#e5e5e5"></div>
-    <a href="/api/escalas?v=${visao}&offset=${offset-1}" style="border:1px solid #e5e5e5;border-radius:6px;padding:5px 12px;font-size:12px;color:#555">Anterior</a>
-    <a href="/api/escalas?v=${visao}&offset=0" style="border:1px solid #e5e5e5;border-radius:6px;padding:5px 12px;font-size:12px;color:#555${offset===0?';background:#f5f5f5':''}">Atual</a>
-    <a href="/api/escalas?v=${visao}&offset=${offset+1}" style="border:1px solid #e5e5e5;border-radius:6px;padding:5px 12px;font-size:12px;color:#555">Proximo</a>
+    <a href="/api/escalas?v=${visao}&offset=${offset-1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Anterior</a>
+    <a href="/api/escalas?v=${visao}&offset=0" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)${offset===0?';background:var(--bg3)':''}">Atual</a>
+    <a href="/api/escalas?v=${visao}&offset=${offset+1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Proximo</a>
     <div style="margin-left:auto;font-size:11px;color:#888;font-weight:600">${titulo}</div>
   </div>
 
   <!-- Barra de filtros -->
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-    <div style="display:flex;gap:4px;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:3px">
+    <div style="display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:3px">
       <button id="view-grid" title="Quadradinhos" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">&#x229E;</button>
       <button id="view-list" title="Lista" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">&#9776;</button>
     </div>
-    <div style="display:flex;gap:4px;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:3px">
+    <div style="display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:3px">
       <button id="sort-default" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Padrao</button>
       <button id="sort-alpha" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">A-Z</button>
       <button id="sort-alerta" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Alertas</button>
     </div>
-    <input id="busca" placeholder="Buscar colaborador..." style="flex:1;min-width:160px;border:1px solid #e5e5e5;border-radius:8px;padding:7px 12px;font-size:12px;outline:none;background:#fff">
+    <input id="busca" placeholder="Buscar colaborador..." style="flex:1;min-width:160px;border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;outline:none;background:var(--input);color:var(--text)">
   </div>
 
   ${legendaHTML}
 
   <div style="margin-top:10px" id="container-grid">${conteudoGrid}</div>
 
-  <div style="margin-top:20px;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:12px 16px">
+  <div style="margin-top:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
     <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#888;margin-bottom:8px">Regras aplicadas</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:#666">
       <span>Interjornada minima: 11h</span>
@@ -429,9 +429,9 @@ function setBtn(id, active){
     var b = document.getElementById(bid);
     if(!b) return;
     if(bid === id){
-      b.style.background='#1a1a1a';b.style.color='#fff';
+      b.style.background='var(--text)';b.style.color='var(--bg)';
     } else if(bid.startsWith(id.split('-')[0])){
-      b.style.background='none';b.style.color='#888';
+      b.style.background='none';b.style.color='var(--text3)';
     }
   });
 }
