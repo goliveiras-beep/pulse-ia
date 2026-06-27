@@ -680,19 +680,18 @@ function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.text
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
 
 // Scroll automático para o primeiro evento ativo (não encerrado) no #NossoDia
-(function(){
+setTimeout(function(){
   var body = document.querySelector('#painel-dia-0 .card-body');
   if(!body) return;
-  // Primeiro div sem opacity:.35 (não encerrado)
-  var eventos = body.querySelectorAll('div[style*="border-radius:8px"]');
-  for(var i=0;i<eventos.length;i++){
-    var s = eventos[i].getAttribute('style')||'';
-    if(s.indexOf('opacity:.35')===-1 && s.indexOf('opacity: .35')===-1){
-      setTimeout(function(el){ el.scrollIntoView({block:'start',behavior:'smooth'}); }, 300, eventos[i]);
+  var divs = body.children;
+  for(var i=0;i<divs.length;i++){
+    var s = divs[i].getAttribute('style')||'';
+    if(s.indexOf('opacity:.35')===-1 && s.indexOf('opacity: .35')===-1 && s.indexOf('border-radius:8px')!==-1){
+      body.scrollTop = divs[i].offsetTop - 8;
       break;
     }
   }
-})();
+}, 500);
 var diaAtual3=0;
 function navDia(dir){
   var total=5;
