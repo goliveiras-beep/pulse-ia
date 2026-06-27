@@ -85,25 +85,27 @@ function gerarFraseEncerrado(nomeEvento) {
 
 async function getFraseDoDia(dataStr) {
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'llama-3.1-8b-instant',
         max_tokens: 80,
         messages: [{
+          role: 'system',
+          content: 'Você gera frases curtas, engraçadas e com alto astral para equipes de TV ao vivo brasileiras. Use gírias, humor, referências a futebol, Copa do Mundo, transmissão ao vivo. Seja criativo e divertido. Máx 12 palavras. Responda SÓ a frase, sem aspas.'
+        },{
           role: 'user',
-          content: `Crie UMA frase curta (máx 10 palavras) para animar a equipe de operações de TV ao vivo do dia ${dataStr}. Pode ser motivacional, engraçada, com gíria brasileira, referência a TV ou esportes. Responda APENAS a frase, sem aspas ou pontuação extra.`
+          content: `Gera uma frase animada e engraçada para a equipe de operações de TV ao vivo no dia ${dataStr}. Pode fazer piada com plantão, câmera, ao vivo, Copa do Mundo, transmissão. Seja bem-humorado!`
         }]
       })
     });
     const d = await r.json();
-    return d.content?.[0]?.text?.trim() || 'Bora que hoje vai ser incrivel!';
-  } catch { return 'Equipe no ar, tudo certo!'; }
+    return d.choices?.[0]?.message?.content?.trim() || 'Bora que hoje vai ser incrivel!';
+  } catch { return 'Camera ligada, coração acelerado, vamos nessa!'; }
 }
 
 
@@ -690,12 +692,14 @@ function scrollParaAtivo(){
   if(!body||_numEnc===0) return;
   var divs = Array.from(body.children);
   if(divs[_numEnc]){
-    body.scrollTop = divs[_numEnc].offsetTop - 4;
+    var top = 0;
+    for(var i=0;i<_numEnc && i<divs.length;i++) top += divs[i].getBoundingClientRect().height + 10;
+    body.scrollTop = top;
   }
 }
-setTimeout(scrollParaAtivo, 100);
-setTimeout(scrollParaAtivo, 400);
-setTimeout(scrollParaAtivo, 900);
+window.addEventListener('load', function(){ setTimeout(scrollParaAtivo, 100); });
+setTimeout(scrollParaAtivo, 300);
+setTimeout(scrollParaAtivo, 800);
 var diaAtual3=0;
 function navDia(dir){
   var total=5;
