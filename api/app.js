@@ -418,6 +418,8 @@ export default async function handler(req, res) {
   <div><div class="ht">Pulse <span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:4px">Gestor</span></div><div class="hs">D+1: ${DIAS_FULL[d1.getDay()]} ${d1Str} · ${atualizado}</div></div>
   <div class="hr">
     <span style="font-size:12px;color:#666">Olá, ${nome.split(' ')[0]}</span>
+    <a href="/api/escalas?v=semana" class="btn-sm">Escala</a>
+    <a href="/api/equipe-view" class="btn-sm">Equipe</a>
     <button class="btn-sm" onclick="location.reload()">↻</button>
     <form method="POST" action="/api/app?action=logout" style="display:inline"><button type="submit" class="btn-sm">Sair</button></form>
   </div>
