@@ -347,11 +347,22 @@ export default async function handler(req, res) {
           }
         });
         const semCob = disp.length===0&&atenc.length===0;
-        // Verifica antecedencia: alguem com entrada >= 1h antes do evento
+        // Verifica antecedencia: alguem ja trabalhando >= 1h antes do evento
         const evMin = toMin(ev.hora);
         const temAntecedencia = evMin===null || disp.concat(atenc).some(p=>{
           const entMin = toMin(p.ent);
-          return entMin!==null && (evMin - entMin) >= 60;
+          const saiMin = toMin(p.sai);
+          if(entMin===null||saiMin===null) return false;
+          // turno normal (ex: 08:00-16:00)
+          if(saiMin > entMin) {
+            return (evMin - entMin) >= 60;
+          } else {
+            // turno vira meia-noite (ex: 23:00-07:00)
+            // evento antes da meia-noite: distancia desde entrada
+            if(evMin >= entMin) return (evMin - entMin) >= 60;
+            // evento depois da meia-noite: entrada foi ontem, sempre tem antecedencia
+            return true;
+          }
         });
         return{...ev,disp,atenc,aus,semCob,semAntecedencia:!semCob&&!temAntecedencia};
       });
