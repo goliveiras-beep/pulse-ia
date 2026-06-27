@@ -1,17 +1,58 @@
 export const config = { maxDuration: 30 };
 
-const CANAL_NOTIFICACOES = "C0BB36J2ZNV";
-
 const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode. Ajuda o time com informações internas, documentos, agenda e suporte geral.
 Responda sempre em português brasileiro. Seja objetivo e amigável.`;
 
-async function slackPost(method, body) {
-  const r = await fetch(`https://slack.com/api/${method}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
-    body: JSON.stringify(body)
-  });
-  return r.json();
+const DIAS_SEMANA = {
+  'domingo': 0, 'segunda': 1, 'terca': 2, 'terça': 2,
+  'quarta': 3, 'quinta': 4, 'sexta': 5, 'sabado': 6, 'sábado': 6
+};
+
+function parsearData(texto) {
+  const agora = new Date();
+  // Ajusta para BRT
+  const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
+  const hoje = new Date(brt.toISOString().split('T')[0]);
+
+  // "hoje"
+  if (/\bhoje\b/i.test(texto)) return hoje;
+
+  // "amanha" / "amanhã"
+  if (/\bamanh[aã]\b/i.test(texto)) {
+    const d = new Date(hoje); d.setDate(d.getDate() + 1); return d;
+  }
+
+  // "ontem"
+  if (/\bontem\b/i.test(texto)) {
+    const d = new Date(hoje); d.setDate(d.getDate() - 1); return d;
+  }
+
+  // "dia 28", "dia 28/06", "28/06"
+  const diaMatch = texto.match(/dia\s+(\d{1,2})(?:\/(\d{1,2}))?/i) || texto.match(/(\d{1,2})\/(\d{1,2})/);
+  if (diaMatch) {
+    const dia = parseInt(diaMatch[1]);
+    const mes = diaMatch[2] ? parseInt(diaMatch[2]) - 1 : hoje.getMonth();
+    const ano = hoje.getFullYear();
+    const d = new Date(ano, mes, dia);
+    return d;
+  }
+
+  // "segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"
+  for (const [nome, diaSemana] of Object.entries(DIAS_SEMANA)) {
+    if (new RegExp(`\\b${nome}\\b`, 'i').test(texto)) {
+      const d = new Date(hoje);
+      const diff = (diaSemana - hoje.getDay() + 7) % 7 || 7;
+      d.setDate(d.getDate() + diff);
+      return d;
+    }
+  }
+
+  // "próxima semana"
+  if (/pr[oó]xima\s+semana/i.test(texto)) {
+    const d = new Date(hoje); d.setDate(d.getDate() + 7); return d;
+  }
+
+  return null;
 }
 
 function toHoraBRT(isoString) {
@@ -21,10 +62,9 @@ function toHoraBRT(isoString) {
   return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || "";
 }
 
-async function getAirtableEvents() {
-  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-  const filter = `OR(DATESTR({fldRnfbwPVzFiHMqs}) = '${hoje}', DATESTR({fld8hthI7oI4MY5aP}) = '${hoje}')`;
-  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=50&sort[0][field]=fldRnfbwPVzFiHMqs&sort[0][direction]=asc`;
+async function getGradeData(dataStr) {
+  const filter = `OR(DATESTR({fldRnfbwPVzFiHMqs}) = '${dataStr}', DATESTR({fld8hthI7oI4MY5aP}) = '${dataStr}')`;
+  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=100`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
   const records = data.records || [];
@@ -36,22 +76,16 @@ async function getAirtableEvents() {
   return records;
 }
 
-function formatEvents(records, hoje) {
-  if (!records.length) return `Nenhum evento para hoje (${hoje}).`;
+function formatEvents(records, dataFormatada) {
+  if (!records.length) return `Nenhum evento encontrado para ${dataFormatada}.`;
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
     const inicio = f["Horário KO"] || f["PGM (horário)"] || "";
     const posRaw = f["Data c/ Pós"] || "";
-    const termino = posRaw ? (() => {
-      const d = new Date(posRaw);
-      d.setHours(d.getHours() - 3);
-      return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || "";
-    })() : "";
+    const termino = posRaw ? toHoraBRT(posRaw) : "";
     const localArr = f["Name (from Padrão de Produção)"] || [];
-    const local = Array.isArray(localArr)
-      ? localArr.map(l => l.replace(/:[^:]+:/g, '').replace(/[🔴🟡🟢⚪🔵🟣🟤⚫]/gu, '').trim()).filter(Boolean).join(", ")
-      : String(localArr).replace(/:[^:]+:/g, '').replace(/[🔴🟡🟢⚪🔵🟣🟤⚫]/gu, '').trim();
+    const local = Array.isArray(localArr) ? localArr.join(", ") : String(localArr);
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = Array.isArray(f["Núcleo"]) ? f["Núcleo"].join(", ") : (f["Núcleo"] || "");
     const hora = inicio && termino ? `_${inicio} → ${termino}_` : inicio ? `_${inicio}_` : "";
@@ -77,76 +111,19 @@ async function askAI(message, context = "") {
   return data?.choices?.[0]?.message?.content || "Não consegui processar.";
 }
 
-async function notificarMudancaGrade(changedFields, recordId) {
-  // Busca o registro alterado para pegar os dados
-  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H/${recordId}`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
-  const data = await res.json();
-  const f = data.fields || {};
-
-  const nome = f["Match ID"] || "Evento sem nome";
-  const inicio = f["Horário KO"] || f["PGM (horário)"] || "";
-  const dia = f["Dia (para agrupamento) BRT"] || "";
-  const tipo = f["Tipo de Conteúdo"] || "";
-  const status = f["Status"] || "";
-
-  // Formata campos alterados
-  const camposAlterados = Object.keys(changedFields || {})
-    .filter(k => !k.startsWith("Last Modified") && !k.startsWith("Auxiliar") && !k.startsWith("(Teste)"))
-    .map(k => `• *${k}*`)
-    .join("\n");
-
-  const msg = `🔔 *Alteração na grade detectada!*\n\n*Evento:* ${nome}\n*Data:* ${dia}\n*Horário:* ${inicio}\n*Tipo:* ${tipo}\n*Status:* ${status}\n\n*Campos alterados:*\n${camposAlterados || "• Registro criado ou removido"}`;
-
-  // Envia para o canal #ctec-bot
-  await slackPost("chat.postMessage", {
-    channel: CANAL_NOTIFICACOES,
-    text: msg,
-    mrkdwn: true
+async function slackPost(method, body) {
+  const r = await fetch(`https://slack.com/api/${method}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
+    body: JSON.stringify(body)
   });
+  return r.json();
 }
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   const body = req.body;
-
-  // Verificação do Slack
   if (body.type === "url_verification") return res.status(200).json({ challenge: body.challenge });
-
-  // Webhook do Airtable — notificação de mudança na grade
-  if (body.base && body.webhook) {
-    res.status(200).json({ ok: true });
-    try {
-      const payloads = body.payloads || [];
-      for (const payload of payloads) {
-        const changedRecords = payload.changedFieldsByRecord || {};
-        const createdIds = payload.createdRecordIds || [];
-        const destroyedIds = payload.destroyedRecordIds || [];
-
-        // Eventos criados
-        for (const id of createdIds) {
-          await notificarMudancaGrade({}, id);
-        }
-        // Eventos alterados
-        for (const [id, fields] of Object.entries(changedRecords)) {
-          await notificarMudancaGrade(fields, id);
-        }
-        // Eventos removidos
-        for (const id of destroyedIds) {
-          await slackPost("chat.postMessage", {
-            channel: CANAL_NOTIFICACOES,
-            text: `🗑️ *Evento removido da grade!*\n\nID: \`${id}\`\nVerifique o Airtable para mais detalhes.`,
-            mrkdwn: true
-          });
-        }
-      }
-    } catch(e) {
-      console.error("Erro webhook Airtable:", e.message);
-    }
-    return;
-  }
-
-  // Mensagens do Slack (DM no Pulse)
   const event = body.event;
   if (!event || event.subtype || event.bot_id || !event.text || !event.user) return res.status(200).json({ ok: true });
   if (event.channel_type !== "im") return res.status(200).json({ ok: true });
@@ -157,13 +134,26 @@ export default async function handler(req, res) {
   try {
     await slackPost("chat.postMessage", { channel: channelId, text: "_Pensando..._", mrkdwn: true });
 
-    const querEventos = /evento|agenda|hoje|dia|grade|transmiss|ao vivo|jogo|partida|futebol|copa/i.test(userMessage);
+    const querGrade = /grade|evento|agenda|transmiss|ao vivo|jogo|partida|futebol|copa|programa/i.test(userMessage);
 
     let resposta;
-    if (querEventos) {
-      const records = await getAirtableEvents();
-      const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
-      resposta = `*Grade de hoje — ${hoje}*\n\n${formatEvents(records, hoje)}`;
+    if (querGrade) {
+      const dataObj = parsearData(userMessage);
+
+      if (dataObj) {
+        const dataStr = dataObj.toISOString().split('T')[0];
+        const dataFormatada = dataObj.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const records = await getGradeData(dataStr);
+        resposta = `*Grade — ${dataFormatada}*\n\n${formatEvents(records, dataFormatada)}`;
+      } else {
+        // Sem data específica → assume hoje
+        const agora = new Date();
+        const brt = new Date(agora.getTime() + ((-3 * 60) - agora.getTimezoneOffset()) * 60000);
+        const dataStr = brt.toISOString().split('T')[0];
+        const dataFormatada = brt.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const records = await getGradeData(dataStr);
+        resposta = `*Grade de hoje — ${dataFormatada}*\n\n${formatEvents(records, dataFormatada)}`;
+      }
     } else {
       resposta = await askAI(userMessage);
     }
