@@ -701,15 +701,13 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
 function scrollParaAtivo(){
   var alvo = document.getElementById('primeiro-ativo-hoje');
   var body = document.querySelector('#painel-dia-0 .card-body');
+  console.log('scroll attempt: alvo=',alvo,' body=',body);
   if(!alvo || !body) return;
-  // offsetTop relativo ao pai
   var top = alvo.offsetTop;
+  console.log('scrolling to top='+top);
   body.scrollTop = top > 20 ? top - 8 : 0;
-  // Log para debug
-  console.log('scroll: alvo.offsetTop='+top+' body.scrollHeight='+body.scrollHeight);
 }
-// Múltiplas tentativas com delay crescente
-[100,300,600,1200].forEach(function(t){ setTimeout(scrollParaAtivo,t); });
+[100,500,1000,2000].forEach(function(t){ setTimeout(scrollParaAtivo,t); });
 var diaAtual3=0;
 function navDia(dir){
   var total=5;
