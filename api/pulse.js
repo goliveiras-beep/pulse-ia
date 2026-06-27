@@ -23,6 +23,9 @@ async function getAirtableEvents() {
       .filter(([k,v]) => typeof v === 'string' && v.includes('T') && v.includes(':'))
       .map(([k,v]) => `${k}=${v}`);
     console.log("CAMPOS DATA/HORA:", camposComValor.join(" | "));
+  // Log do campo local
+  console.log("LOCAL RAW:", JSON.stringify(data.records?.[0]?.fields?.["fldeWtlwHewgiT598"]));
+  console.log("TODOS CAMPOS:", Object.keys(data.records?.[0]?.fields || {}).join(" | "));
   }
   return data.records || [];
 }
