@@ -30,7 +30,13 @@ function formatEvents(records, hoje) {
     const inicio = f["Horário KO"] || f["PGM (horário)"] || "";
     
     // Término — "Alerta Gracenote Fim" ou calcula pelo Duration
-    const termino = f["Alerta Gracenote Fim"] || "";
+    // Data c/ Pós em UTC → converte para BRT subtraindo 3h
+    const posRaw = f["Data c/ Pós"] || "";
+    const termino = posRaw ? (() => {
+      const d = new Date(posRaw);
+      d.setHours(d.getHours() - 3);
+      return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || "";
+    })() : "";
     
     // Local — "Name (from Padrão de Produção)" é array, remove emoji
     const localArr = f["Name (from Padrão de Produção)"] || [];
