@@ -35,8 +35,8 @@ function formatEvents(records, hoje) {
     // Local — "Name (from Padrão de Produção)" é array, remove emoji
     const localArr = f["Name (from Padrão de Produção)"] || [];
     const local = Array.isArray(localArr) 
-      ? localArr.map(l => l.replace(/:[^:]+:/g, '').trim()).join(", ")
-      : String(localArr).replace(/:[^:]+:/g, '').trim();
+      ? localArr.map(l => l.replace(/:[^:]+:/g, '').replace(/[🔴🟡🟢⚪🔵🟣🟤⚫]/gu, '').trim()).filter(Boolean).join(", ")
+      : String(localArr).replace(/:[^:]+:/g, '').replace(/[🔴🟡🟢⚪🔵🟣🟤⚫]/gu, '').trim();
     
     const tipo = f["Tipo de Conteúdo"] || "";
     const nucleo = Array.isArray(f["Núcleo"]) ? f["Núcleo"].join(", ") : (f["Núcleo"] || "");
