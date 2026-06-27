@@ -47,11 +47,12 @@ async function getEventos(dataStr) {
     const r=await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=30`,
       {headers:{Authorization:`Bearer ${process.env.AIRTABLE_API_KEY}`}});
     const d=await r.json();
+    if(d.records?.[0]) console.log('FIELDS:', Object.keys(d.records[0].fields).join(', '));
     return (d.records||[]).map(r=>({
       nome:r.fields['Match ID']||'Evento',
       hora:r.fields['Horário KO']||r.fields['PGM (horário)']||'',
       tipo:r.fields['Tipo de Conteúdo']||'',
-      local:r.fields['fldeWtlwHewgiT598']||r.fields['Local']||r.fields['Estúdio']||r.fields['Studio']||'',
+      local:r.fields['Padrão de Produção']||r.fields['Padrão de...']||r.fields['Padrao de Producao']||r.fields['fldeWtlwHewgiT598']||r.fields['Local']||r.fields['Studio']||'',
     })).sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
   } catch { return []; }
 }
