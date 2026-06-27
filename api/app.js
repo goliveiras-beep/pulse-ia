@@ -394,7 +394,7 @@ export default async function handler(req, res) {
             ${encerrado
               ? `<div style="font-size:10px;font-weight:700;color:#9ca3af">Encerrado</div>`
               : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
-                  <div style="font-size:10px;font-weight:700;color:${itc}">${ic} ${ev.semCob?'Sem cobertura':'OK'}</div>
+                  <div style="font-size:10px;font-weight:700;color:${itc}">${ev.semCob?'Sem cobertura':'OK'}</div>
                   ${ev.semAntecedencia?`<span style="font-size:14px;animation:pulsar 1s infinite">&#9888;</span>`:''}
                 </div>`
             }
