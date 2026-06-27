@@ -64,8 +64,8 @@ export default async function handler(req, res) {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;color:#888;margin-bottom:10px">
-        ${email?`<div>✉ ${email}</div>`:''}
-        ${regime?`<div>📋 ${regime}</div>`:''}
+        ${email?`<div>Email: ${email}</div>`:''}
+        ${regime?`<div>Regime: ${regime}</div>`:''}
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button onclick="abrirEditar(${linha},'${nomeEsc}','${cargoEsc}','${nucleoEsc}','${emailEsc}','${regime}','${status}','${perfil}')" style="flex:1;background:none;border:1px solid #e5e5e5;border-radius:6px;padding:5px 0;font-size:11px;cursor:pointer;color:#555">Editar</button>
