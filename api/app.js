@@ -82,6 +82,30 @@ function gerarFraseEncerrado(nomeEvento) {
   return frases[idx];
 }
 
+async function getFraseDoDia(dataStr) {
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 80,
+        messages: [{
+          role: 'user',
+          content: `Crie UMA frase curta (máx 10 palavras) para animar a equipe de operações de TV ao vivo do dia ${dataStr}. Pode ser motivacional, engraçada, com gíria brasileira, referência a TV ou esportes. Responda APENAS a frase, sem aspas ou pontuação extra.`
+        }]
+      })
+    });
+    const d = await r.json();
+    return d.content?.[0]?.text?.trim() || 'Bora que hoje vai ser incrivel!';
+  } catch { return 'Equipe no ar, tudo certo!'; }
+}
+
+
 function parseCookies(cookieHeader) {
   const cookies = {};
   if (!cookieHeader) return cookies;
@@ -378,11 +402,12 @@ export default async function handler(req, res) {
     return Array.from({length:7},(_,i)=>{const d=new Date(s);d.setDate(s.getDate()+i);return d;});
   });
 
-  const [escalaRaw, ausenciasRaw, eventosHoje, eventosAmanha] = await Promise.all([
+  const [escalaRaw, ausenciasRaw, eventosHoje, eventosAmanha, fraseDoDia] = await Promise.all([
     getSheet('Escala!A2:F500'),
     getSheet('Ausencias!A2:I500'),
     getEventos(fmtAirtable(hoje)),
     getEventos(fmtAirtable(d1)),
+    getFraseDoDia(hojeStr),
   ]);
 
   const escala = escalaRaw;
@@ -511,6 +536,7 @@ export default async function handler(req, res) {
     <div class="metric blue-m" style="background:var(--blue-m-bg);border-color:var(--blue-m-border)"><div class="ml">Trabalhando amanha</div><div class="mv">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
     <div class="metric ${folgAmanha>2?'amber-m':''}"><div class="ml">Folgas amanha</div><div class="mv">${folgAmanha}</div><div class="ms">${ausencias.filter(a=>a[4]===d1Str).length} via Pulse</div></div>
     <div class="metric ${semCob>0?'red-m':''}"><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanha</div></div>
+    <div class="metric" style="grid-column:span 1;display:flex;align-items:center;justify-content:center;text-align:center"><div style="font-size:13px;font-style:italic;color:var(--text2);line-height:1.4">"${fraseDoDia}"<div style="font-size:9px;color:var(--text3);margin-top:4px;font-style:normal">frase do dia ✨</div></div></div>
   </div>
   <div class="layout2">
     <div class="card">
