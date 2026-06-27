@@ -381,6 +381,8 @@ function equipeAtivaTexto(equipeRows) {
 const ACTIONS = [
   'add_shift',
   'remove_shift',
+  'swap_employee',
+  'update_shift',
   'set_dayoff',
   'set_vacation',
   'set_medical_leave',
@@ -409,19 +411,25 @@ Quando o usuário quiser adicionar, incluir, colocar, cadastrar ou registrar hor
 2. remove_shift
 Quando o usuário quiser excluir, remover, apagar ou tirar horário da escala.
 
-3. set_dayoff
+3. swap_employee
+Quando o usuário quiser trocar, substituir ou cobrir um colaborador por outro, mantendo o horário existente.
+
+4. update_shift
+Quando o usuário quiser mudar, alterar, ajustar ou atualizar o horário de um colaborador em uma data.
+
+5. set_dayoff
 Quando o usuário quiser marcar folga.
 
-4. set_vacation
+6. set_vacation
 Quando o usuário quiser marcar férias.
 
-5. set_medical_leave
+7. set_medical_leave
 Quando o usuário quiser marcar dispensa médica, atestado ou afastamento médico.
 
-6. query
+8. query
 Quando for apenas uma pergunta, consulta ou conversa, sem alteração na escala.
 
-7. ask_info
+9. ask_info
 Quando faltar informação obrigatória.
 
 Formato para add_shift:
@@ -441,6 +449,26 @@ Formato para remove_shift:
   "employee": "Nome do colaborador",
   "startDate": "DD/MM",
   "endDate": "DD/MM"
+}
+
+Formato para swap_employee:
+{
+  "action": "swap_employee",
+  "fromEmployee": "Nome do colaborador que sai",
+  "toEmployee": "Nome do colaborador que entra",
+  "startDate": "DD/MM",
+  "endDate": "DD/MM"
+}
+
+Formato para update_shift:
+{
+  "action": "update_shift",
+  "employee": "Nome do colaborador",
+  "startDate": "DD/MM",
+  "endDate": "DD/MM",
+  "startTime": "HH:MM",
+  "endTime": "HH:MM",
+  "observation": "Ajustado IA"
 }
 
 Formato para set_dayoff:
@@ -484,6 +512,8 @@ Regras obrigatórias:
 - Se o usuário disser nome parcial, tente mapear para o nome completo da lista.
 - Para add_shift precisa de employee, startDate, startTime e endTime.
 - Para remove_shift precisa de employee e startDate.
+- Para swap_employee precisa de fromEmployee, toEmployee e startDate.
+- Para update_shift precisa de employee, startDate, startTime e endTime.
 - Para folga, férias e dispensa médica precisa de employee e startDate.
 - Se houver intervalo, preencha startDate e endDate.
 - Se houver uma única data, use a mesma data em startDate e endDate.
@@ -533,9 +563,8 @@ Regras obrigatórias:
 }
 
 // ── ações na escala ──────────────────────────────────────────────────────────
-
 async function gravarTurnos(token, turno) {
-  const rows = await sheetsGet(token, 'Escala!A2:F500');
+  const rows = await sheetsGet(token, 'Escala!A2:F2000');
   const updates = [];
   const appends = [];
 
@@ -609,7 +638,7 @@ async function gravarTurnos(token, turno) {
 }
 
 async function removerTurnos(token, comando) {
-  const rows = await sheetsGet(token, 'Escala!A2:F500');
+  const rows = await sheetsGet(token, 'Escala!A2:F2000');
   const updates = [];
 
   for (const data of comando.datas) {
@@ -644,7 +673,7 @@ async function removerTurnos(token, comando) {
 }
 
 async function marcarAusencia(token, comando) {
-  const rows = await sheetsGet(token, 'Escala!A2:F500');
+  const rows = await sheetsGet(token, 'Escala!A2:F2000');
   const updates = [];
   const appends = [];
 
@@ -717,6 +746,122 @@ async function marcarAusencia(token, comando) {
   return updates.length + appends.length;
 }
 
+async function trocarColaborador(token, comando) {
+  const rows = await sheetsGet(token, 'Escala!A2:F2000');
+  const updates = [];
+
+  for (const data of comando.datas) {
+    rows.forEach((r, idx) => {
+      const mesmaData = r[0] === data;
+      const mesmoColaborador = (r[2] || '').trim().toLowerCase() === comando.fromColaborador.toLowerCase();
+
+      if (mesmaData && mesmoColaborador) {
+        updates.push({
+          range: `Escala!A${idx + 2}:F${idx + 2}`,
+          values: [[
+            data,
+            '',
+            comando.toColaborador,
+            r[3] || '',
+            r[4] || '',
+            comando.obs || `Substituiu ${comando.fromColaborador}`,
+          ]],
+        });
+      }
+    });
+  }
+
+  if (updates.length > 0) {
+    await sheetsBatchUpdate(token, updates);
+  }
+
+  await sheetsAppend(token, 'Ajustes!A:G', [[
+    agoraBrasil(),
+    `${comando.fromColaborador} → ${comando.toColaborador}`,
+    comando.datas.join(', '),
+    '',
+    '',
+    comando.obs || 'Troca feita pela IA',
+    'Chat IA',
+  ]]);
+
+  return updates.length;
+}
+
+async function atualizarHorario(token, comando) {
+  const rows = await sheetsGet(token, 'Escala!A2:F2000');
+  const updates = [];
+  const appends = [];
+
+  for (const data of comando.datas) {
+    const idx = rows.findIndex(r => {
+      return r[0] === data &&
+        (r[2] || '').trim().toLowerCase() === comando.colaborador.toLowerCase();
+    });
+
+    if (idx >= 0) {
+      updates.push({
+        range: `Escala!A${idx + 2}:F${idx + 2}`,
+        values: [[
+          data,
+          '',
+          comando.colaborador,
+          comando.entrada,
+          comando.saida,
+          comando.obs || 'Ajustado IA',
+        ]],
+      });
+    } else {
+      const idxDataVazia = rows.findIndex(r => {
+        return r[0] === data && !(r[2] || '').trim();
+      });
+
+      if (idxDataVazia >= 0) {
+        updates.push({
+          range: `Escala!A${idxDataVazia + 2}:F${idxDataVazia + 2}`,
+          values: [[
+            data,
+            '',
+            comando.colaborador,
+            comando.entrada,
+            comando.saida,
+            comando.obs || 'Ajustado IA',
+          ]],
+        });
+      } else {
+        appends.push([
+          data,
+          '',
+          comando.colaborador,
+          comando.entrada,
+          comando.saida,
+          comando.obs || 'Ajustado IA',
+        ]);
+      }
+    }
+  }
+
+  if (updates.length > 0) {
+    await sheetsBatchUpdate(token, updates);
+  }
+
+  for (const linha of appends) {
+    await sheetsAppend(token, 'Escala!A:F', [linha]);
+  }
+
+  await sheetsAppend(token, 'Ajustes!A:G', [[
+    agoraBrasil(),
+    comando.colaborador,
+    comando.datas.join(', '),
+    comando.entrada,
+    comando.saida,
+    comando.obs || 'Ajustado IA',
+    'Chat IA',
+  ]]);
+
+  return updates.length + appends.length;
+}
+
 // ── confirmação / resposta ──────────────────────────────────────────────────
 
 function montarPreviewConfirmacao(action) {
@@ -739,6 +884,28 @@ Dias: ${action.datas.join(', ')}
 Responda "confirmar" para remover ou "cancelar" para descartar.`;
   }
 
+  if (action.action === 'swap_employee') {
+    return `⚠️ Confirma esta troca?
+
+Sai: ${action.fromColaborador}
+Entra: ${action.toColaborador}
+Dias: ${action.datas.join(', ')}
+
+O horário existente será mantido.
+
+Responda "confirmar" para aplicar ou "cancelar" para descartar.`;
+  }
+
+  if (action.action === 'update_shift') {
+    return `⚠️ Confirma esta alteração de horário?
+
+Colaborador: ${action.colaborador}
+Novo horário: ${action.entrada} às ${action.saida}
+Dias: ${action.datas.join(', ')}
+
+Responda "confirmar" para aplicar ou "cancelar" para descartar.`;
+  }
+
   if (
     action.action === 'set_dayoff' ||
     action.action === 'set_vacation' ||
@@ -755,7 +922,6 @@ Responda "confirmar" para gravar ou "cancelar" para descartar.`;
 
   return 'Tenho uma ação pendente. Responda "confirmar" ou "cancelar".';
 }
-
 function montarRespostaFinal(resultado) {
   switch (resultado.action) {
     case 'add_shift':
@@ -781,6 +947,36 @@ Dias: ${resultado.datas.join(', ')}`;
         return `⚠️ Nenhum horário encontrado para remover.
 
 Colaborador: ${resultado.colaborador}
+Dias: ${resultado.datas.join(', ')}`;
+      }
+
+      return `⚠️ Faltam informações: ${(resultado.missing || []).join(', ')}`;
+
+    case 'swap_employee':
+      if (resultado.status === 'success') {
+        return `✅ Troca realizada com sucesso.
+
+Saiu: ${resultado.fromColaborador}
+Entrou: ${resultado.toColaborador}
+Dias: ${resultado.datas.join(', ')}`;
+      }
+
+      if (resultado.status === 'not_found') {
+        return `⚠️ Não encontrei escala para fazer a troca.
+
+Sai: ${resultado.fromColaborador}
+Entra: ${resultado.toColaborador}
+Dias: ${resultado.datas.join(', ')}`;
+      }
+
+      return `⚠️ Faltam informações: ${(resultado.missing || []).join(', ')}`;
+
+    case 'update_shift':
+      if (resultado.status === 'success') {
+        return `✅ Horário alterado com sucesso.
+
+Colaborador: ${resultado.colaborador}
+Novo horário: ${resultado.entrada} às ${resultado.saida}
 Dias: ${resultado.datas.join(', ')}`;
       }
 
@@ -819,8 +1015,10 @@ Dias: ${resultado.datas.join(', ')}`;
     case 'ask_info':
       return `⚠️ Preciso destas informações: ${(resultado.missing || ['informações']).join(', ')}.
 
-Exemplo:
-Pulse adiciona Guilherme Oliveira das 10 às 19 no dia 22/06`;
+Exemplos:
+- Pulse adiciona Guilherme Oliveira das 10 às 19 no dia 22/06
+- Pulse troca Guilherme Oliveira por Rodrigo Silva no dia 22/06
+- Pulse muda o horário do Guilherme Oliveira no dia 22/06 para 12 às 21`;
 
     case 'query':
       return `Posso consultar e alterar a escala.
@@ -828,6 +1026,8 @@ Pulse adiciona Guilherme Oliveira das 10 às 19 no dia 22/06`;
 Exemplos:
 - Pulse adiciona Guilherme Oliveira das 10 às 19 no dia 22/06
 - Pulse remove Guilherme Oliveira do dia 22/06
+- Pulse troca Guilherme Oliveira por Rodrigo Silva no dia 22/06
+- Pulse muda o horário do Guilherme Oliveira no dia 22/06 para 12 às 21
 - Pulse marca folga para Guilherme Oliveira no dia 22/06`;
 
     default:
@@ -873,6 +1073,47 @@ function validarPessoaData(comando, equipeRows) {
   };
 }
 
+function validarTroca(comando, equipeRows) {
+  const fromColaborador = encontrarColaborador(comando.fromEmployee, equipeRows);
+  const toColaborador = encontrarColaborador(comando.toEmployee, equipeRows);
+  const datas = datasEntre(comando.startDate, comando.endDate || comando.startDate);
+
+  const missing = [
+    !fromColaborador ? 'colaborador que sai' : null,
+    !toColaborador ? 'colaborador que entra' : null,
+    !datas.length ? 'data' : null,
+  ].filter(Boolean);
+
+  return {
+    fromColaborador,
+    toColaborador,
+    datas,
+    missing,
+  };
+}
+
+function validarUpdateShift(comando, equipeRows) {
+  const colaborador = encontrarColaborador(comando.employee, equipeRows);
+  const entrada = normalizarHora(comando.startTime);
+  const saida = normalizarHora(comando.endTime);
+  const datas = datasEntre(comando.startDate, comando.endDate || comando.startDate);
+
+  const missing = [
+    !colaborador ? 'colaborador' : null,
+    !datas.length ? 'data' : null,
+    !entrada ? 'horário de entrada' : null,
+    !saida ? 'horário de saída' : null,
+  ].filter(Boolean);
+
+  return {
+    colaborador,
+    entrada,
+    saida,
+    datas,
+    missing,
+  };
+}
+
 async function executarAcaoPendente(token, action) {
   if (action.action === 'add_shift') {
     const qtd = await gravarTurnos(token, {
@@ -904,6 +1145,44 @@ async function executarAcaoPendente(token, action) {
       action: 'remove_shift',
       status: qtd > 0 ? 'success' : 'not_found',
       colaborador: action.colaborador,
+      datas: action.datas,
+      linhasAlteradas: qtd,
+    };
+  }
+
+  if (action.action === 'swap_employee') {
+    const qtd = await trocarColaborador(token, {
+      fromColaborador: action.fromColaborador,
+      toColaborador: action.toColaborador,
+      datas: action.datas,
+      obs: action.obs || `Substituiu ${action.fromColaborador}`,
+    });
+
+    return {
+      action: 'swap_employee',
+      status: qtd > 0 ? 'success' : 'not_found',
+      fromColaborador: action.fromColaborador,
+      toColaborador: action.toColaborador,
+      datas: action.datas,
+      linhasAlteradas: qtd,
+    };
+  }
+
+  if (action.action === 'update_shift') {
+    const qtd = await atualizarHorario(token, {
+      colaborador: action.colaborador,
+      entrada: action.entrada,
+      saida: action.saida,
+      datas: action.datas,
+      obs: action.obs || 'Ajustado IA',
+    });
+
+    return {
+      action: 'update_shift',
+      status: 'success',
+      colaborador: action.colaborador,
+      entrada: action.entrada,
+      saida: action.saida,
       datas: action.datas,
       linhasAlteradas: qtd,
     };
@@ -1048,6 +1327,81 @@ Você ainda tem essa alteração pendente. Responda "confirmar" ou "cancelar".`,
         resposta: montarPreviewConfirmacao(action),
         acaoRealizada: {
           action: 'add_shift',
+          status: 'awaiting_confirmation',
+          preview: action,
+        },
+      });
+    }
+
+    if (comando.action === 'swap_employee') {
+      const { fromColaborador, toColaborador, datas, missing } = validarTroca(comando, equipeRows);
+
+      if (missing.length) {
+        resultado = {
+          action: 'ask_info',
+          status: 'missing_info',
+          missing,
+          comando,
+        };
+
+        return res.status(200).json({
+          resposta: montarRespostaFinal(resultado),
+          acaoRealizada: resultado,
+        });
+      }
+
+      const action = {
+        action: 'swap_employee',
+        fromColaborador,
+        toColaborador,
+        datas,
+        obs: `Substituiu ${fromColaborador}`,
+      };
+
+      setPendingAction(res, action);
+
+      return res.status(200).json({
+        resposta: montarPreviewConfirmacao(action),
+        acaoRealizada: {
+          action: 'swap_employee',
+          status: 'awaiting_confirmation',
+          preview: action,
+        },
+      });
+    }
+
+    if (comando.action === 'update_shift') {
+      const { colaborador, entrada, saida, datas, missing } = validarUpdateShift(comando, equipeRows);
+
+      if (missing.length) {
+        resultado = {
+          action: 'ask_info',
+          status: 'missing_info',
+          missing,
+          comando,
+        };
+
+        return res.status(200).json({
+          resposta: montarRespostaFinal(resultado),
+          acaoRealizada: resultado,
+        });
+      }
+
+      const action = {
+        action: 'update_shift',
+        colaborador,
+        entrada,
+        saida,
+        datas,
+        obs: comando.observation || 'Ajustado IA',
+      };
+
+      setPendingAction(res, action);
+
+      return res.status(200).json({
+        resposta: montarPreviewConfirmacao(action),
+        acaoRealizada: {
+          action: 'update_shift',
           status: 'awaiting_confirmation',
           preview: action,
         },
