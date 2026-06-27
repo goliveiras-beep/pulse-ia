@@ -4,6 +4,8 @@ const CANAL = "C0BB36J2ZNV";
 const BASE = "appwE9LmmTxynTGFY";
 const TABELA = "tblpibvwAIGBQXr0H";
 const VIEW = "viwrkqQ6rxT9AeNBa";
+const GITHUB_REPO = "goliveiras-beep/pulse-ia";
+const SNAPSHOT_PATH = "data/grade_snapshot.json";
 
 async function slackPost(channel, text) {
   await fetch("https://slack.com/api/chat.postMessage", {
@@ -16,14 +18,11 @@ async function slackPost(channel, text) {
 async function getGradeHoje() {
   const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
   const filter = `OR(DATESTR({fldRnfbwPVzFiHMqs}) = '${hoje}', DATESTR({fld8hthI7oI4MY5aP}) = '${hoje}')`;
-  const url = `https://api.airtable.com/v0/${BASE}/${TABELA}?view=${VIEW}&filterByFormula=${encodeURIComponent(filter)}&maxRecords=100&sort[0][field]=fldRnfbwPVzFiHMqs&sort[0][direction]=asc`;
+  const url = `https://api.airtable.com/v0/${BASE}/${TABELA}?view=${VIEW}&filterByFormula=${encodeURIComponent(filter)}&maxRecords=100`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
-  const records = data.records || [];
-
-  // Cria snapshot comparável: id → campos relevantes
   const snapshot = {};
-  for (const r of records) {
+  for (const r of (data.records || [])) {
     const f = r.fields;
     snapshot[r.id] = {
       nome: f["Match ID"] || "",
@@ -36,39 +35,46 @@ async function getGradeHoje() {
   return snapshot;
 }
 
-async function getSnapshotAnterior(kv) {
+async function getSnapshotGitHub() {
   try {
-    const r = await kv.get("grade_snapshot");
-    return r ? JSON.parse(r) : null;
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${SNAPSHOT_PATH}`, {
+      headers: { Authorization: `token ${process.env.GITHUB_TOKEN}` }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const content = atob(data.content.replace(/\n/g, ''));
+    return { snapshot: JSON.parse(content), sha: data.sha };
   } catch { return null; }
 }
 
-async function salvarSnapshot(kv, snapshot) {
-  try {
-    await kv.set("grade_snapshot", JSON.stringify(snapshot));
-  } catch(e) { console.error("Erro salvando snapshot:", e.message); }
+async function salvarSnapshotGitHub(snapshot, sha) {
+  const content = btoa(JSON.stringify(snapshot));
+  const body = {
+    message: "chore: atualizar snapshot da grade",
+    content,
+    ...(sha ? { sha } : {})
+  };
+  await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${SNAPSHOT_PATH}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", Authorization: `token ${process.env.GITHUB_TOKEN}` },
+    body: JSON.stringify(body)
+  });
 }
 
 function compararGrades(anterior, atual) {
   const mudancas = [];
-
-  // Eventos adicionados
   for (const id of Object.keys(atual)) {
     if (!anterior[id]) {
       const e = atual[id];
-      mudancas.push(`➕ *Adicionado:* *${e.nome}* — _${e.inicio}_ | ${e.tipo} | ${e.status}`);
+      mudancas.push(`➕ *Adicionado:* *${e.nome}* — _${e.inicio}_ | ${e.tipo}`);
     }
   }
-
-  // Eventos removidos
   for (const id of Object.keys(anterior)) {
     if (!atual[id]) {
       const e = anterior[id];
       mudancas.push(`🗑️ *Removido:* *${e.nome}* — _${e.inicio}_`);
     }
   }
-
-  // Eventos alterados
   for (const id of Object.keys(atual)) {
     if (!anterior[id]) continue;
     const ant = anterior[id];
@@ -83,44 +89,36 @@ function compararGrades(anterior, atual) {
       mudancas.push(`✏️ *Alterado:* *${atu.nome}*\n  ${diffs.join("\n  ")}`);
     }
   }
-
   return mudancas;
 }
 
 export default async function handler(req, res) {
-  // Verifica token de segurança para chamadas do cron
   const token = req.headers["x-cron-token"] || req.query.token;
-  if (token !== process.env.CRON_TOKEN) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+  if (token !== process.env.CRON_TOKEN) return res.status(401).json({ error: "Unauthorized" });
 
   try {
     const gradeAtual = await getGradeHoje();
+    const resultado = await getSnapshotGitHub();
 
-    // Usa Vercel KV para armazenar snapshot anterior
-    const { kv } = await import("@vercel/kv");
-    const snapshotAnterior = await getSnapshotAnterior(kv);
-
-    if (!snapshotAnterior) {
-      await salvarSnapshot(kv, gradeAtual);
+    if (!resultado) {
+      await salvarSnapshotGitHub(gradeAtual, null);
       return res.status(200).json({ ok: true, msg: "Snapshot inicial criado", total: Object.keys(gradeAtual).length });
     }
 
+    const { snapshot: snapshotAnterior, sha } = resultado;
     const mudancas = compararGrades(snapshotAnterior, gradeAtual);
 
     if (mudancas.length > 0) {
       const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
       const msg = `🔔 *Mudanças na grade — ${hoje}*\n\n${mudancas.join("\n\n")}`;
       await slackPost(CANAL, msg);
-      await salvarSnapshot(kv, gradeAtual);
-      console.log("Mudanças detectadas:", mudancas.length);
-    } else {
-      console.log("Sem mudanças na grade");
+      await salvarSnapshotGitHub(gradeAtual, sha);
+      console.log("Mudanças:", mudancas.length);
     }
 
     return res.status(200).json({ ok: true, mudancas: mudancas.length });
   } catch (err) {
-    console.error("Erro monitor:", err.message);
+    console.error("Erro:", err.message);
     return res.status(500).json({ error: err.message });
   }
 }
