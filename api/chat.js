@@ -1,7 +1,6 @@
-
 import { createHash, createSign } from 'crypto';
 
-// ── helpers de sessão — igual ao app.js ──────────────────────────────────────
+// ── helpers de sessão ────────────────────────────────────────────────────────
 
 const COOKIE_NAME = 'pulse_session';
 const COOKIE_MAX  = 60 * 60 * 24 * 7;
@@ -16,23 +15,26 @@ function hash(s) {
 function parseCookies(cookieHeader) {
   const cookies = {};
   if (!cookieHeader) return cookies;
+
   cookieHeader.split(';').forEach(c => {
     const [k, ...v] = c.trim().split('=');
     cookies[k.trim()] = v.join('=');
   });
+
   return cookies;
 }
 
 function getSession(req) {
   const cookies = parseCookies(req.headers.cookie);
-  const token   = cookies[COOKIE_NAME];
+  const token = cookies[COOKIE_NAME];
+
   if (!token) return null;
 
   try {
-    const decoded       = Buffer.from(token, 'base64').toString('utf8');
+    const decoded = Buffer.from(token, 'base64').toString('utf8');
     const [nome, h, ts] = decoded.split('|');
 
-    if (Date.now() - parseInt(ts) > COOKIE_MAX * 1000) return null;
+    if (Date.now() - parseInt(ts, 10) > COOKIE_MAX * 1000) return null;
     if (h !== hash(nome + ts)) return null;
 
     return { nome };
@@ -51,7 +53,7 @@ function base64url(str) {
 }
 
 async function getAccessToken() {
-  const sa  = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  const sa = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
   const now = Math.floor(Date.now() / 1000);
 
   const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
@@ -65,7 +67,7 @@ async function getAccessToken() {
   }));
 
   const sigInput = `${header}.${payload}`;
-  const sign     = createSign('RSA-SHA256');
+  const sign = createSign('RSA-SHA256');
   sign.update(sigInput);
 
   const sig = sign.sign(sa.private_key, 'base64')
@@ -89,10 +91,10 @@ async function getAccessToken() {
 }
 
 async function sheetsGet(token, range) {
-  const id  = process.env.GOOGLE_SHEET_ID;
+  const id = process.env.GOOGLE_SHEET_ID;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}`;
 
-  const res  = await fetch(url, {
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -106,9 +108,12 @@ async function sheetsGet(token, range) {
 }
 
 async function sheetsBatchUpdate(token, updates) {
-  if (!updates.length) return { updated: 0 };
+  if (!updates || !updates.length) {
+    return { updated: 0 };
+  }
 
-  const id  = process.env.GOOGLE_SHEET_ID;
+  const id = process.env.GOOGLE_SHEET_ID;
+
   const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values:batchUpdate`, {
     method: 'POST',
     headers: {
@@ -131,7 +136,8 @@ async function sheetsBatchUpdate(token, updates) {
 }
 
 async function sheetsAppend(token, range, values) {
-  const id  = process.env.GOOGLE_SHEET_ID;
+  const id = process.env.GOOGLE_SHEET_ID;
+
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,
     {
@@ -155,22 +161,6 @@ async function sheetsAppend(token, range, values) {
 
 // ── utilidades ───────────────────────────────────────────────────────────────
 
-function filtrarEscalaRelevante(linhas) {
-  const hoje = new Date();
-
-  return linhas.filter(row => {
-    if (!row[0]) return false;
-
-    const [d, m] = row[0].split('/').map(Number);
-    if (!d || !m) return false;
-
-    const data = new Date(hoje.getFullYear(), m - 1, d);
-    const diff = (data - hoje) / (1000 * 60 * 60 * 24);
-
-    return diff >= -3 && diff <= 14;
-  });
-}
-
 function limparJson(txt) {
   return String(txt || '')
     .replace(/```json/gi, '')
@@ -178,49 +168,76 @@ function limparJson(txt) {
     .trim();
 }
 
+function agoraBrasil() {
+  return new Date().toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+  });
+}
+
+function hojeBrasil() {
+  return new Date().toLocaleDateString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+  });
+}
+
 function normalizarHora(h) {
   if (!h) return '';
 
   const texto = String(h).trim();
-
   const m = texto.match(/(\d{1,2})(?:[:hH](\d{0,2}))?/);
+
   if (!m) return '';
 
-  const hora = String(m[1]).padStart(2, '0');
-  const min  = String(m[2] || '00').padStart(2, '0');
+  const hora = Number(m[1]);
+  const min = Number(m[2] || 0);
 
-  return `${hora}:${min}`;
+  if (hora < 0 || hora > 23) return '';
+  if (min < 0 || min > 59) return '';
+
+  return `${String(hora).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
 
 function normalizarData(d) {
   if (!d) return '';
 
   const m = String(d).match(/(\d{1,2})[\/\-](\d{1,2})/);
+
   if (!m) return '';
 
-  return `${String(m[1]).padStart(2, '0')}/${String(m[2]).padStart(2, '0')}`;
+  const dia = Number(m[1]);
+  const mes = Number(m[2]);
+
+  if (dia < 1 || dia > 31) return '';
+  if (mes < 1 || mes > 12) return '';
+
+  return `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}`;
 }
 
 function datasEntre(inicio, fim) {
   const start = normalizarData(inicio);
-  const end   = normalizarData(fim || inicio);
+  const end = normalizarData(fim || inicio);
 
-  if (!start) return [];
+  if (!start || !end) return [];
 
   const ano = new Date().getFullYear();
 
   const [d1, m1] = start.split('/').map(Number);
   const [d2, m2] = end.split('/').map(Number);
 
-  const datas = [];
+  let cur = new Date(ano, m1 - 1, d1);
+  let lim = new Date(ano, m2 - 1, d2);
 
-  let cur   = new Date(ano, m1 - 1, d1);
-  const lim = new Date(ano, m2 - 1, d2);
+  if (lim < cur) {
+    lim = cur;
+  }
+
+  const datas = [];
 
   while (cur <= lim) {
     datas.push(
       `${String(cur.getDate()).padStart(2, '0')}/${String(cur.getMonth() + 1).padStart(2, '0')}`
     );
+
     cur.setDate(cur.getDate() + 1);
   }
 
@@ -229,11 +246,17 @@ function datasEntre(inicio, fim) {
 
 function encontrarColaborador(nome, equipeRows) {
   const alvo = String(nome || '').toLowerCase().trim();
+
   if (!alvo) return null;
 
-  const ativos = equipeRows.filter(r => (r[6] || '').toLowerCase() === 'ativo');
+  const ativos = equipeRows.filter(r => {
+    return (r[6] || '').toLowerCase() === 'ativo';
+  });
 
-  const exato = ativos.find(r => (r[0] || '').toLowerCase().trim() === alvo);
+  const exato = ativos.find(r => {
+    return (r[0] || '').toLowerCase().trim() === alvo;
+  });
+
   if (exato) return exato[0];
 
   const parcial = ativos.find(r => {
@@ -247,7 +270,7 @@ function encontrarColaborador(nome, equipeRows) {
     const partes = (r[0] || '')
       .toLowerCase()
       .split(' ')
-      .filter(p => p.length > 3);
+      .filter(p => p.length > 2);
 
     return partes.some(p => alvo.includes(p));
   });
@@ -255,10 +278,12 @@ function encontrarColaborador(nome, equipeRows) {
   return porParte ? porParte[0] : null;
 }
 
-function agoraBrasil() {
-  return new Date().toLocaleString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-  });
+function equipeAtivaTexto(equipeRows) {
+  return equipeRows
+    .filter(r => (r[6] || '').toLowerCase() === 'ativo')
+    .map(r => r[0])
+    .filter(Boolean)
+    .join(', ');
 }
 
 // ── IA: interpreta comando do usuário ────────────────────────────────────────
@@ -274,10 +299,7 @@ const ACTIONS = [
 ];
 
 async function interpretarComando({ mensagem, equipeRows, hoje }) {
-  const equipeTexto = equipeRows
-    .filter(r => (r[6] || '').toLowerCase() === 'ativo')
-    .map(r => r[0])
-    .join(', ');
+  const equipeTexto = equipeAtivaTexto(equipeRows);
 
   const systemPrompt = `
 Você é o interpretador operacional do Pulse IA.
@@ -313,7 +335,6 @@ Quando for apenas uma pergunta, consulta ou conversa, sem alteração na escala.
 Quando faltar informação obrigatória.
 
 Formato para add_shift:
-
 {
   "action": "add_shift",
   "employee": "Nome do colaborador",
@@ -325,7 +346,6 @@ Formato para add_shift:
 }
 
 Formato para remove_shift:
-
 {
   "action": "remove_shift",
   "employee": "Nome do colaborador",
@@ -334,7 +354,6 @@ Formato para remove_shift:
 }
 
 Formato para set_dayoff:
-
 {
   "action": "set_dayoff",
   "employee": "Nome do colaborador",
@@ -344,7 +363,6 @@ Formato para set_dayoff:
 }
 
 Formato para set_vacation:
-
 {
   "action": "set_vacation",
   "employee": "Nome do colaborador",
@@ -354,7 +372,6 @@ Formato para set_vacation:
 }
 
 Formato para set_medical_leave:
-
 {
   "action": "set_medical_leave",
   "employee": "Nome do colaborador",
@@ -364,7 +381,6 @@ Formato para set_medical_leave:
 }
 
 Formato para ask_info:
-
 {
   "action": "ask_info",
   "missing": ["colaborador", "data", "horário"]
@@ -375,7 +391,7 @@ Regras obrigatórias:
 - Não use markdown.
 - Não explique.
 - Não escreva texto fora do JSON.
-- Se o usuário disser "Guilherme", "Gui" ou nome parcial, tente mapear para o nome completo da lista.
+- Se o usuário disser nome parcial, tente mapear para o nome completo da lista.
 - Para add_shift precisa de employee, startDate, startTime e endTime.
 - Para remove_shift precisa de employee e startDate.
 - Para folga, férias e dispensa médica precisa de employee e startDate.
@@ -407,7 +423,7 @@ Regras obrigatórias:
   }
 
   const data = await groqRes.json();
-  const txt  = data.choices?.[0]?.message?.content || '{}';
+  const txt = data.choices?.[0]?.message?.content || '{}';
 
   try {
     const json = JSON.parse(limparJson(txt));
@@ -429,31 +445,54 @@ Regras obrigatórias:
 // ── ações na escala ──────────────────────────────────────────────────────────
 
 async function gravarTurnos(token, turno) {
-  const rows    = await sheetsGet(token, 'Escala!A2:F500');
+  const rows = await sheetsGet(token, 'Escala!A2:F500');
   const updates = [];
   const appends = [];
 
   for (const data of turno.datas) {
-    const idx = rows.findIndex(r =>
-      r[0] === data &&
-      (r[2] || '').trim().toLowerCase() === turno.colaborador.toLowerCase()
-    );
+    const idx = rows.findIndex(r => {
+      return r[0] === data &&
+        (r[2] || '').trim().toLowerCase() === turno.colaborador.toLowerCase();
+    });
 
     if (idx >= 0) {
       updates.push({
         range: `Escala!A${idx + 2}:F${idx + 2}`,
-        values: [[data, '', turno.colaborador, turno.entrada, turno.saida, turno.obs || 'Ajustado IA']],
+        values: [[
+          data,
+          '',
+          turno.colaborador,
+          turno.entrada,
+          turno.saida,
+          turno.obs || 'Ajustado IA',
+        ]],
       });
     } else {
-      const idxDataVazia = rows.findIndex(r => r[0] === data && !(r[2] || '').trim());
+      const idxDataVazia = rows.findIndex(r => {
+        return r[0] === data && !(r[2] || '').trim();
+      });
 
       if (idxDataVazia >= 0) {
         updates.push({
           range: `Escala!A${idxDataVazia + 2}:F${idxDataVazia + 2}`,
-          values: [[data, '', turno.colaborador, turno.entrada, turno.saida, turno.obs || 'Ajustado IA']],
+          values: [[
+            data,
+            '',
+            turno.colaborador,
+            turno.entrada,
+            turno.saida,
+            turno.obs || 'Ajustado IA',
+          ]],
         });
       } else {
-        appends.push([data, '', turno.colaborador, turno.entrada, turno.saida, turno.obs || 'Ajustado IA']);
+        appends.push([
+          data,
+          '',
+          turno.colaborador,
+          turno.entrada,
+          turno.saida,
+          turno.obs || 'Ajustado IA',
+        ]);
       }
     }
   }
@@ -480,7 +519,7 @@ async function gravarTurnos(token, turno) {
 }
 
 async function removerTurnos(token, comando) {
-  const rows    = await sheetsGet(token, 'Escala!A2:F500');
+  const rows = await sheetsGet(token, 'Escala!A2:F500');
   const updates = [];
 
   for (const data of comando.datas) {
@@ -515,31 +554,54 @@ async function removerTurnos(token, comando) {
 }
 
 async function marcarAusencia(token, comando) {
-  const rows    = await sheetsGet(token, 'Escala!A2:F500');
+  const rows = await sheetsGet(token, 'Escala!A2:F500');
   const updates = [];
   const appends = [];
 
   for (const data of comando.datas) {
-    const idx = rows.findIndex(r =>
-      r[0] === data &&
-      (r[2] || '').trim().toLowerCase() === comando.colaborador.toLowerCase()
-    );
+    const idx = rows.findIndex(r => {
+      return r[0] === data &&
+        (r[2] || '').trim().toLowerCase() === comando.colaborador.toLowerCase();
+    });
 
     if (idx >= 0) {
       updates.push({
         range: `Escala!A${idx + 2}:F${idx + 2}`,
-        values: [[data, '', comando.colaborador, '', '', comando.obs]],
+        values: [[
+          data,
+          '',
+          comando.colaborador,
+          '',
+          '',
+          comando.obs,
+        ]],
       });
     } else {
-      const idxDataVazia = rows.findIndex(r => r[0] === data && !(r[2] || '').trim());
+      const idxDataVazia = rows.findIndex(r => {
+        return r[0] === data && !(r[2] || '').trim();
+      });
 
       if (idxDataVazia >= 0) {
         updates.push({
           range: `Escala!A${idxDataVazia + 2}:F${idxDataVazia + 2}`,
-          values: [[data, '', comando.colaborador, '', '', comando.obs]],
+          values: [[
+            data,
+            '',
+            comando.colaborador,
+            '',
+            '',
+            comando.obs,
+          ]],
         });
       } else {
-        appends.push([data, '', comando.colaborador, '', '', comando.obs]);
+        appends.push([
+          data,
+          '',
+          comando.colaborador,
+          '',
+          '',
+          comando.obs,
+        ]);
       }
     }
   }
@@ -565,59 +627,123 @@ async function marcarAusencia(token, comando) {
   return updates.length + appends.length;
 }
 
-// ── resposta final com IA ────────────────────────────────────────────────────
+// ── resposta sem segunda chamada ao Groq ─────────────────────────────────────
 
-async function gerarRespostaFinal({ session, pagina, hoje, equipeTexto, escalaTexto, resultado, messages }) {
-  const systemPrompt = `Você é o assistente do Pulse IA, dashboard operacional de TV ao vivo da LiveMode.
+function montarRespostaFinal(resultado) {
+  switch (resultado.action) {
+    case 'add_shift':
+      if (resultado.status === 'success') {
+        return `✅ Horário adicionado com sucesso.
 
-Hoje: ${hoje}.
-Usuário logado: ${session.nome}.
-Página atual: ${pagina}.
+Colaborador: ${resultado.colaborador}
+Horário: ${resultado.entrada} às ${resultado.saida}
+Dias: ${resultado.datas.join(', ')}`;
+      }
 
-EQUIPE ATIVA:
-${equipeTexto}
+      return `⚠️ Faltam informações: ${(resultado.missing || []).join(', ')}`;
 
-ESCALA RELEVANTE:
-${escalaTexto}
+    case 'remove_shift':
+      if (resultado.status === 'success') {
+        return `✅ Horário removido com sucesso.
 
-RESULTADO DA AÇÃO:
-${JSON.stringify(resultado, null, 2)}
+Colaborador: ${resultado.colaborador}
+Dias: ${resultado.datas.join(', ')}`;
+      }
 
-REGRAS:
-- Responda em português BR.
-- Seja direto, claro e operacional.
-- Máximo 4 parágrafos curtos.
-- Se uma ação foi gravada, confirme exatamente o que foi feito.
-- Se faltou informação, diga o que faltou e dê um exemplo de comando correto.
-- Se foi apenas consulta, responda usando somente os dados da escala fornecida.
-- Nunca invente dados.
-- Alertas trabalhistas: interjornada mínima 11h, jornada máxima 10h, máximo 7 dias consecutivos.`;
+      if (resultado.status === 'not_found') {
+        return `⚠️ Nenhum horário encontrado para remover.
 
-  const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages,
-      ],
-      temperature: 0.3,
-      max_tokens: 600,
-    }),
-  });
+Colaborador: ${resultado.colaborador}
+Dias: ${resultado.datas.join(', ')}`;
+      }
 
-  if (!groqRes.ok) {
-    const err = await groqRes.text();
-    throw new Error('Groq gerarRespostaFinal: ' + err);
+      return `⚠️ Faltam informações: ${(resultado.missing || []).join(', ')}`;
+
+    case 'set_dayoff':
+      if (resultado.status === 'success') {
+        return `✅ Folga registrada com sucesso.
+
+Colaborador: ${resultado.colaborador}
+Dias: ${resultado.datas.join(', ')}`;
+      }
+
+      return `⚠️ Faltam informações: ${(resultado.missing || []).join(', ')}`;
+
+    case 'set_vacation':
+      if (resultado.status === 'success') {
+        return `✅ Férias registradas com sucesso.
+
+Colaborador: ${resultado.colaborador}
+Dias: ${resultado.datas.join(', ')}`;
+      }
+
+      return `⚠️ Faltam informações: ${(resultado.missing || []).join(', ')}`;
+
+    case 'set_medical_leave':
+      if (resultado.status === 'success') {
+        return `✅ Dispensa médica registrada com sucesso.
+
+Colaborador: ${resultado.colaborador}
+Dias: ${resultado.datas.join(', ')}`;
+      }
+
+      return `⚠️ Faltam informações: ${(resultado.missing || []).join(', ')}`;
+
+    case 'ask_info':
+      return `⚠️ Preciso destas informações: ${(resultado.missing || ['informações']).join(', ')}.
+
+Exemplo:
+Pulse adiciona Guilherme Oliveira das 10 às 19 no dia 22/06`;
+
+    case 'query':
+      return `Posso consultar e alterar a escala.
+
+Exemplos:
+- Pulse adiciona Guilherme Oliveira das 10 às 19 no dia 22/06
+- Pulse remove Guilherme Oliveira do dia 22/06
+- Pulse marca folga para Guilherme Oliveira no dia 22/06`;
+
+    default:
+      return 'Não consegui executar esse comando.';
   }
+}
 
-  const data = await groqRes.json();
+function validarAddShift(comando, equipeRows) {
+  const colaborador = encontrarColaborador(comando.employee, equipeRows);
+  const entrada = normalizarHora(comando.startTime);
+  const saida = normalizarHora(comando.endTime);
+  const datas = datasEntre(comando.startDate, comando.endDate || comando.startDate);
 
-  return data.choices?.[0]?.message?.content || 'Não consegui processar.';
+  const missing = [
+    !colaborador ? 'colaborador' : null,
+    !datas.length ? 'data' : null,
+    !entrada ? 'horário de entrada' : null,
+    !saida ? 'horário de saída' : null,
+  ].filter(Boolean);
+
+  return {
+    colaborador,
+    entrada,
+    saida,
+    datas,
+    missing,
+  };
+}
+
+function validarPessoaData(comando, equipeRows) {
+  const colaborador = encontrarColaborador(comando.employee, equipeRows);
+  const datas = datasEntre(comando.startDate, comando.endDate || comando.startDate);
+
+  const missing = [
+    !colaborador ? 'colaborador' : null,
+    !datas.length ? 'data' : null,
+  ].filter(Boolean);
+
+  return {
+    colaborador,
+    datas,
+    missing,
+  };
 }
 
 // ── handler principal ────────────────────────────────────────────────────────
@@ -646,27 +772,11 @@ export default async function handler(req, res) {
   try {
     const token = await getAccessToken();
 
-    const [escalaRows, equipeRows] = await Promise.all([
-      sheetsGet(token, 'Escala!A2:F500'),
+    const [equipeRows] = await Promise.all([
       sheetsGet(token, 'Equipe!A2:I50'),
     ]);
 
-    const hoje = new Date().toLocaleDateString('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-    });
-
-    const escalaRelevante = filtrarEscalaRelevante(escalaRows);
-
-    const equipeTexto = equipeRows
-      .filter(r => (r[6] || '').toLowerCase() === 'ativo')
-      .map(r => `${r[0]} (${r[1] || 'sem cargo'})`)
-      .join(', ');
-
-    const escalaTexto = escalaRelevante.length > 0
-      ? escalaRelevante.map(r =>
-          `${r[0]}: ${r[2] || '-'} ${r[3] || ''}-${r[4] || ''}${r[5] ? ' [' + r[5] + ']' : ''}`
-        ).join('\n')
-      : 'Sem registros nesse período.';
+    const hoje = hojeBrasil();
 
     const comando = await interpretarComando({
       mensagem: ultimaMensagem,
@@ -681,23 +791,14 @@ export default async function handler(req, res) {
     };
 
     if (comando.action === 'add_shift') {
-      const colaborador = encontrarColaborador(comando.employee, equipeRows);
-      const entrada     = normalizarHora(comando.startTime);
-      const saida       = normalizarHora(comando.endTime);
-      const datas       = datasEntre(comando.startDate, comando.endDate || comando.startDate);
-
-      const missing = [
-        !colaborador ? 'colaborador' : null,
-        !datas.length ? 'data' : null,
-        !entrada ? 'horário de entrada' : null,
-        !saida ? 'horário de saída' : null,
-      ].filter(Boolean);
+      const { colaborador, entrada, saida, datas, missing } = validarAddShift(comando, equipeRows);
 
       if (missing.length) {
         resultado = {
           action: 'ask_info',
           status: 'missing_info',
           missing,
+          comando,
         };
       } else {
         const qtd = await gravarTurnos(token, {
@@ -718,22 +819,15 @@ export default async function handler(req, res) {
           linhasGravadas: qtd,
         };
       }
-    }
-
-    else if (comando.action === 'remove_shift') {
-      const colaborador = encontrarColaborador(comando.employee, equipeRows);
-      const datas       = datasEntre(comando.startDate, comando.endDate || comando.startDate);
-
-      const missing = [
-        !colaborador ? 'colaborador' : null,
-        !datas.length ? 'data' : null,
-      ].filter(Boolean);
+    } else if (comando.action === 'remove_shift') {
+      const { colaborador, datas, missing } = validarPessoaData(comando, equipeRows);
 
       if (missing.length) {
         resultado = {
           action: 'ask_info',
           status: 'missing_info',
           missing,
+          comando,
         };
       } else {
         const qtd = await removerTurnos(token, {
@@ -749,15 +843,12 @@ export default async function handler(req, res) {
           linhasAlteradas: qtd,
         };
       }
-    }
-
-    else if (
+    } else if (
       comando.action === 'set_dayoff' ||
       comando.action === 'set_vacation' ||
       comando.action === 'set_medical_leave'
     ) {
-      const colaborador = encontrarColaborador(comando.employee, equipeRows);
-      const datas       = datasEntre(comando.startDate, comando.endDate || comando.startDate);
+      const { colaborador, datas, missing } = validarPessoaData(comando, equipeRows);
 
       const obsMap = {
         set_dayoff: 'Folga',
@@ -767,16 +858,12 @@ export default async function handler(req, res) {
 
       const obs = comando.observation || obsMap[comando.action];
 
-      const missing = [
-        !colaborador ? 'colaborador' : null,
-        !datas.length ? 'data' : null,
-      ].filter(Boolean);
-
       if (missing.length) {
         resultado = {
           action: 'ask_info',
           status: 'missing_info',
           missing,
+          comando,
         };
       } else {
         const qtd = await marcarAusencia(token, {
@@ -794,70 +881,27 @@ export default async function handler(req, res) {
           linhasGravadas: qtd,
         };
       }
-    }
-
-    else if (comando.action === 'ask_info') {
+    } else if (comando.action === 'ask_info') {
       resultado = {
         action: 'ask_info',
         status: 'missing_info',
         missing: comando.missing || ['informações'],
+        comando,
       };
-    }
-
-    else {
+    } else {
       resultado = {
         action: 'query',
         status: 'consulta',
+        comando,
       };
     }
 
-   let resposta = "";
+    const resposta = montarRespostaFinal(resultado);
 
-switch (resultado.action) {
-
-  case "add_shift":
-    if (resultado.status === "success") {
-      resposta = `✅ Horário adicionado com sucesso.
-
-Colaborador: ${resultado.colaborador}
-Horário: ${resultado.entrada} às ${resultado.saida}
-Dias: ${resultado.datas.join(", ")}`;
-    } else {
-      resposta = `⚠️ Faltam informações: ${resultado.missing.join(", ")}`;
-    }
-    break;
-
-  case "remove_shift":
-    resposta = resultado.status === "success"
-      ? "✅ Horário removido com sucesso."
-      : "⚠️ Nenhum horário encontrado.";
-    break;
-
-  case "set_dayoff":
-    resposta = "✅ Folga registrada.";
-    break;
-
-  case "set_vacation":
-    resposta = "✅ Férias registradas.";
-    break;
-
-  case "set_medical_leave":
-    resposta = "✅ Dispensa médica registrada.";
-    break;
-
-  case "ask_info":
-    resposta = `⚠️ Preciso destas informações: ${resultado.missing.join(", ")}`;
-    break;
-
-  default:
-    resposta = "Não consegui executar esse comando.";
-}
-
-return res.status(200).json({
-  resposta,
-  acaoRealizada: resultado,
-});
-
+    return res.status(200).json({
+      resposta,
+      acaoRealizada: resultado,
+    });
   } catch (err) {
     console.error('chat.js ERRO:', err.message, err.stack);
 
