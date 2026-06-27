@@ -756,3 +756,4 @@ function navDia(dir){
     return res.status(200).send(baseHTML('Meu turno', conteudo + CHAT_IA));
   }
 }
+<a href="/api/repositorio" class="btn-sm">Repositório</a>
