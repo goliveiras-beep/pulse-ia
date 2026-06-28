@@ -439,12 +439,15 @@ export default async function handler(req, res) {
 
   // Solicitação de ausência (colaborador)
   if (req.method === 'POST' && action === 'solicitar') {
-    const { tipo, motivo, dataInicio, dataFim } = req.body || {};
-    if (!tipo || !dataInicio) return res.status(400).json({ error: 'Dados inválidos' });
-    const ausRaw = await getSheet('Ausencias!A2:I500');
-    const novoId = 'PLS-' + Date.now().toString(36).toUpperCase();
-    await appendSheet('Ausencias!A:F', [[novoId, nome, tipo, motivo || '', dataInicio, dataFim || dataInicio]]);
-    return res.status(200).json({ ok: true, id: novoId });
+    try {
+      const { tipo, motivo, dataInicio, dataFim } = req.body || {};
+      if (!tipo || !dataInicio) return res.status(400).json({ error: 'Dados inválidos' });
+      const novoId = 'PLS-' + String(Date.now()).slice(-6);
+      await appendSheet('Ausencias!A:F', [[novoId, nome, tipo, motivo || '', dataInicio, dataFim || dataInicio]]);
+      return res.status(200).json({ ok: true, id: novoId });
+    } catch(err) {
+      return res.status(500).json({ error: String(err.message || err) });
+    }
   }
 
   // Cancelar solicitação (colaborador cancela a própria)
@@ -720,7 +723,7 @@ async function enviarSolicits(){
       document.getElementById('sol-obs').value='';
       setTimeout(function(){location.reload();},1500);
     }else{msg.style.display='block';msg.style.color='#dc2626';msg.textContent='Erro: '+d.error;}
-  }catch(e){msg.style.display='block';msg.style.color='#dc2626';msg.textContent='Erro de conexão';}
+  }catch(e){msg.style.display='block';msg.style.color='#dc2626';msg.textContent='Erro: '+e.message;}
 }
 async function cancelarSolicit(id){
   if(!confirm('Cancelar esta solicitação?'))return;
