@@ -4,7 +4,7 @@ import { sheetsRequest } from '../lib/google-auth.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
-function hash(s) { return createHash('sha256').update(s + process.env.PULSE_SECRET || 'pulse2026').digest('hex').slice(0,32); }
+function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
 
 function getSession(req) {
   const cookies = {};
@@ -35,7 +35,6 @@ export default async function handler(req, res) {
 
   const { action } = req.body || req.query;
 
-  // GET: listar equipe
   if (req.method === 'GET') {
     const equipe = equipeRaw.map((r,i) => ({
       linha: i+2,
@@ -50,7 +49,6 @@ export default async function handler(req, res) {
 
   const body = req.body || {};
 
-  // Adicionar pessoa
   if (action === 'adicionar') {
     const { nome, cargo, nucleo, email, slackId, regime, status, perfil } = body;
     if (!nome?.trim()) return res.status(400).json({error:'Nome obrigatório'});
@@ -62,7 +60,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ok:true, msg:`${nome} adicionado à equipe`});
   }
 
-  // Editar pessoa
   if (action === 'editar') {
     const { linha, nome, cargo, nucleo, email, slackId, regime, status, perfil } = body;
     if (!linha) return res.status(400).json({error:'Linha não informada'});
@@ -74,7 +71,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ok:true, msg:`${nome} atualizado`});
   }
 
-  // Remover pessoa
   if (action === 'remover') {
     const { linha, nome, definitivo } = body;
     if (!linha) return res.status(400).json({error:'Linha não informada'});
@@ -98,7 +94,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // Reativar pessoa
   if (action === 'reativar') {
     const { linha, nome } = body;
     await sheetsRequest(process.env.GOOGLE_SHEET_ID,
@@ -107,7 +102,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ok:true, msg:`${nome} reativado`});
   }
 
-  // Resetar senha
   if (action === 'resetar-senha') {
     const { linha, nome } = body;
     await sheetsRequest(process.env.GOOGLE_SHEET_ID,
