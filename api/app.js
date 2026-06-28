@@ -315,8 +315,7 @@ function loginPage(erro = '') {
   const BASE_URL = process.env.PULSE_BASE_URL || 'https://pulse-ia-six.vercel.app';
   const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=email%20profile&prompt=select_account`;
 
-  const erroMsg = erro === 'dominio_invalido' ? 'Acesso permitido apenas para emails @livemode.com'
-    : erro === 'usuario_nao_encontrado' ? 'Email não encontrado na equipe. Fale com o gestor.'
+  const erroMsg = erro === 'usuario_nao_encontrado' ? 'Sua conta Google não está na equipe. Fale com o gestor.'
     : erro === 'acesso_negado' ? 'Acesso negado pelo Google.'
     : erro === 'falha_auth' ? 'Falha na autenticação. Tente novamente.'
     : erro || '';
@@ -329,25 +328,13 @@ function loginPage(erro = '') {
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;min-height:100vh;display:flex;align-items:center;justify-content:center}
-.box{background:#161920;border:1px solid #2d3748;border-radius:16px;padding:40px 36px;width:380px;max-width:calc(100vw - 32px)}
+.box{background:#161920;border:1px solid #2d3748;border-radius:16px;padding:40px 36px;width:380px;max-width:calc(100vw - 32px);text-align:center}
 .logo{width:56px;height:56px;border-radius:14px;background:#e53e3e;display:flex;align-items:center;justify-content:center;margin:0 auto 20px}
-h1{text-align:center;font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:6px}
-.sub{text-align:center;font-size:13px;color:#718096;margin-bottom:28px}
+h1{font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:6px}
+.sub{font-size:13px;color:#718096;margin-bottom:28px}
 .btn-google{width:100%;background:#fff;border:none;border-radius:10px;padding:13px 16px;font-size:14px;font-weight:600;color:#1a1a1a;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background .15s}
 .btn-google:hover{background:#f0f0f0}
-.btn-google svg{flex-shrink:0}
-.divider{display:flex;align-items:center;gap:10px;margin:20px 0;color:#4a5568;font-size:12px}
-.divider::before,.divider::after{content:'';flex:1;border-top:1px solid #2d3748}
-.field{margin-bottom:12px}
-label{display:block;font-size:11px;font-weight:600;color:#718096;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
-input{width:100%;background:#1e2230;border:1px solid #2d3748;border-radius:8px;padding:11px 14px;font-size:14px;color:#e2e8f0;outline:none;margin-bottom:0}
-input:focus{border-color:#4a90d9}
-.btn-manual{width:100%;background:#1e2230;border:1px solid #2d3748;border-radius:8px;padding:11px;font-size:14px;font-weight:600;color:#a0aec0;cursor:pointer;margin-top:12px}
-.btn-manual:hover{border-color:#4a5568;color:#e2e8f0}
-.erro{background:#1f1010;border:1px solid #3d2020;border-radius:8px;padding:10px 14px;font-size:12px;color:#fc8181;margin-bottom:20px;text-align:center}
-.toggle{text-align:center;margin-top:14px;font-size:12px;color:#718096}
-.toggle a{color:#63b3ed;cursor:pointer;text-decoration:none}
-#manual-form{display:none}
+.erro{background:#1f1010;border:1px solid #3d2020;border-radius:8px;padding:10px 14px;font-size:12px;color:#fc8181;margin-bottom:20px}
 </style>
 </head>
 <body>
@@ -367,15 +354,6 @@ input:focus{border-color:#4a90d9}
       Entrar com Google
     </button>
   </a>
-  <div class="divider">ou</div>
-  <div id="manual-form">
-    <form method="POST" action="/api/app?action=login">
-      <div class="field"><label>Nome</label><input type="text" name="nome" placeholder="Seu nome completo" required autofocus></div>
-      <div class="field"><label>Senha</label><input type="password" name="senha" placeholder="••••••••" required></div>
-      <button type="submit" class="btn-manual">Entrar com senha</button>
-    </form>
-  </div>
-  <div class="toggle" id="toggle-link"><a onclick="document.getElementById('manual-form').style.display='block';document.getElementById('toggle-link').style.display='none'">Entrar com nome e senha</a></div>
 </div>
 </body>
 </html>`;
@@ -412,30 +390,7 @@ export default async function handler(req, res) {
     return res.redirect(302, '/api/app');
   }
 
-  // Login POST
-  if (req.method === 'POST' && action === 'login') {
-    const body = req.body || {};
-    const nome = String(body.nome || '').trim();
-    const senha = String(body.senha || '').trim();
-    if (!nome || !senha) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.status(200).send(loginPage('Preencha nome e senha.'));
-    }
-    const equipeRaw = await getSheet('Equipe!A2:I50');
-    const usuario = equipeRaw.find(r => r[0] === nome);
-    if (!usuario) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.status(200).send(loginPage('Usuário não encontrado.'));
-    }
-    const senhaHash = hash(senha);
-    const senhaCorreta = usuario[7] || '';
-    if (senhaCorreta && senhaHash !== senhaCorreta && senha !== senhaCorreta) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.status(200).send(loginPage('Senha incorreta.'));
-    }
-    setSession(res, nome);
-    return res.redirect(302, '/api/app');
-  }
+
 
   // Sem sessão → login
   const session = getSession(req);
@@ -448,7 +403,7 @@ export default async function handler(req, res) {
 
   // Ajuste de escala (gestor)
   if (req.method === 'POST' && action === 'ajuste') {
-    const equipeCheck = await getSheet('Equipe!A2:I50');
+    const equipeCheck = await getSheet('Equipe!A2:L200');
     const usuarioCheck = equipeCheck.find(r => r[0] === nome);
     if (usuarioCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
     const { acao, data, colaborador, entrada, saida, obs } = req.body || {};
@@ -511,13 +466,13 @@ export default async function handler(req, res) {
   const DIAS_FULL = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
 
   const [equipeRaw, escalaRaw, ausenciasRaw] = await Promise.all([
-    getSheet('Equipe!A2:I50'),
+    getSheet('Equipe!A2:L200'),
     getSheet('Escala!A2:F2000'),
     getSheet('Ausencias!A2:I500'),
   ]);
 
-  const usuario = equipeRaw.find(r => r[0] === nome);
-  const isGestor = usuario?.[8] === 'gestor';
+  const usuario = equipeRaw.find(r => r[0] === nome && (r[10]||'ativo') === 'ativo');
+  const isGestor = usuario?.[8] === 'gestor' && (usuario?.[10]||'ativo') === 'ativo';
 
   const escala = escalaRaw.map(r => r);
   const ausencias = ausenciasRaw.map(r => r);
