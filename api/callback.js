@@ -1,4 +1,4 @@
-// api/auth/callback.js — Google OAuth callback
+// api/auth/callback.js — Google OAuth callback com auto-cadastro
 export const config = { maxDuration: 10 };
 import { createHash } from 'crypto';
 import { sheetsRequest } from '../../lib/google-auth.js';
@@ -15,19 +15,18 @@ async function getSheet(range) {
   } catch { return []; }
 }
 
+async function appendSheet(range, values) {
+  await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`, 'POST', { values });
+}
+
 export default async function handler(req, res) {
   const { code, error } = req.query;
 
-  if (error) {
-    return res.redirect(302, '/api/app?erro=acesso_negado');
-  }
-
-  if (!code) {
-    return res.redirect(302, '/api/app');
-  }
+  if (error) return res.redirect(302, '/api/app?erro=acesso_negado');
+  if (!code) return res.redirect(302, '/api/app');
 
   try {
-    // Troca o code pelo token
+    // 1. Troca o code pelo token
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -39,31 +38,39 @@ export default async function handler(req, res) {
         grant_type: 'authorization_code',
       }),
     });
-
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) throw new Error('Token inválido');
 
-    // Pega o email do usuário
+    // 2. Pega dados do usuário Google
     const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
-    const user = await userRes.json();
-    const email = (user.email || '').toLowerCase();
+    const googleUser = await userRes.json();
+    const email = (googleUser.email || '').toLowerCase();
+    const nomeGoogle = googleUser.name || email.split('@')[0];
 
-    // Busca o colaborador na planilha pelo email (coluna J = índice 9)
-    const equipe = await getSheet('Equipe!A2:J50');
-    const usuario = equipe.find(r => (r[9] || '').toLowerCase() === email);
+    if (!email) throw new Error('Email não obtido');
 
-    if (!usuario) {
-      return res.redirect(302, '/api/app?erro=usuario_nao_encontrado');
+    // 3. Busca na planilha pelo email (coluna J = índice 9)
+    const equipe = await getSheet('Equipe!A2:J200');
+    const usuarioExistente = equipe.find(r => (r[9] || '').toLowerCase() === email);
+
+    let nomeLogin;
+
+    if (usuarioExistente) {
+      // Já cadastrado — usa o nome da planilha
+      nomeLogin = usuarioExistente[0];
+    } else {
+      // Novo usuário — auto-cadastra na planilha
+      // Colunas: A=Nome, B=Cargo, C=Nucleo, D='', E='', F='', G='', H='', I=acesso, J=email
+      nomeLogin = nomeGoogle;
+      await appendSheet('Equipe!A:J', [[nomeGoogle, '', '', '', '', '', '', '', 'colaborador', email]]);
     }
 
-    const nome = usuario[0]; // coluna A = nome
-
-    // Cria sessão
+    // 4. Cria sessão
     const ts = String(Date.now());
-    const h = hash(nome + ts);
-    const token = Buffer.from(`${nome}|${h}|${ts}`).toString('base64');
+    const h = hash(nomeLogin + ts);
+    const token = Buffer.from(`${nomeLogin}|${h}|${ts}`).toString('base64');
     res.setHeader('Set-Cookie', `${COOKIE_NAME}=${token}; Path=/; Max-Age=${COOKIE_MAX}; HttpOnly; SameSite=Lax`);
     return res.redirect(302, '/api/app');
 
