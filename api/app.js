@@ -311,6 +311,16 @@ ${script}
 // ── Login page ───────────────────────────────────────────────────────────────
 
 function loginPage(erro = '') {
+  const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+  const BASE_URL = process.env.PULSE_BASE_URL || 'https://pulse-ia-six.vercel.app';
+  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=email%20profile&hd=livemode.com.br&prompt=select_account`;
+
+  const erroMsg = erro === 'dominio_invalido' ? 'Acesso permitido apenas para emails @livemode.com.br'
+    : erro === 'usuario_nao_encontrado' ? 'Email não encontrado na equipe. Fale com o gestor.'
+    : erro === 'acesso_negado' ? 'Acesso negado pelo Google.'
+    : erro === 'falha_auth' ? 'Falha na autenticação. Tente novamente.'
+    : erro || '';
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -319,31 +329,53 @@ function loginPage(erro = '') {
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;min-height:100vh;display:flex;align-items:center;justify-content:center}
-.box{background:#161920;border:1px solid #2d3748;border-radius:16px;padding:40px 36px;width:360px;max-width:calc(100vw - 32px)}
-.logo{width:48px;height:48px;border-radius:12px;background:#e53e3e;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:20px;font-weight:800;color:#fff}
+.box{background:#161920;border:1px solid #2d3748;border-radius:16px;padding:40px 36px;width:380px;max-width:calc(100vw - 32px)}
+.logo{width:56px;height:56px;border-radius:14px;background:#e53e3e;display:flex;align-items:center;justify-content:center;margin:0 auto 20px}
 h1{text-align:center;font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:6px}
 .sub{text-align:center;font-size:13px;color:#718096;margin-bottom:28px}
+.btn-google{width:100%;background:#fff;border:none;border-radius:10px;padding:13px 16px;font-size:14px;font-weight:600;color:#1a1a1a;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background .15s}
+.btn-google:hover{background:#f0f0f0}
+.btn-google svg{flex-shrink:0}
+.divider{display:flex;align-items:center;gap:10px;margin:20px 0;color:#4a5568;font-size:12px}
+.divider::before,.divider::after{content:'';flex:1;border-top:1px solid #2d3748}
+.field{margin-bottom:12px}
 label{display:block;font-size:11px;font-weight:600;color:#718096;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
-input{width:100%;background:#1e2230;border:1px solid #2d3748;border-radius:8px;padding:11px 14px;font-size:14px;color:#e2e8f0;outline:none;margin-bottom:14px}
+input{width:100%;background:#1e2230;border:1px solid #2d3748;border-radius:8px;padding:11px 14px;font-size:14px;color:#e2e8f0;outline:none;margin-bottom:0}
 input:focus{border-color:#4a90d9}
-button{width:100%;background:#e53e3e;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;margin-top:4px}
-button:hover{background:#c53030}
-.erro{background:#1f1010;border:1px solid #3d2020;border-radius:6px;padding:10px 14px;font-size:12px;color:#fc8181;margin-bottom:16px}
+.btn-manual{width:100%;background:#1e2230;border:1px solid #2d3748;border-radius:8px;padding:11px;font-size:14px;font-weight:600;color:#a0aec0;cursor:pointer;margin-top:12px}
+.btn-manual:hover{border-color:#4a5568;color:#e2e8f0}
+.erro{background:#1f1010;border:1px solid #3d2020;border-radius:8px;padding:10px 14px;font-size:12px;color:#fc8181;margin-bottom:20px;text-align:center}
+.toggle{text-align:center;margin-top:14px;font-size:12px;color:#718096}
+.toggle a{color:#63b3ed;cursor:pointer;text-decoration:none}
+#manual-form{display:none}
 </style>
 </head>
 <body>
 <div class="box">
-  <div class="logo">P</div>
+  <div class="logo">
+    <svg width="28" height="28" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+      <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
+      <polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
   <h1>Pulse</h1>
-  <p class="sub">Portal operacional</p>
-  ${erro ? `<div class="erro">${erro}</div>` : ''}
-  <form method="POST" action="/api/app?action=login">
-    <label>Nome</label>
-    <input type="text" name="nome" placeholder="Seu nome completo" required autofocus>
-    <label>Senha</label>
-    <input type="password" name="senha" placeholder="••••••••" required>
-    <button type="submit">Entrar</button>
-  </form>
+  <p class="sub">Portal operacional · Livemode</p>
+  ${erroMsg ? `<div class="erro">⚠️ ${erroMsg}</div>` : ''}
+  <a href="${oauthUrl}" style="text-decoration:none">
+    <button class="btn-google" type="button">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/><path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/><path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/><path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.3z"/></svg>
+      Entrar com Google
+    </button>
+  </a>
+  <div class="divider">ou</div>
+  <div id="manual-form">
+    <form method="POST" action="/api/app?action=login">
+      <div class="field"><label>Nome</label><input type="text" name="nome" placeholder="Seu nome completo" required autofocus></div>
+      <div class="field"><label>Senha</label><input type="password" name="senha" placeholder="••••••••" required></div>
+      <button type="submit" class="btn-manual">Entrar com senha</button>
+    </form>
+  </div>
+  <div class="toggle" id="toggle-link"><a onclick="document.getElementById('manual-form').style.display='block';document.getElementById('toggle-link').style.display='none'">Entrar com nome e senha</a></div>
 </div>
 </body>
 </html>`;
