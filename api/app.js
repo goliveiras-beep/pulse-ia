@@ -477,6 +477,14 @@ export default async function handler(req, res) {
   ]);
 
   const usuario = equipeRaw.find(r => r[0] === nome && (r[10]||'ativo') === 'ativo');
+
+  // Usuário não encontrado ou inativo — volta para login
+  if (!usuario) {
+    clearSession(res);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(200).send(loginPage('Usuário não encontrado ou sem acesso. Tente fazer login novamente.'));
+  }
+
   const isGestor = usuario?.[8] === 'gestor' && (usuario?.[10]||'ativo') === 'ativo';
 
   const escala = escalaRaw.map(r => r);
