@@ -437,6 +437,27 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
+  // Solicitação de ausência (colaborador)
+  if (req.method === 'POST' && action === 'solicitar') {
+    const { tipo, motivo, dataInicio, dataFim } = req.body || {};
+    if (!tipo || !dataInicio) return res.status(400).json({ error: 'Dados inválidos' });
+    const ausRaw = await getSheet('Ausencias!A2:I500');
+    const novoId = 'PLS-' + Date.now().toString(36).toUpperCase();
+    await appendSheet('Ausencias!A:F', [[novoId, nome, tipo, motivo || '', dataInicio, dataFim || dataInicio]]);
+    return res.status(200).json({ ok: true, id: novoId });
+  }
+
+  // Cancelar solicitação (colaborador cancela a própria)
+  if (req.method === 'POST' && action === 'cancelar-solicitacao') {
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const ausRaw = await getSheet('Ausencias!A2:F500');
+    const idx = ausRaw.findIndex(r => r[0] === id && r[1] === nome);
+    if (idx < 0) return res.status(404).json({ error: 'Solicitação não encontrada' });
+    await setSheet(`Ausencias!A${idx + 2}:F${idx + 2}`, [['CANCELADO', nome, ausRaw[idx][2], ausRaw[idx][3], ausRaw[idx][4], ausRaw[idx][5]]]);
+    return res.status(200).json({ ok: true });
+  }
+
   // GET — carregar dados
   const hoje = getBRT();
   const hojeStr = fmtData(hoje);
@@ -481,8 +502,9 @@ export default async function handler(req, res) {
     const nucleo = usuario?.[2] || 'Operacoes';
     const turnoHoje = escala.find(r => r[0] === hojeStr && r[2] === nome);
     const turnoD1 = escala.find(r => r[0] === d1Str && r[2] === nome);
-    const ausHoje = ausencias.find(a => a[1] === nome && (a[4] === hojeStr || a[5] === hojeStr));
-    const ausD1 = ausencias.find(a => a[1] === nome && (a[4] === d1Str || a[5] === d1Str));
+    const ausHoje = ausencias.find(a => a[1] === nome && (a[4] === hojeStr || a[5] === hojeStr) && a[0] !== 'CANCELADO');
+    const ausD1 = ausencias.find(a => a[1] === nome && (a[4] === d1Str || a[5] === d1Str) && a[0] !== 'CANCELADO');
+    const minhasSolicits = ausencias.filter(a => a[1] === nome && a[0] !== 'CANCELADO').sort((a,b) => (b[4]||'').localeCompare(a[4]||'')).slice(0,10);
 
     const [eventosHoje, eventosAmanha, fraseDoDia] = await Promise.all([
       getEventos(hojeAirtable),
@@ -587,7 +609,129 @@ export default async function handler(req, res) {
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
-    return res.status(200).send(baseHTML('Equipe', conteudoEquipe + CHAT_IA));
+    // ── Botão Solicitar + Modal ──────────────────────────────────────────────
+    const TIPO_CORES = {
+      'Férias': ['#dbeafe','#1d4ed8'],
+      'Folga programada': ['#dcfce7','#166534'],
+      'Atestado médico': ['#fee2e2','#991b1b'],
+      'Folga direcionada': ['#fef3c7','#92400e'],
+    };
+    function badgeTipo(tipo) {
+      const [bg, c] = TIPO_CORES[tipo] || ['#f3f4f6','#374151'];
+      return `<span style="background:${bg};color:${c};border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600">${tipo}</span>`;
+    }
+    function renderMinhasSolicits() {
+      if (!minhasSolicits.length) return `<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Nenhuma solicitação registrada</div>`;
+      return minhasSolicits.map(s => `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border2)">
+          <div style="flex:1">
+            ${badgeTipo(s[2])}
+            ${s[3] ? `<div style="font-size:11px;color:var(--text2);margin-top:3px">${s[3]}</div>` : ''}
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:11px;font-weight:600;color:var(--text)">${s[4]}${s[5] && s[5] !== s[4] ? ' → ' + s[5] : ''}</div>
+            <div style="font-size:10px;color:var(--text3)">${s[0]}</div>
+          </div>
+          <button onclick="cancelarSolicit('${s[0]}')" style="background:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px;font-size:10px;color:var(--text3);cursor:pointer">✕</button>
+        </div>`).join('');
+    }
+
+    const SOLICITAR_BTN = `
+<div id="sol-btn" onclick="toggleSolicitar()" style="position:fixed;bottom:24px;left:24px;z-index:900;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#16a34a,#15803d);box-shadow:0 4px 20px rgba(22,163,74,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:transform .2s" title="Solicitar ausência">📋</div>
+
+<div id="sol-box" style="display:none;position:fixed;bottom:88px;left:24px;z-index:900;width:360px;max-width:calc(100vw - 48px);background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);overflow:hidden">
+  <div style="background:var(--header);padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+    <span style="font-size:16px">📋</span>
+    <div style="flex:1;font-size:13px;font-weight:600;color:#e2e8f0">Minhas solicitações</div>
+    <button onclick="toggleSolicitar()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:20px;padding:4px;line-height:1">&times;</button>
+  </div>
+  <div style="padding:14px">
+    <div id="sol-tab-bar" style="display:flex;gap:6px;margin-bottom:14px">
+      <button id="sol-tab-nova" onclick="solTab('nova')" style="flex:1;border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:600;background:#16a34a;color:#fff;cursor:pointer">+ Nova</button>
+      <button id="sol-tab-hist" onclick="solTab('hist')" style="flex:1;border:1px solid var(--border);border-radius:6px;padding:7px;font-size:12px;font-weight:600;background:none;color:var(--text2);cursor:pointer">Histórico</button>
+    </div>
+    <div id="sol-form-area">
+      <div style="margin-bottom:10px">
+        <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Tipo</label>
+        <select id="sol-tipo" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+          <option value="Férias">🏖️ Férias</option>
+          <option value="Folga programada">📅 Folga programada</option>
+          <option value="Atestado médico">🏥 Atestado médico</option>
+          <option value="Folga direcionada">📌 Folga direcionada</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Data início</label>
+          <input type="date" id="sol-inicio" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Data fim</label>
+          <input type="date" id="sol-fim" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Observação (opcional)</label>
+        <textarea id="sol-obs" rows="2" placeholder="Ex: CID M54, aprovado pelo supervisor..." style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;background:var(--bg2);color:var(--text);outline:none;resize:none;font-family:inherit"></textarea>
+      </div>
+      <button onclick="enviarSolicits()" style="width:100%;background:#16a34a;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;color:#fff;cursor:pointer">Enviar solicitação</button>
+      <div id="sol-msg" style="display:none;margin-top:8px;text-align:center;font-size:12px;font-weight:600"></div>
+    </div>
+    <div id="sol-hist-area" style="display:none;max-height:280px;overflow-y:auto">
+      ${renderMinhasSolicits()}
+    </div>
+  </div>
+</div>
+
+<script>
+var solAberto=false;
+function toggleSolicitar(){
+  solAberto=!solAberto;
+  document.getElementById('sol-box').style.display=solAberto?'block':'none';
+  document.getElementById('sol-btn').style.transform=solAberto?'scale(0.9)':'scale(1)';
+}
+function solTab(tab){
+  var isNova=tab==='nova';
+  document.getElementById('sol-form-area').style.display=isNova?'block':'none';
+  document.getElementById('sol-hist-area').style.display=isNova?'none':'block';
+  document.getElementById('sol-tab-nova').style.background=isNova?'#16a34a':'none';
+  document.getElementById('sol-tab-nova').style.color=isNova?'#fff':'';
+  document.getElementById('sol-tab-nova').style.border=isNova?'none':'1px solid var(--border)';
+  document.getElementById('sol-tab-hist').style.background=isNova?'none':'#16a34a';
+  document.getElementById('sol-tab-hist').style.color=isNova?'':'#fff';
+  document.getElementById('sol-tab-hist').style.border=isNova?'1px solid var(--border)':'none';
+}
+async function enviarSolicits(){
+  var tipo=document.getElementById('sol-tipo').value;
+  var inicio=document.getElementById('sol-inicio').value;
+  var fim=document.getElementById('sol-fim').value;
+  var obs=document.getElementById('sol-obs').value;
+  if(!inicio){alert('Informe a data de início');return;}
+  // Convert YYYY-MM-DD to DD/MM
+  function fmtDt(s){if(!s)return '';var p=s.split('-');return p[2]+'/'+p[1];}
+  var msg=document.getElementById('sol-msg');
+  try{
+    var r=await fetch('/api/app?action=solicitar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo,motivo:obs,dataInicio:fmtDt(inicio),dataFim:fmtDt(fim||inicio)})});
+    var d=await r.json();
+    if(d.ok){
+      msg.style.display='block';msg.style.color='#16a34a';msg.textContent='✓ Solicitação enviada! ID: '+d.id;
+      document.getElementById('sol-inicio').value='';
+      document.getElementById('sol-fim').value='';
+      document.getElementById('sol-obs').value='';
+      setTimeout(function(){location.reload();},1500);
+    }else{msg.style.display='block';msg.style.color='#dc2626';msg.textContent='Erro: '+d.error;}
+  }catch(e){msg.style.display='block';msg.style.color='#dc2626';msg.textContent='Erro de conexão';}
+}
+async function cancelarSolicit(id){
+  if(!confirm('Cancelar esta solicitação?'))return;
+  var r=await fetch('/api/app?action=cancelar-solicitacao',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  var d=await r.json();
+  if(d.ok)location.reload();
+  else alert('Erro: '+d.error);
+}
+</script>`;
+
+    return res.status(200).send(baseHTML('Equipe', conteudoEquipe + SOLICITAR_BTN + CHAT_IA));
   }
 
   // ── VISÃO GESTOR ──────────────────────────────────────────────────────────
@@ -625,6 +769,7 @@ export default async function handler(req, res) {
   ];
 
   const semCob = eventosCruzadosAmanha.filter(e => e.semCob).length;
+  const solicitacoesAtivas = ausencias.filter(a => a[0] && a[0] !== 'CANCELADO' && a[0].startsWith('PLS-'));
   const comAtenc = eventosCruzadosAmanha.filter(e => e.atenc.length > 0).length;
   const trabAmanha = escD1.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente').length;
   const folgAmanha = escD1.filter(r => !r[3] || r[5] === 'Folga' || r[5] === 'Folga/Ausente').length;
@@ -677,7 +822,14 @@ export default async function handler(req, res) {
       const ausente = ausSem.find(a => a[1] === n && (a[4] === df || a[5] === df));
       const bg = isD1 ? '#eff6ff' : isHoje ? '#fafafa' : '';
       tabelaHTML += `<td style="padding:5px 8px;border-bottom:1px solid #f5f5f5;text-align:center;background:${bg};cursor:pointer" onclick="abrirAjuste('${df}','${n}','${reg ? reg[3] : ''}','${reg ? reg[4] : ''}','${reg ? reg[5] : ''}')">`;
-      if (ausente) tabelaHTML += `<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">${ausente[3] || 'Aus.'}</span>`;
+      if (ausente) {
+        const tipoAus = ausente[2] || '';
+        const motivoAus = ausente[3] || '';
+        const corAus = tipoAus === 'Férias' ? '#1d4ed8' : tipoAus === 'Atestado médico' ? '#991b1b' : tipoAus === 'Folga direcionada' ? '#92400e' : '#166534';
+        const bgAus = tipoAus === 'Férias' ? '#dbeafe' : tipoAus === 'Atestado médico' ? '#fee2e2' : tipoAus === 'Folga direcionada' ? '#fef3c7' : '#dcfce7';
+        const iconeAus = tipoAus === 'Férias' ? '🏖️' : tipoAus === 'Atestado médico' ? '🏥' : tipoAus === 'Folga direcionada' ? '📌' : '📅';
+        tabelaHTML += `<span title="${tipoAus}${motivoAus ? ' — ' + motivoAus : ''}" style="background:${bgAus};color:${corAus};border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">${iconeAus}</span>`;
+      }
       else if (reg) {
         if (reg[5] === 'Folga') tabelaHTML += `<span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600">Folga</span>`;
         else if (!reg[3] && !reg[4]) tabelaHTML += `<span style="color:#d1d5db;font-size:11px">--</span>`;
