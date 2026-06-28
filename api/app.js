@@ -477,18 +477,54 @@ export default async function handler(req, res) {
 
   // ── VISÃO EQUIPE ──────────────────────────────────────────────────────────
   if (!isGestor) {
-    const cargo = usuario?.[1] || '';
+        const cargo = usuario?.[1] || '';
     const nucleo = usuario?.[2] || 'Operacoes';
+
+    const datasColab = [
+      { key: 'hoje', label: 'Hoje', data: hoje, dataStr: hojeStr },
+      { key: 'amanha', label: 'Amanhã', data: d1, dataStr: d1Str },
+      { key: 'd2', label: DIAS_PT[d2.getDay()], data: d2, dataStr: fmtData(d2) },
+      { key: 'd3', label: DIAS_PT[d3.getDay()], data: d3, dataStr: fmtData(d3) },
+      { key: 'd4', label: DIAS_PT[d4.getDay()], data: d4, dataStr: fmtData(d4) },
+      { key: 'd5', label: DIAS_PT[d5.getDay()], data: d5, dataStr: fmtData(d5) },
+      { key: 'd6', label: DIAS_PT[d6.getDay()], data: d6, dataStr: fmtData(d6) },
+    ];
+
     const turnoHoje = escala.find(r => r[0] === hojeStr && r[2] === nome);
     const turnoD1 = escala.find(r => r[0] === d1Str && r[2] === nome);
+
     const ausHoje = ausencias.find(a => a[1] === nome && (a[4] === hojeStr || a[5] === hojeStr));
     const ausD1 = ausencias.find(a => a[1] === nome && (a[4] === d1Str || a[5] === d1Str));
 
-    const [eventosHoje, eventosAmanha, fraseDoDia] = await Promise.all([
+    const [
+      eventosHoje,
+      eventosAmanha,
+      eventosD2,
+      eventosD3,
+      eventosD4,
+      eventosD5,
+      eventosD6,
+      fraseDoDia,
+    ] = await Promise.all([
       getEventos(hojeAirtable),
       getEventos(fmtAirtable(d1)),
+      getEventos(fmtAirtable(d2)),
+      getEventos(fmtAirtable(d3)),
+      getEventos(fmtAirtable(d4)),
+      getEventos(fmtAirtable(d5)),
+      getEventos(fmtAirtable(d6)),
       getFraseDoDia(hojeStr),
     ]);
+
+    const eventosPorDiaColab = [
+      { ...datasColab[0], eventos: eventosHoje, escalaDia: escHoje },
+      { ...datasColab[1], eventos: eventosAmanha, escalaDia: escD1 },
+      { ...datasColab[2], eventos: eventosD2, escalaDia: escala.filter(r => r[0] === fmtData(d2)) },
+      { ...datasColab[3], eventos: eventosD3, escalaDia: escala.filter(r => r[0] === fmtData(d3)) },
+      { ...datasColab[4], eventos: eventosD4, escalaDia: escala.filter(r => r[0] === fmtData(d4)) },
+      { ...datasColab[5], eventos: eventosD5, escalaDia: escala.filter(r => r[0] === fmtData(d5)) },
+      { ...datasColab[6], eventos: eventosD6, escalaDia: escala.filter(r => r[0] === fmtData(d6)) },
+    ];
 
     function cardTurno(turno, aus, label, isAmanha = false) {
       if (aus) return `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#991b1b;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:20px;font-weight:700;color:#991b1b">${aus[3] || 'Ausencia'}</div></div>`;
