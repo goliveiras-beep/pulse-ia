@@ -177,10 +177,11 @@ function limparChat(){
   document.getElementById('chat-ia-msgs').innerHTML='<div style="background:#242836;border-radius:10px 10px 10px 2px;padding:10px 12px;font-size:12px;color:#e2e8f0;line-height:1.5;max-width:90%">Conversa limpa! Como posso ajudar? &#128075;</div>';
 }
 function renderMd(txt){
+  var boldRe=new RegExp('\\*\\*(.+?)\\*\\*','g');
   return txt.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(boldRe,'<strong>$1</strong>')
     .replace(/^#{1,3} (.+)$/gm,'<div style="font-weight:700;margin:4px 0 2px">$1</div>')
-    .replace(/^[-*] (.+)$/gm,'<div style="padding-left:10px">• $1</div>')
+    .replace(/^[-*] (.+)$/gm,'<div style="padding-left:10px">\u2022 $1</div>')
     .replace(/\n/g,'<br>');
 }
 function addMsg(texto,tipo){
