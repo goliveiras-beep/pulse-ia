@@ -450,9 +450,10 @@ export default async function handler(req, res) {
       return res.redirect(302, '/api/app?erro=acesso_negado');
     }
 
-    // Ativo — cria sessão definitiva com o nome
+    // Ativo — cria sessão definitiva com o nome e mostra página de transição
     setSession(res, usuarioOAuth[0]);
-    return res.redirect(302, '/api/app');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(200).send(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta http-equiv="refresh" content="1;url=/api/app"><title>Pulse</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,sans-serif;background:#0f1117;min-height:100vh;display:flex;align-items:center;justify-content:center}.box{background:#161920;border:1px solid #2d3748;border-radius:16px;padding:40px;width:360px;text-align:center;color:#e2e8f0}.spin{width:36px;height:36px;border:3px solid #2d3748;border-top-color:#1d4ed8;border-radius:50%;animation:s 0.8s linear infinite;margin:0 auto 16px}@keyframes s{to{transform:rotate(360deg)}}h1{font-size:18px;font-weight:700;margin-bottom:6px}p{font-size:13px;color:#718096}</style></head><body><div class="box"><div class="spin"></div><h1>Entrando no Pulse...</h1><p>Redirecionando automaticamente</p></div></body></html>`);
   }
 
   const { nome } = session;
