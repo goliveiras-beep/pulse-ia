@@ -50,11 +50,6 @@ export default async function handler(req, res) {
     const user = await userRes.json();
     const email = (user.email || '').toLowerCase();
 
-    // Verifica domínio
-    if (!email.endsWith('@livemode.com.br')) {
-      return res.redirect(302, '/api/app?erro=dominio_invalido');
-    }
-
     // Busca o colaborador na planilha pelo email (coluna J = índice 9)
     const equipe = await getSheet('Equipe!A2:J50');
     const usuario = equipe.find(r => (r[9] || '').toLowerCase() === email);
