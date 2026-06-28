@@ -1,5 +1,5 @@
 // api/auth/callback.js — Google OAuth callback com cadastro + aprovação
-export const config = { maxDuration: 15 };
+export const config = { maxDuration: 10 };
 import { createHash } from 'crypto';
 import { sheetsRequest } from '../../lib/google-auth.js';
 
@@ -148,17 +148,18 @@ export default async function handler(req, res) {
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) throw new Error('Token inválido');
 
-    // Pega dados do Google
-    const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
+    // Pega dados do Google e planilha em paralelo
+    const [userRes, equipe] = await Promise.all([
+      fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      }),
+      getSheet('Equipe!A2:K200'),
+    ]);
     const googleUser = await userRes.json();
     const email = (googleUser.email || '').toLowerCase();
     const nomeGoogle = googleUser.name || email.split('@')[0];
     if (!email) throw new Error('Email não obtido');
 
-    // Busca na planilha
-    const equipe = await getSheet('Equipe!A2:K200');
     const usuario = equipe.find(r => (r[9]||'').toLowerCase() === email);
 
     if (!usuario) {
