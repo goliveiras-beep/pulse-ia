@@ -144,20 +144,29 @@ export default async function handler(req, res) {
     const badge = isGestor
       ? `<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">Gestor</span>`
       : `<span style="background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600">Colaborador</span>`;
+    const dataId = `data-linha="${m.linha}"`;
     return `
     <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px">
-      <div style="width:40px;height:40px;border-radius:50%;background:${cor};color:${corT};font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(m.nome)}</div>
+      <div style="width:44px;height:44px;border-radius:50%;background:${cor};color:${corT};font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(m.nome)}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:700">${esc(m.nome)}</div>
-        <div style="font-size:11px;color:var(--text3)">${esc(m.cargo)||'—'}${m.nucleo?' · '+esc(m.nucleo):''}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:1px">${m.email ? '✉ '+esc(m.email) : '<span style="color:#f6ad55">⚠ Sem email</span>'}</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text)">${esc(m.nome)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${esc(m.cargo)||'—'}${m.nucleo?' · '+esc(m.nucleo):''}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">${m.email ? '✉ '+esc(m.email) : '<span style="color:#f6ad55">⚠ Sem email</span>'}</div>
+        ${m.telefone ? `<div style="font-size:11px;color:var(--text3);margin-top:1px">📞 ${esc(m.telefone)}</div>` : ''}
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
         ${badge}
-        <button onclick="abrirEditor(${m.linha},'${esc(m.nome)}','${esc(m.cargo)}','${esc(m.nucleo)}','${m.perfil}','${esc(m.email)}','${esc(m.cpf)}','${esc(m.rg)}','${esc(m.nascimento)}','${esc(m.endereco)}','${esc(m.telefone)}')" style="background:none;border:1px solid var(--border);border-radius:5px;padding:3px 10px;font-size:11px;color:var(--text2);cursor:pointer">Editar</button>
+        <button onclick="abrirEditorById(${m.linha})" style="background:none;border:1px solid var(--border);border-radius:5px;padding:3px 10px;font-size:11px;color:var(--text2);cursor:pointer">Editar</button>
       </div>
     </div>`;
   }
+
+  // Mapa de dados para edição (evita problemas com chars especiais inline)
+  const membrosData = {};
+  todos.filter(m=>m.nome).forEach(m => {
+    membrosData[m.linha] = m;
+  });
+  const membrosDataJson = JSON.stringify(membrosData);
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -255,18 +264,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="toast" id="toast"></div>
 
 <script>
-function abrirEditor(linha,nome,cargo,nucleo,perfil,email,cpf,rg,nasc,end,tel){
-  document.getElementById('ed-linha').value=linha;
-  document.getElementById('ed-nome').value=nome;
-  document.getElementById('ed-cargo').value=cargo;
-  document.getElementById('ed-nucleo').value=nucleo;
-  document.getElementById('ed-perfil').value=perfil;
-  document.getElementById('ed-email').value=email;
-  document.getElementById('ed-cpf').value=cpf;
-  document.getElementById('ed-rg').value=rg;
-  document.getElementById('ed-nascimento').value=nasc;
-  document.getElementById('ed-endereco').value=end;
-  document.getElementById('ed-telefone').value=tel;
+var _membrosData = ${membrosDataJson};
+function abrirEditorById(linha){
+  var m=_membrosData[linha];
+  if(!m)return;
+  document.getElementById('ed-linha').value=m.linha;
+  document.getElementById('ed-nome').value=m.nome||'';
+  document.getElementById('ed-cargo').value=m.cargo||'';
+  document.getElementById('ed-nucleo').value=m.nucleo||'';
+  document.getElementById('ed-perfil').value=m.perfil||'colaborador';
+  document.getElementById('ed-email').value=m.email||'';
+  document.getElementById('ed-cpf').value=m.cpf||'';
+  document.getElementById('ed-rg').value=m.rg||'';
+  document.getElementById('ed-nascimento').value=m.nascimento||'';
+  document.getElementById('ed-endereco').value=m.endereco||'';
+  document.getElementById('ed-telefone').value=m.telefone||'';
   document.getElementById('modal').classList.add('open');
 }
 function fecharModal(){document.getElementById('modal').classList.remove('open');}
