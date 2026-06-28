@@ -313,9 +313,9 @@ ${script}
 function loginPage(erro = '') {
   const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
   const BASE_URL = process.env.PULSE_BASE_URL || 'https://pulse-ia-six.vercel.app';
-  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=email%20profile&hd=livemode.com.br&prompt=select_account`;
+  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=email%20profile&hd=livemode.com&prompt=select_account`;
 
-  const erroMsg = erro === 'dominio_invalido' ? 'Acesso permitido apenas para emails @livemode.com.br'
+  const erroMsg = erro === 'dominio_invalido' ? 'Acesso permitido apenas para emails @livemode.com'
     : erro === 'usuario_nao_encontrado' ? 'Email não encontrado na equipe. Fale com o gestor.'
     : erro === 'acesso_negado' ? 'Acesso negado pelo Google.'
     : erro === 'falha_auth' ? 'Falha na autenticação. Tente novamente.'
