@@ -1,51 +1,55 @@
-// api/upload-atestado.js — Upload de atestado para Google Drive
+// api/upload-atestado.js — Upload de atestado para Google Drive usando token do usuário
 export const config = { maxDuration: 30 };
-import { createHash, createSign } from 'crypto';
+import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
-function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
+function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0, 32); }
 
+// Lê sessão definitiva: nome~~accessToken~~refreshToken|hash|ts
 function getSession(req) {
   const cookies = {};
-  (req.headers.cookie||'').split(';').forEach(c=>{const[k,...v]=c.trim().split('=');cookies[k.trim()]=v.join('=');});
+  (req.headers.cookie || '').split(';').forEach(c => {
+    const [k, ...v] = c.trim().split('=');
+    cookies[k.trim()] = v.join('=');
+  });
   const token = cookies[COOKIE_NAME];
   if (!token) return null;
   try {
-    const d = Buffer.from(token,'base64').toString('utf8');
+    const d = Buffer.from(token, 'base64').toString('utf8');
     const lastPipe = d.lastIndexOf('|');
     const secondPipe = d.lastIndexOf('|', lastPipe - 1);
-    const nome = d.slice(0, secondPipe);
+    const data = d.slice(0, secondPipe);
     const h = d.slice(secondPipe + 1, lastPipe);
     const ts = d.slice(lastPipe + 1);
-    if (Date.now()-parseInt(ts) > 7*24*3600*1000) return null;
-    if (h !== hash(nome+ts)) return null;
-    return { nome };
+    if (Date.now() - parseInt(ts) > 7 * 24 * 3600 * 1000) return null;
+    if (h !== hash(data + ts)) return null;
+    // Formato: nome~~accessToken~~refreshToken
+    const parts = data.split('~~');
+    const nome = parts[0] || '';
+    const accessToken = parts[1] || '';
+    const refreshToken = parts[2] || '';
+    if (!nome) return null;
+    return { nome, accessToken, refreshToken };
   } catch { return null; }
 }
 
-async function getDriveToken() {
-  const sa = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-  const now = Math.floor(Date.now() / 1000);
-  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
-  const payload = Buffer.from(JSON.stringify({
-    iss: sa.client_email,
-    scope: 'https://www.googleapis.com/auth/drive',
-    aud: 'https://oauth2.googleapis.com/token',
-    exp: now + 3600,
-    iat: now,
-  })).toString('base64url');
-  const sign = createSign('RSA-SHA256');
-  sign.update(`${header}.${payload}`);
-  const sig = sign.sign(sa.private_key, 'base64url');
-  const jwt = `${header}.${payload}.${sig}`;
-  const r = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt }),
-  });
-  const d = await r.json();
-  if (!d.access_token) throw new Error('Token error: ' + JSON.stringify(d));
-  return d.access_token;
+// Renova o access_token usando o refresh_token
+async function renovarToken(refreshToken) {
+  if (!refreshToken) return null;
+  try {
+    const r = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    });
+    const d = await r.json();
+    return d.access_token || null;
+  } catch { return null; }
 }
 
 export default async function handler(req, res) {
@@ -95,11 +99,27 @@ export default async function handler(req, res) {
     const folderId = process.env.DRIVE_ATESTADOS_FOLDER_ID;
     if (!folderId) return res.status(500).json({ error: 'DRIVE_ATESTADOS_FOLDER_ID não configurado' });
 
-    const token = await getDriveToken();
-    const safeName = `Atestado_${session.nome.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}_${fileName}`;
+    // Usar token do usuário — sem problema de quota
+    let userToken = session.accessToken;
 
-    // FIX: usar multipart upload em requisição única em vez de duas chamadas separadas
-    // Isso evita o erro de quota na criação do metadata
+    // Testa se o token ainda é válido
+    if (userToken) {
+      const testRes = await fetch('https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + userToken);
+      const testData = await testRes.json();
+      if (testData.error) {
+        // Token expirado — renova
+        userToken = await renovarToken(session.refreshToken);
+      }
+    }
+
+    if (!userToken) {
+      // Sem token do usuário — redireciona para login forçando novo consentimento
+      return res.status(401).json({ error: 'Sessão expirada. Faça login novamente para usar o upload.' });
+    }
+
+    const safeName = `Atestado_${session.nome.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}_${fileName}`;
+
+    // Upload multipart em requisição única usando token do usuário
     const delimiter = '-------boundary_pulse_upload';
     const metaJson = JSON.stringify({ name: safeName, parents: [folderId] });
 
@@ -116,11 +136,11 @@ export default async function handler(req, res) {
     ]);
 
     const uploadRes = await fetch(
-      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${userToken}`,
           'Content-Type': `multipart/related; boundary=${delimiter}`,
           'Content-Length': String(multipartBody.length),
         },
@@ -130,39 +150,23 @@ export default async function handler(req, res) {
 
     const uploadData = await uploadRes.json();
 
-    // FIX: se a resposta veio com erro de quota mas o arquivo pode ter sido salvo,
-    // tenta buscar pelo nome na pasta para confirmar
-    let fileId = uploadData.id;
-
-    if (!fileId) {
-      // Tenta encontrar o arquivo que pode ter sido criado mesmo com erro
-      const searchRes = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=name='${encodeURIComponent(safeName)}'+and+'${folderId}'+in+parents&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name)`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const searchData = await searchRes.json();
-      if (searchData.files && searchData.files.length > 0) {
-        fileId = searchData.files[0].id;
-      }
-    }
-
-    if (!fileId) {
+    if (!uploadData.id) {
       throw new Error('Upload error: ' + JSON.stringify(uploadData));
     }
 
     // Torna o arquivo público (leitura)
     try {
-      await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`, {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${uploadData.id}/permissions`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: 'reader', type: 'anyone' }),
       });
     } catch (e) {
       console.warn('Permissão pública não aplicada:', e.message);
     }
 
-    const url = `https://drive.google.com/file/d/${fileId}/view`;
-    return res.status(200).json({ ok: true, url, id: fileId });
+    const url = `https://drive.google.com/file/d/${uploadData.id}/view`;
+    return res.status(200).json({ ok: true, url, id: uploadData.id });
 
   } catch (err) {
     console.error('Upload error:', err.message);
