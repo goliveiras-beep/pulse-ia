@@ -886,22 +886,22 @@ function renderEventos(eventos, containerId, agora, isHoje) {
 
   var html = '';
 
-  // Encerrados: só últimos 3 visíveis, scroll interno para os anteriores
-  var enc3 = encerrados.slice(-3); // últimos 3
+  // Encerrados: só últimos 3 visíveis, os anteriores ficam ocultos
+  var enc3 = encerrados.slice(-3);
   var encExtras = encerrados.length - enc3.length;
   if (encExtras > 0) {
-    html += '<div style="font-size:10px;color:var(--text4);text-align:center;padding:2px 0 4px;cursor:pointer" onclick="var p=this.nextSibling;p.style.display=p.style.display===\'none\'?\'block\':\'none\'">▲ '+encExtras+' anteriores</div>';
-    html += '<div style="display:none">';
+    html += '<div id="enc-toggle-'+containerId+'" style="font-size:10px;color:var(--text4);text-align:center;padding:2px 0 4px;cursor:pointer" onclick="document.getElementById('enc-hidden-'+containerId+'').style.display=document.getElementById('enc-hidden-'+containerId+'').style.display==='block'?'none':'block'">&#9650; '+encExtras+' anteriores</div>';
+    html += '<div id="enc-hidden-'+containerId+'" style="display:none">';
     encerrados.slice(0, encExtras).forEach(function(ev) {
       html += '<div style="border:1px solid var(--border2);border-radius:5px;margin-bottom:3px;opacity:.4">';
       html += '<div style="padding:4px 10px;display:flex;align-items:center;gap:8px">';
-      html += '<div style="font-size:11px;font-weight:600;min-width:40px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">'+(ev.hora||'--')+'</div>';
+      html += '<div style="font-size:11px;font-weight:600;min-width:40px;color:var(--text3);text-decoration:line-through">'+(ev.hora||'--')+'</div>';
       html += '<div style="font-size:10px;color:var(--text3);flex:1">'+ev.nome+'</div>';
       html += '</div></div>';
     });
     html += '</div>';
   }
-  enc3.forEach(function(ev) {
+    enc3.forEach(function(ev) {
     html += '<div style="border:1px solid var(--border2);border-radius:6px;margin-bottom:3px;opacity:.5;transition:opacity .2s" onmouseenter="this.style.opacity=.85" onmouseleave="this.style.opacity=.5">';
     html += '<div style="padding:5px 10px;display:flex;align-items:center;gap:10px">';
     html += '<div style="font-size:12px;font-weight:700;min-width:44px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">'+(ev.hora||'--')+'</div>';
@@ -1032,9 +1032,17 @@ function navDiaColab(dir) {
   renderEventos(d.evs, 'lista-eventos-extra', 0, false);
 }
 
-atualizarEventos();
-atualizarRelogio();
-carregarTempo();
+// Garantir execução após DOM pronto
+function iniciar() {
+  try { atualizarEventos(); } catch(e) { console.error('atualizarEventos erro:', e); }
+  try { atualizarRelogio(); } catch(e) {}
+  try { carregarTempo(); } catch(e) {}
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', iniciar);
+} else {
+  iniciar();
+}
 setInterval(atualizarRelogio, 1000);
 setInterval(atualizarEventos, 60000);
 </script>`;
