@@ -747,6 +747,7 @@ export default async function handler(req, res) {
 .ev-ao-vivo{border-color:#22c55e!important;animation:border-pulse-green 2s ease-in-out infinite}
 .ev-proximo-30{border-color:#f59e0b!important}
 .ev-proximo-60{border-color:#f97316!important}
+.ev-encerrado{opacity:.35!important}
 @keyframes border-pulse-green{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 4px rgba(34,197,94,0)}}
 .tab-nav-colab{display:flex;gap:6px;margin-bottom:14px}
 .tab-btn-colab{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px;font-size:12px;font-weight:600;background:none;color:var(--text3);cursor:pointer;transition:all .15s}
@@ -875,91 +876,22 @@ function renderEventos(eventos, containerId, agora, isHoje) {
   var c = document.getElementById(containerId);
   if (!c) return;
   if (!eventos.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>'; return; }
-
-  var encerrados = [];
-  var restantes = [];
+  var html = '';
   eventos.forEach(function(ev) {
     var s = isHoje ? statusEvento(ev.hora, agora) : 'futuro';
-    if (s === 'encerrado') encerrados.push(ev);
-    else restantes.push({ev:ev, s:s});
-  });
-
-  var html = '';
-
-  // Encerrados: só últimos 3 visíveis, os anteriores ficam ocultos
-  var enc3 = encerrados.slice(-3);
-  var encExtras = encerrados.length - enc3.length;
-  if (encExtras > 0) {
-    html += '<div id="enc-toggle-'+containerId+'" style="font-size:10px;color:var(--text4);text-align:center;padding:2px 0 4px;cursor:pointer" onclick="document.getElementById('enc-hidden-'+containerId+'').style.display=document.getElementById('enc-hidden-'+containerId+'').style.display==='block'?'none':'block'">&#9650; '+encExtras+' anteriores</div>';
-    html += '<div id="enc-hidden-'+containerId+'" style="display:none">';
-    encerrados.slice(0, encExtras).forEach(function(ev) {
-      html += '<div style="border:1px solid var(--border2);border-radius:5px;margin-bottom:3px;opacity:.4">';
-      html += '<div style="padding:4px 10px;display:flex;align-items:center;gap:8px">';
-      html += '<div style="font-size:11px;font-weight:600;min-width:40px;color:var(--text3);text-decoration:line-through">'+(ev.hora||'--')+'</div>';
-      html += '<div style="font-size:10px;color:var(--text3);flex:1">'+ev.nome+'</div>';
-      html += '</div></div>';
-    });
-    html += '</div>';
-  }
-    enc3.forEach(function(ev) {
-    html += '<div style="border:1px solid var(--border2);border-radius:6px;margin-bottom:3px;opacity:.5;transition:opacity .2s" onmouseenter="this.style.opacity=.85" onmouseleave="this.style.opacity=.5">';
-    html += '<div style="padding:5px 10px;display:flex;align-items:center;gap:10px">';
-    html += '<div style="font-size:12px;font-weight:700;min-width:44px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">'+(ev.hora||'--')+'</div>';
-    html += '<div style="flex:1"><div style="font-size:11px;font-weight:600;color:var(--text3)">'+ev.nome+'</div>';
-    html += '<div style="font-size:9px;color:var(--text4)">'+ev.tipo+(ev.local?' · '+ev.local:'')+'</div></div>';
-    html += '<div style="font-size:9px;color:var(--text4);white-space:nowrap">Encerrado</div>';
-    html += '</div></div>';
-  });
-
-  if (encerrados.length && restantes.length) {
-    html += '<div style="border-top:1px solid var(--border2);margin:4px 0 8px"></div>';
-  }
-
-  // Agrupar restantes por horário para detectar simultâneos
-  var grupos = {};
-  restantes.forEach(function(item) {
-    var h = item.ev.hora || '--';
-    if (!grupos[h]) grupos[h] = [];
-    grupos[h].push(item);
-  });
-
-  var primeiroAtivo = false;
-  restantes.forEach(function(item) {
-    var s = item.s;
     var bc = borderClass(s);
     var lbl = statusLabel(s);
-    var isAoVivo = s === 'aovivo';
-    var nSimult = grupos[item.ev.hora||'--'].length;
-    var bgExtra = isAoVivo ? ';background:rgba(34,197,94,.07)' : s==='proximo30' ? ';background:rgba(245,158,11,.04)' : s==='proximo60' ? ';background:rgba(249,115,22,.03)' : '';
-    // Simultâneos ao vivo: label extra
-    var simultLabel = (isAoVivo && nSimult > 1) ? '<span style="font-size:9px;background:#166534;color:#86efac;border-radius:3px;padding:1px 5px;margin-left:4px">+'+( nSimult-1)+' simultâneo'+(nSimult>2?'s':'')+'</span>' : '';
-    var idAttr = (isAoVivo && !primeiroAtivo) ? ' id="ev-ativo-colab"' : '';
-    if (isAoVivo && !primeiroAtivo) primeiroAtivo = true;
-    html += '<div'+idAttr+' class="'+bc+'" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s'+bgExtra+'">';
+    html += '<div class="'+bc+'" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s">';
     html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
-    html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">'+(item.ev.hora||'--')+'</div>';
-    html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">'+item.ev.nome+simultLabel+'</div>';
-    html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+item.ev.tipo+(item.ev.local?' · <span style="font-weight:600">'+item.ev.local+'</span>':'')+'</div></div>';
+    html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">'+(ev.hora||'--')+'</div>';
+    html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">'+ev.nome+'</div>';
+    html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+ev.tipo+(ev.local?' · <span style="font-weight:600">'+ev.local+'</span>':'')+'</div></div>';
     if (lbl) html += '<div>'+lbl+'</div>';
     html += '</div></div>';
   });
-
   c.innerHTML = html;
-
-  // Altura dinâmica: começa em 480px e vai compactando conforme % encerrados
-  var total = eventos.length;
-  var pct = total > 0 ? encerrados.length / total : 0;
-  var maxH = Math.round(480 - pct * 200);
-  c.style.maxHeight = maxH + 'px';
-
-  // Scroll automático para o evento ativo
-  if (isHoje) {
-    setTimeout(function() {
-      var el = c.querySelector('#ev-ativo-colab');
-      if (el) c.scrollTop = Math.max(0, el.offsetTop - 40);
-    }, 80);
-  }
 }
+
 function atualizarEventos() {
   var now = new Date();
   var brtParts = new Intl.DateTimeFormat('pt-BR', {timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(now);
@@ -968,6 +900,7 @@ function atualizarEventos() {
   var minAtual = bh*60 + bm;
   renderEventos(_evHoje, 'lista-eventos-hoje', minAtual, true);
   renderEventos(_evAmanha, 'lista-eventos-amanha', minAtual, false);
+  // Inicializa coluna extra com D+2
   if (_diasExtras.length) {
     var d = _diasExtras[_diaExtraAtual];
     renderEventos(d.evs, 'lista-eventos-extra', 0, false);
@@ -1032,17 +965,9 @@ function navDiaColab(dir) {
   renderEventos(d.evs, 'lista-eventos-extra', 0, false);
 }
 
-// Garantir execução após DOM pronto
-function iniciar() {
-  try { atualizarEventos(); } catch(e) { console.error('atualizarEventos erro:', e); }
-  try { atualizarRelogio(); } catch(e) {}
-  try { carregarTempo(); } catch(e) {}
-}
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', iniciar);
-} else {
-  iniciar();
-}
+atualizarEventos();
+atualizarRelogio();
+carregarTempo();
 setInterval(atualizarRelogio, 1000);
 setInterval(atualizarEventos, 60000);
 </script>`;
