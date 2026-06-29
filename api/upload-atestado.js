@@ -1,10 +1,8 @@
-// api/upload-atestado.js — Upload de atestado para Google Drive usando token do usuário
+// api/upload-atestado.js — Upload centralizado usando token do gestor
 export const config = { maxDuration: 30 };
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
-const FOLDER_NAME = 'Atestados Pulse';
-
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0, 32); }
 
 function getSession(req) {
@@ -26,68 +24,29 @@ function getSession(req) {
     if (h !== hash(data + ts)) return null;
     const sessionParts = data.split('~~');
     const nome = sessionParts[0];
-    const accessToken = sessionParts[1] || '';
-    const refreshToken = sessionParts[2] || '';
     if (!nome) return null;
-    return { nome, accessToken, refreshToken };
+    return { nome };
   } catch { return null; }
 }
 
-async function renovarToken(refreshToken) {
-  if (!refreshToken) return null;
-  try {
-    const r = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      }),
-    });
-    const d = await r.json();
-    return d.access_token || null;
-  } catch { return null; }
-}
+// Renova o access_token do gestor usando o refresh_token salvo na env
+async function getGestorToken() {
+  const refreshToken = process.env.GOOGLE_DRIVE_REFRESH_TOKEN;
+  if (!refreshToken) throw new Error('GOOGLE_DRIVE_REFRESH_TOKEN não configurado. Acesse /api/auth/drive-token para configurar.');
 
-async function getValidToken(session) {
-  let token = session.accessToken;
-  if (token) {
-    const test = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${token}`);
-    const data = await test.json();
-    if (data.error) token = await renovarToken(session.refreshToken);
-  } else {
-    token = await renovarToken(session.refreshToken);
-  }
-  return token;
-}
-
-// Busca ou cria a pasta "Atestados Pulse" no Drive do usuário
-async function getOrCreateFolder(token) {
-  // Busca pasta existente criada pelo app
-  const searchRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=name='${FOLDER_NAME}'+and+mimeType='application/vnd.google-apps.folder'+and+trashed=false&fields=files(id,name)`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  const searchData = await searchRes.json();
-
-  if (searchData.files && searchData.files.length > 0) {
-    return searchData.files[0].id;
-  }
-
-  // Cria a pasta se não existir
-  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+  const r = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: FOLDER_NAME,
-      mimeType: 'application/vnd.google-apps.folder',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
     }),
   });
-  const createData = await createRes.json();
-  if (!createData.id) throw new Error('Erro ao criar pasta: ' + JSON.stringify(createData));
-  return createData.id;
+  const d = await r.json();
+  if (!d.access_token) throw new Error('Erro ao renovar token do gestor: ' + JSON.stringify(d));
+  return d.access_token;
 }
 
 export default async function handler(req, res) {
@@ -134,14 +93,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Arquivo não encontrado no upload' });
     }
 
-    // Valida e renova token
-    const userToken = await getValidToken(session);
-    if (!userToken) {
-      return res.status(401).json({ error: 'Sessão expirada. Faça logout e login novamente.' });
-    }
+    const folderId = process.env.DRIVE_ATESTADOS_FOLDER_ID;
+    if (!folderId) return res.status(500).json({ error: 'DRIVE_ATESTADOS_FOLDER_ID não configurado' });
 
-    // Busca ou cria pasta no Drive do usuário
-    const folderId = await getOrCreateFolder(userToken);
+    // Usa sempre o token do gestor — upload centralizado
+    const gestorToken = await getGestorToken();
 
     const safeName = `Atestado_${session.nome.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}_${fileName}`;
 
@@ -166,7 +122,7 @@ export default async function handler(req, res) {
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${userToken}`,
+          Authorization: `Bearer ${gestorToken}`,
           'Content-Type': `multipart/related; boundary=${delimiter}`,
           'Content-Length': String(multipartBody.length),
         },
@@ -181,7 +137,7 @@ export default async function handler(req, res) {
     try {
       await fetch(`https://www.googleapis.com/drive/v3/files/${uploadData.id}/permissions`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: 'reader', type: 'anyone' }),
       });
     } catch (e) {
