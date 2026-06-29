@@ -9,7 +9,7 @@ const COOKIE_MAX = 60 * 60 * 24 * 7;
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0, 32); }
 function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-// FIX: parser robusto usando o novo separador ~~OAUTH~~
+// Parser robusto: usa lastIndexOf para extrair hash e ts sem depender de split no conteúdo
 function getOAuthSession(req) {
   const cookies = {};
   (req.headers.cookie || '').split(';').forEach(c => {
@@ -22,7 +22,7 @@ function getOAuthSession(req) {
 
   try {
     const d = Buffer.from(token, 'base64').toString('utf8');
-    // formato: ~~OAUTH~~email~~nomeEncoded|hash|ts
+    // formato: ~~OAUTH~~email~~nomeEncoded~~accessToken~~refreshToken|hash|ts
     const lastPipe = d.lastIndexOf('|');
     const secondPipe = d.lastIndexOf('|', lastPipe - 1);
     const data = d.slice(0, secondPipe);
@@ -33,13 +33,15 @@ function getOAuthSession(req) {
     if (Date.now() - parseInt(ts) > COOKIE_MAX * 1000) return null;
     if (h !== hash(data + ts)) return null;
 
-    // extrai email e nome usando o separador ~~
-    const parts = data.split('~~').filter(Boolean); // ['OAUTH', email, nomeEncoded]
+    // extrai campos: ['OAUTH', email, nomeEncoded, accessToken, refreshToken]
+    const parts = data.split('~~').filter(Boolean);
     const email = parts[1] || '';
     const nomeGoogle = decodeURIComponent(parts[2] || '');
+    const accessToken = parts[3] || '';
+    const refreshToken = parts[4] || '';
 
     if (!email) return null;
-    return { email, nomeGoogle };
+    return { email, nomeGoogle, accessToken, refreshToken };
   } catch {
     return null;
   }
@@ -54,29 +56,20 @@ async function getSheet(range) {
   }
 }
 
-async function appendSheet(range, values) {
-  await sheetsRequest(
-    process.env.GOOGLE_SHEET_ID,
-    `/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,
-    'POST',
-    { values }
-  );
-}
-
-// FIX: setSession agora recebe `res` e limpa qualquer cookie OAuth anterior
-// sobrescrevendo com a sessão definitiva (mesmo nome, novo valor)
-function setSession(res, nome) {
+// Sessão definitiva: guarda nome + tokens para uso no upload
+function setSession(res, nome, accessToken = '', refreshToken = '') {
   const ts = String(Date.now());
-  const h = hash(nome + ts);
-  const token = Buffer.from(`${nome}|${h}|${ts}`).toString('base64');
-  // Set-Cookie com Max-Age explícito garante sobrescrita do cookie OAuth temporário
+  // Formato definitivo: nome~~accessToken~~refreshToken|hash|ts
+  const sessionData = `${nome}~~${accessToken}~~${refreshToken}`;
+  const h = hash(sessionData + ts);
+  const token = Buffer.from(`${sessionData}|${h}|${ts}`).toString('base64');
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=${token}; Path=/; Max-Age=${COOKIE_MAX}; HttpOnly; SameSite=Lax`);
 }
 
 export default async function handler(req, res) {
   const session = getOAuthSession(req);
   if (!session) return res.redirect(302, '/api/app');
-  const { email, nomeGoogle } = session;
+  const { email, nomeGoogle, accessToken, refreshToken } = session;
 
   // POST — salvar cadastro
   if (req.method === 'POST') {
@@ -112,8 +105,8 @@ export default async function handler(req, res) {
     const status = (usuario[10] || 'ativo').toLowerCase();
 
     if (status === 'ativo') {
-      // FIX: setar sessão definitiva ANTES do redirect — sobrescreve o cookie OAuth
-      setSession(res, usuario[0]);
+      // Sessão definitiva com tokens para upload
+      setSession(res, usuario[0], accessToken, refreshToken);
       return res.redirect(302, '/api/app');
     }
 
