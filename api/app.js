@@ -627,8 +627,12 @@ export default async function handler(req, res) {
         const isD1 = df === d1Str;
         let bg = 'var(--card)', bc = 'var(--border)', tc = 'var(--text3)', label = '--';
         if (aus) {
+          const tipo = aus[2] || '';
           const icones = {'Férias':'🏖️','Folga programada':'☀️','Atestado médico':'🏥','Troca de horário':'🔄','Folga direcionada':'📌'};
-          bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; label = icones[aus[2]] || '📋';
+          if (tipo === 'Férias') { bg = '#1a2744'; bc = '#2a4080'; tc = '#63b3ed'; }
+          else if (tipo === 'Atestado médico') { bg = '#1f1010'; bc = '#991b1b'; tc = '#fc8181'; }
+          else { bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; }
+          label = icones[tipo] || '📋';
         }
         else if (t?.[5] === 'Folga') { bg = '#1f1a0d'; bc = '#3d3010'; tc = '#f6ad55'; label = '☀️'; }
         else if (t?.[3] && t?.[4]) { bg = isHoje ? '#0d2010' : isD1 ? '#1a2744' : 'var(--card)'; bc = isHoje ? '#166534' : isD1 ? '#2a4080' : 'var(--border)'; tc = isHoje ? '#68d391' : isD1 ? '#63b3ed' : 'var(--text)'; label = `${t[3]}<br><span style="opacity:.5;font-size:8px">→</span><br>${t[4]}`; }
@@ -675,8 +679,12 @@ export default async function handler(req, res) {
 
         let bg = 'var(--bg2)', bc = 'transparent', tc = 'var(--text3)', label = '', ic = '';
         if (aus) {
+          const tipo = aus[2] || '';
           const icones = {'Férias':'🏖️','Folga programada':'☀️','Atestado médico':'🏥','Troca de horário':'🔄','Folga direcionada':'📌'};
-          bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; ic = icones[aus[2]] || '📋';
+          if (tipo === 'Férias') { bg = '#1a2744'; bc = '#2a4080'; tc = '#63b3ed'; }
+          else if (tipo === 'Atestado médico') { bg = '#1f1010'; bc = '#991b1b'; tc = '#fc8181'; }
+          else { bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; }
+          ic = icones[tipo] || '📋';
         } else if (t?.[5] === 'Folga') {
           bg = '#1f1a0d'; bc = '#3d3010'; tc = '#f6ad55'; ic = '☀️';
         } else if (t?.[3] && t?.[4]) {
@@ -821,17 +829,27 @@ export default async function handler(req, res) {
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px">
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">Próximos 7 dias</div>
       <div class="grid7">${renderSemanaColab()}</div>
+      <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--border);padding-top:10px;align-items:center">
+        <span style="font-size:10px;color:var(--text3);font-weight:600">Legenda:</span>
+        <span style="font-size:10px;background:#0d1a10;border:1px solid #166534;color:#68d391;border-radius:4px;padding:2px 8px">🟢 Trabalhando</span>
+        <span style="font-size:10px;background:#1f1a0d;border:1px solid #3d3010;color:#f6ad55;border-radius:4px;padding:2px 8px">☀️ Folga</span>
+        <span style="font-size:10px;background:#1a2744;border:1px solid #2a4080;color:#63b3ed;border-radius:4px;padding:2px 8px">🏖️ Férias</span>
+        <span style="font-size:10px;background:#1f1010;border:1px solid #991b1b;color:#fc8181;border-radius:4px;padding:2px 8px">🏥 Atestado</span>
+        <span style="font-size:10px;background:#1a0d2e;border:1px solid #6b21a8;color:#c084fc;border-radius:4px;padding:2px 8px">📋 Outras ausências</span>
+      </div>
     </div>
   </div>
 
   <div id="painel-mes" style="display:none">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px">
       ${renderMesColab()}
-      <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border);padding-top:10px">
-        <span style="font-size:10px;color:var(--text3)">Legenda:</span>
-        <span style="font-size:10px;background:#0d1a10;border:1px solid #166534;color:#68d391;border-radius:4px;padding:1px 7px">🟢 Trabalhando</span>
-        <span style="font-size:10px;background:#1f1a0d;border:1px solid #3d3010;color:#f6ad55;border-radius:4px;padding:1px 7px">☀️ Folga</span>
-        <span style="font-size:10px;background:#1a0d2e;border:1px solid #6b21a8;color:#c084fc;border-radius:4px;padding:1px 7px">🏖️ Ausência</span>
+      <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--border);padding-top:10px;align-items:center">
+        <span style="font-size:10px;color:var(--text3);font-weight:600">Legenda:</span>
+        <span style="font-size:10px;background:#0d1a10;border:1px solid #166534;color:#68d391;border-radius:4px;padding:2px 8px">🟢 Trabalhando</span>
+        <span style="font-size:10px;background:#1f1a0d;border:1px solid #3d3010;color:#f6ad55;border-radius:4px;padding:2px 8px">☀️ Folga</span>
+        <span style="font-size:10px;background:#1a2744;border:1px solid #2a4080;color:#63b3ed;border-radius:4px;padding:2px 8px">🏖️ Férias</span>
+        <span style="font-size:10px;background:#1f1010;border:1px solid #991b1b;color:#fc8181;border-radius:4px;padding:2px 8px">🏥 Atestado</span>
+        <span style="font-size:10px;background:#1a0d2e;border:1px solid #6b21a8;color:#c084fc;border-radius:4px;padding:2px 8px">📋 Outras ausências</span>
       </div>
     </div>
   </div>
