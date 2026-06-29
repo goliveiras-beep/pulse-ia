@@ -736,16 +736,17 @@ function atualizarEventos() {
 // Relógio BRT + GMT em tempo real
 function atualizarRelogio() {
   var now = new Date();
-  // BRT = UTC-3
-  var brtOff = -3 * 60;
-  var brtMs = now.getTime() + (brtOff - now.getTimezoneOffset()) * 60000;
-  var brt = new Date(brtMs);
-  var bh = String(brt.getHours()).padStart(2,'0');
-  var bm = String(brt.getMinutes()).padStart(2,'0');
-  var bs = String(brt.getSeconds()).padStart(2,'0');
+  // BRT via Intl — sempre correto independente do fuso do browser
+  var brtParts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  }).formatToParts(now);
+  var bh = brtParts.find(p=>p.type==='hour').value;
+  var bm = brtParts.find(p=>p.type==='minute').value;
+  var bs = brtParts.find(p=>p.type==='second').value;
   var elBrt = document.getElementById('relogio-brt');
   if (elBrt) elBrt.textContent = bh+':'+bm+':'+bs;
-  // GMT = UTC+0
+  // GMT = UTC puro
   var gh = String(now.getUTCHours()).padStart(2,'0');
   var gm = String(now.getUTCMinutes()).padStart(2,'0');
   var gs = String(now.getUTCSeconds()).padStart(2,'0');
