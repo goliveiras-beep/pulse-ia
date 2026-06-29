@@ -505,21 +505,44 @@ export default async function handler(req, res) {
       getFraseDoDia(hojeStr),
     ]);
 
-    // ── CORREÇÃO: cardTurno trata obs com Anexo: ──
+    const totalEventosHoje = eventosHoje.length;
+    // Velocidade de pulso: poucos eventos = lento, muitos = rápido
+    const pulseSpeed = totalEventosHoje >= 15 ? '0.6s' : totalEventosHoje >= 10 ? '1s' : totalEventosHoje >= 5 ? '1.5s' : '2.5s';
+
     function cardTurno(turno, aus, label, isAmanha = false) {
-      if (aus) return `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#991b1b;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:20px;font-weight:700;color:#991b1b">${aus[2] || 'Ausencia'}</div></div>`;
-      if (!turno || (!turno[3] && !turno[4])) return `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:15px;color:#9ca3af">Sem escala</div></div>`;
-      if (turno[5] === 'Folga') return `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#92400e;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:20px;font-weight:700;color:#d97706">Folga</div></div>`;
+      if (aus) {
+        const tipo = aus[2] || 'Ausencia';
+        const icones = {'Férias':'🏖️','Folga programada':'☀️','Atestado médico':'🏥','Troca de horário':'🔄','Folga direcionada':'📌'};
+        const cores = {'Férias':['#1a2744','#2a4080','#63b3ed'],'Folga programada':['#0d2010','#166534','#68d391'],'Atestado médico':['#1f1010','#991b1b','#fc8181'],'Folga direcionada':['#2d1f00','#92400e','#f6ad55']};
+        const [bg,bc,tc] = cores[tipo] || ['#1a0d2e','#6b21a8','#c084fc'];
+        const ic = icones[tipo] || '📋';
+        const periodo = aus[4] ? `${aus[4]}${aus[5] && aus[5] !== aus[4] ? ' → '+aus[5] : ''}` : '';
+        return `<div style="background:${bg};border:1px solid ${bc};border-radius:12px;padding:14px 16px">
+          <div style="font-size:10px;color:${tc};font-weight:600;text-transform:uppercase;margin-bottom:6px;opacity:.8">${label}</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:28px">${ic}</div>
+            <div>
+              <div style="font-size:18px;font-weight:700;color:${tc}">${tipo}</div>
+              ${periodo ? `<div style="font-size:11px;color:${tc};opacity:.7;margin-top:2px">${periodo}</div>` : ''}
+            </div>
+          </div>
+        </div>`;
+      }
+      if (!turno || (!turno[3] && !turno[4])) return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:6px">${label}</div><div style="font-size:15px;color:var(--text4)">Sem escala</div></div>`;
+      if (turno[5] === 'Folga') return `<div style="background:#1f1a0d;border:1px solid #3d3010;border-radius:12px;padding:14px 16px"><div style="font-size:10px;color:#f6ad55;font-weight:600;text-transform:uppercase;margin-bottom:6px;opacity:.8">${label}</div><div style="display:flex;align-items:center;gap:10px"><div style="font-size:28px">☀️</div><div style="font-size:18px;font-weight:700;color:#f6ad55">Folga</div></div></div>`;
       const obsVal = turno[5] || '';
       const temAnexo = obsVal.includes('Anexo:') || obsVal.startsWith('http');
       const anexoUrl = temAnexo ? (obsVal.includes('Anexo:') ? obsVal.split('Anexo:')[1].trim() : obsVal) : '';
       const obsDisplay = (!temAnexo && obsVal) ? `<div style="font-size:11px;color:var(--text3);margin-top:4px">${obsVal}</div>` : '';
-      const anexoDisplay = temAnexo ? `<a href="${anexoUrl}" target="_blank" style="font-size:12px;color:#3b82f6;margin-top:6px;display:block">📎 Ver atestado</a>` : '';
-      const [bg, bc, tc] = isAmanha ? ['#eff6ff', '#93c5fd', '#1d4ed8'] : ['var(--card)', 'var(--border)', 'var(--text)'];
-      return `<div style="background:${bg};border:1px solid ${bc};border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:${isAmanha ? '#3b82f6' : 'var(--text3)'};font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:22px;font-weight:700;color:${tc}">${turno[3]} -- ${turno[4]}</div>${obsDisplay}${anexoDisplay}</div>`;
+      const anexoDisplay = temAnexo ? `<a href="${anexoUrl}" target="_blank" style="font-size:11px;color:#3b82f6;margin-top:4px;display:block">📎 Ver atestado</a>` : '';
+      const [bg, bc, tc] = isAmanha ? ['#1a2744','#2a4080','#63b3ed'] : ['var(--card)','var(--border)','var(--text)'];
+      return `<div style="background:${bg};border:1px solid ${bc};border-radius:12px;padding:14px 16px">
+        <div style="font-size:10px;color:${isAmanha?'#63b3ed':'var(--text3)'};font-weight:600;text-transform:uppercase;margin-bottom:6px">${label}</div>
+        <div style="font-size:26px;font-weight:800;color:${tc};letter-spacing:1px">${turno[3]} <span style="font-size:18px;opacity:.5">→</span> ${turno[4]}</div>
+        ${obsDisplay}${anexoDisplay}
+      </div>`;
     }
 
-    // ── CORREÇÃO: renderSemanaColab trata obs com Anexo: ──
     function renderSemanaColab() {
       return dias.map(d => {
         const df = fmtData(d);
@@ -527,88 +550,204 @@ export default async function handler(req, res) {
         const aus = ausencias.find(a => a[1] === nome && dentroAusencia(a, df));
         const isHoje = df === hojeStr;
         const isD1 = df === d1Str;
-        let bg = 'var(--card)', bc = 'var(--border)', tc = 'var(--text3)', label = '--';
-        if (aus) { bg = '#fdf4ff'; bc = '#d8b4fe'; tc = '#7c3aed'; label = aus[2] || 'Aus.'; }
-        else if (t?.[5] === 'Folga') { bg = '#fffbeb'; bc = '#fcd34d'; tc = '#92400e'; label = 'Folga'; }
-        else if (t?.[3] && t?.[4]) { bg = isHoje ? '#f0fdf4' : isD1 ? '#eff6ff' : 'var(--card)'; bc = isHoje ? '#86efac' : isD1 ? '#93c5fd' : 'var(--border)'; tc = isHoje ? '#166534' : isD1 ? '#1d4ed8' : 'var(--text)'; label = `${t[3]}<br>${t[4]}`; }
+        let bg = 'var(--card)', bc = 'var(--border)', tc = 'var(--text3)', label = '--', ic = '';
+        if (aus) {
+          const tipo = aus[2] || '';
+          const icones = {'Férias':'🏖️','Folga programada':'☀️','Atestado médico':'🏥','Troca de horário':'🔄','Folga direcionada':'📌'};
+          ic = icones[tipo] || '📋'; bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; label = ic;
+        }
+        else if (t?.[5] === 'Folga') { bg = '#1f1a0d'; bc = '#3d3010'; tc = '#f6ad55'; label = '☀️'; }
+        else if (t?.[3] && t?.[4]) { bg = isHoje ? '#0d2010' : isD1 ? '#1a2744' : 'var(--card)'; bc = isHoje ? '#166534' : isD1 ? '#2a4080' : 'var(--border)'; tc = isHoje ? '#68d391' : isD1 ? '#63b3ed' : 'var(--text)'; label = `${t[3]}<br><span style="font-size:9px;opacity:.7">→</span><br>${t[4]}`; }
         else if (t && !t[3] && !t[4] && t[5] && (t[5].includes('Anexo:') || t[5].startsWith('http'))) {
           const url = t[5].includes('Anexo:') ? t[5].split('Anexo:')[1].trim() : t[5];
-          bg = '#fdf4ff'; bc = '#d8b4fe'; tc = '#7c3aed';
-          label = `<a href="${url}" target="_blank" style="color:#7c3aed;text-decoration:none">📎</a>`;
+          bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc';
+          label = `<a href="${url}" target="_blank" style="color:#c084fc;text-decoration:none">📎</a>`;
         }
-        return `<div style="background:${bg};border:1px solid ${bc};border-radius:8px;padding:8px 6px;text-align:center">
-          <div style="font-size:9px;font-weight:700;color:${tc};text-transform:uppercase;margin-bottom:3px">${DIAS_PT[d.getDay()]}</div>
-          <div style="font-size:9px;color:${tc};margin-bottom:4px">${df}</div>
-          <div style="font-size:11px;font-weight:700;color:${tc};line-height:1.3">${label}</div>
+        return `<div style="background:${bg};border:1px solid ${bc};border-radius:8px;padding:7px 4px;text-align:center${isHoje?';box-shadow:0 0 0 2px '+bc:''}">
+          <div style="font-size:8px;font-weight:700;color:${tc};text-transform:uppercase;margin-bottom:2px">${DIAS_PT[d.getDay()]}</div>
+          <div style="font-size:8px;color:${tc};opacity:.7;margin-bottom:4px">${df}</div>
+          <div style="font-size:10px;font-weight:700;color:${tc};line-height:1.4">${label}</div>
         </div>`;
       }).join('');
     }
 
-    function renderEventosEquipe(eventos, escDia) {
-      if (!eventos.length) return `<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>`;
-      return eventos.map(ev => {
-        const evMin = toMin(ev.hora);
-        const encerrado = evMin !== null && evMin < horaAtualMin - 30;
-        const cob = escDia.filter(r => r[3] && r[4] && r[5] !== 'Folga' && estaDeServico(r[3], r[4], ev.hora));
-        const semCob = cob.length === 0;
-        const [bc, bb] = semCob ? ['#fee2e2', '#fca5a5'] : ['#dcfce7', '#86efac'];
-        return `<div style="border:1px solid ${encerrado ? 'var(--border)' : bb};border-radius:8px;margin-bottom:8px;overflow:hidden${encerrado ? ';opacity:.4' : ''}">
-          <div style="background:${encerrado ? 'var(--bg2)' : bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
-            <div style="font-size:13px;font-weight:700;min-width:50px;color:var(--text)">${ev.hora || '--'}</div>
-            <div style="flex:1"><div style="font-size:12px;font-weight:700">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}${ev.local ? ' · ' + ev.local : ''}</div></div>
-            <div style="font-size:10px;font-weight:600;color:${semCob ? '#991b1b' : '#166534'}">${semCob ? 'Sem cob.' : 'OK'}</div>
-          </div>
-        </div>`;
-      }).join('');
-    }
+    // Serializa eventos para o JS frontend fazer o status dinâmico
+    const eventosHojeJson = JSON.stringify(eventosHoje.map(e => ({nome:e.nome,hora:e.hora,tipo:e.tipo,local:e.local})));
+    const eventosAmanhaJson = JSON.stringify(eventosAmanha.map(e => ({nome:e.nome,hora:e.hora,tipo:e.tipo,local:e.local})));
 
     const conteudoEquipe = `
-<div class="header">
-  <div class="logo">P</div>
-  <div><div class="ht">Pulse</div><div class="hs">${DIAS_FULL[hoje.getDay()]} ${hojeStr}</div></div>
+<div class="header" style="background:var(--header)">
+  <div class="logo" style="background:none;padding:0;overflow:visible">
+    <svg id="pulse-logo-colab" width="36" height="36" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg" style="animation:pulse-heart-colab ${pulseSpeed} ease-in-out infinite">
+      <defs><radialGradient id="hgc" cx="38%" cy="35%" r="62%"><stop offset="0%" stop-color="#ff6b6b"/><stop offset="45%" stop-color="#e53e3e"/><stop offset="100%" stop-color="#7f1d1d"/></radialGradient></defs>
+      <rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/>
+      <rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/>
+      <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
+      <polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+  <div>
+    <div class="ht">Pulse <span style="font-size:10px;font-weight:400;color:#666">· Livemode</span></div>
+    <div class="hs" id="relogio-header">${DIAS_FULL[hoje.getDay()]} ${hojeStr}</div>
+  </div>
   <div class="hr">
-    <span class="hs">Ola, ${nome.split(' ')[0]}</span>
+    <div id="tempo-widget" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 10px;font-size:12px;color:#e2e8f0">
+      <span id="tempo-icone">⏳</span>
+      <span id="tempo-temp">--°</span>
+      <span id="tempo-cidade" style="color:#718096;font-size:10px"></span>
+    </div>
+    <span class="hs" id="relogio-hora" style="font-size:16px;font-weight:700;color:#e2e8f0;min-width:50px;text-align:right"></span>
     <button id="tt" class="btn-sm" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;';})()" style="font-size:14px;padding:3px 8px">&#127769;</button>
     <form method="POST" action="/api/app?action=logout" style="display:inline"><button type="submit" class="btn-sm">Sair</button></form>
   </div>
 </div>
+<style>
+@keyframes pulse-heart-colab{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+.ev-ao-vivo{border-color:#22c55e!important;animation:border-pulse-green 2s ease-in-out infinite}
+.ev-proximo-30{border-color:#f59e0b!important}
+.ev-proximo-60{border-color:#f97316!important}
+.ev-encerrado{opacity:.35!important}
+@keyframes border-pulse-green{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 4px rgba(34,197,94,0)}}
+</style>
 <div class="wrap">
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px">
-    <div style="width:44px;height:44px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px">
+    <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);color:#fff;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(99,102,241,.4)">${iniciais(nome)}</div>
     <div style="flex:1">
       <div style="font-size:16px;font-weight:700">${nome}</div>
       <div style="font-size:12px;color:var(--text3)">${cargo}${nucleo ? ' · ' + nucleo : ''}</div>
     </div>
-    <div style="font-size:12px;font-style:italic;color:#22c55e;text-align:right;max-width:200px;line-height:1.4">"${fraseDoDia}"</div>
+    <div style="font-size:12px;font-style:italic;color:#22c55e;text-align:right;max-width:220px;line-height:1.5">"${fraseDoDia}"</div>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
     ${cardTurno(turnoHoje, ausHoje, 'Hoje')}
-    ${cardTurno(turnoD1, ausD1, 'Amanha', true)}
+    ${cardTurno(turnoD1, ausD1, 'Amanhã', true)}
   </div>
 
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
-    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:10px">Minha semana</div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">Minha semana</div>
     <div class="grid7">${renderSemanaColab()}</div>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
     <div class="card">
       <div class="card-header">
-        <span class="card-title" style="color:#22c55e">Eventos hoje</span>
-        <span class="badge blue">${eventosHoje.length}</span>
+        <span class="card-title" style="color:#22c55e">🟢 Hoje</span>
+        <span class="badge blue" id="badge-hoje">${eventosHoje.length}</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:auto">${hojeStr}</span>
       </div>
-      <div class="card-body" style="max-height:400px;overflow-y:auto">${renderEventosEquipe(eventosHoje, escHoje)}</div>
+      <div id="lista-eventos-hoje" class="card-body" style="max-height:520px;overflow-y:auto;padding:8px"></div>
     </div>
     <div class="card">
       <div class="card-header">
-        <span class="card-title" style="color:#3b82f6">Eventos amanha</span>
+        <span class="card-title" style="color:#3b82f6">📅 Amanhã</span>
         <span class="badge blue">${eventosAmanha.length}</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:auto">${d1Str}</span>
       </div>
-      <div class="card-body" style="max-height:400px;overflow-y:auto">${renderEventosEquipe(eventosAmanha, escD1)}</div>
+      <div id="lista-eventos-amanha" class="card-body" style="max-height:520px;overflow-y:auto;padding:8px"></div>
     </div>
   </div>
-</div>`;
+</div>
+
+<script>
+var _evHoje = ${eventosHojeJson};
+var _evAmanha = ${eventosAmanhaJson};
+var _horaAtual = ${horaAtualMin};
+
+function toMin(h){if(!h)return null;var p=h.split(':');return parseInt(p[0])*60+(parseInt(p[1])||0);}
+
+function statusEvento(hora, agora) {
+  var m = toMin(hora);
+  if (m === null) return 'neutro';
+  if (m < agora - 30) return 'encerrado';
+  if (m <= agora + 5 && m >= agora - 30) return 'aovivo';
+  if (m <= agora + 30) return 'proximo30';
+  if (m <= agora + 60) return 'proximo60';
+  return 'futuro';
+}
+
+function statusLabel(s) {
+  if (s==='aovivo') return '<span style="background:#166534;color:#86efac;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;animation:border-pulse-green 2s infinite">● AO VIVO</span>';
+  if (s==='proximo30') return '<span style="background:#451a03;color:#fcd34d;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">⚡ &lt;30min</span>';
+  if (s==='proximo60') return '<span style="background:#431407;color:#fb923c;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">🔜 &lt;60min</span>';
+  if (s==='encerrado') return '<span style="color:#4a5568;font-size:10px">Encerrado</span>';
+  return '';
+}
+
+function borderClass(s) {
+  if (s==='aovivo') return 'ev-ao-vivo';
+  if (s==='proximo30') return 'ev-proximo-30';
+  if (s==='proximo60') return 'ev-proximo-60';
+  if (s==='encerrado') return 'ev-encerrado';
+  return '';
+}
+
+function renderEventos(eventos, containerId, agora, isHoje) {
+  var c = document.getElementById(containerId);
+  if (!c) return;
+  if (!eventos.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>'; return; }
+  var html = '';
+  eventos.forEach(function(ev) {
+    var s = isHoje ? statusEvento(ev.hora, agora) : 'futuro';
+    var bc = borderClass(s);
+    var lbl = statusLabel(s);
+    html += '<div class="'+bc+'" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s">';
+    html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
+    html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">'+( ev.hora||'--')+'</div>';
+    html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">'+ev.nome+'</div>';
+    html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+ev.tipo+(ev.local?' · <span style="font-weight:600">'+ev.local+'</span>':'')+'</div></div>';
+    if (lbl) html += '<div>'+lbl+'</div>';
+    html += '</div></div>';
+  });
+  c.innerHTML = html;
+}
+
+function atualizarEventos() {
+  var brt = new Date();
+  var offset = (-3*60 - brt.getTimezoneOffset()) * 60000;
+  var agora = new Date(brt.getTime() + offset);
+  var minAtual = agora.getHours()*60 + agora.getMinutes();
+  renderEventos(_evHoje, 'lista-eventos-hoje', minAtual, true);
+  renderEventos(_evAmanha, 'lista-eventos-amanha', minAtual, false);
+}
+
+// Relógio em tempo real
+function atualizarRelogio() {
+  var brt = new Date();
+  var offset = (-3*60 - brt.getTimezoneOffset()) * 60000;
+  var agora = new Date(brt.getTime() + offset);
+  var h = String(agora.getHours()).padStart(2,'0');
+  var m = String(agora.getMinutes()).padStart(2,'0');
+  var s = String(agora.getSeconds()).padStart(2,'0');
+  var el = document.getElementById('relogio-hora');
+  if (el) el.textContent = h+':'+m+':'+s;
+}
+
+// Previsão do tempo via IP → Open-Meteo
+async function carregarTempo() {
+  try {
+    var loc = await fetch('https://ip-api.com/json/?fields=lat,lon,city').then(r=>r.json());
+    if (!loc.lat) return;
+    var cidade = loc.city || '';
+    var wmo = await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America/Sao_Paulo').then(r=>r.json());
+    var temp = Math.round(wmo.current?.temperature_2m ?? '--');
+    var code = wmo.current?.weathercode ?? 0;
+    var icons = {0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',73:'❄️',75:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',96:'⛈️',99:'⛈️'};
+    var ic = icons[code] || '🌡️';
+    document.getElementById('tempo-icone').textContent = ic;
+    document.getElementById('tempo-temp').textContent = temp+'°C';
+    document.getElementById('tempo-cidade').textContent = cidade;
+  } catch(e) {
+    document.getElementById('tempo-icone').textContent = '🌡️';
+  }
+}
+
+atualizarEventos();
+atualizarRelogio();
+carregarTempo();
+setInterval(atualizarRelogio, 1000);
+setInterval(atualizarEventos, 60000);
+</script>`;
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
@@ -660,7 +799,7 @@ export default async function handler(req, res) {
         <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Tipo</label>
         <select id="sol-tipo" onchange="solTipoChange()" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
           <option value="Férias">🏖️ Férias</option>
-          <option value="Folga programada">📅 Folga programada</option>
+          <option value="Folga programada">☀️ Folga programada</option>
           <option value="Atestado médico">🏥 Atestado médico</option>
           <option value="Troca de horário">🔄 Troca de horário</option>
         </select>
@@ -761,6 +900,8 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
 </script>`;
 
     return res.status(200).send(baseHTML('Equipe', conteudoEquipe + SOLICITAR_BTN + CHAT_IA));
+  }
+
   }
 
   // ── VISÃO GESTOR ──────────────────────────────────────────────────────────
