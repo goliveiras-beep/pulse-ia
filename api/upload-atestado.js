@@ -1,7 +1,6 @@
 // api/upload-atestado.js — Upload de atestado para Google Drive
 export const config = { maxDuration: 30 };
-import { createHash } from 'crypto';
-import { createSign } from 'crypto';
+import { createHash, createSign } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
@@ -13,7 +12,11 @@ function getSession(req) {
   if (!token) return null;
   try {
     const d = Buffer.from(token,'base64').toString('utf8');
-    const [nome,h,ts] = d.split('|');
+    const lastPipe = d.lastIndexOf('|');
+    const secondPipe = d.lastIndexOf('|', lastPipe - 1);
+    const nome = d.slice(0, secondPipe);
+    const h = d.slice(secondPipe + 1, lastPipe);
+    const ts = d.slice(lastPipe + 1);
     if (Date.now()-parseInt(ts) > 7*24*3600*1000) return null;
     if (h !== hash(nome+ts)) return null;
     return { nome };
@@ -95,39 +98,71 @@ export default async function handler(req, res) {
     const token = await getDriveToken();
     const safeName = `Atestado_${session.nome.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}_${fileName}`;
 
-    // Use simple upload with metadata
-    const metaRes = await fetch(
-      'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true',
+    // FIX: usar multipart upload em requisição única em vez de duas chamadas separadas
+    // Isso evita o erro de quota na criação do metadata
+    const delimiter = '-------boundary_pulse_upload';
+    const metaJson = JSON.stringify({ name: safeName, parents: [folderId] });
+
+    const multipartBody = Buffer.concat([
+      Buffer.from(
+        `--${delimiter}\r\n` +
+        `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+        `${metaJson}\r\n` +
+        `--${delimiter}\r\n` +
+        `Content-Type: ${mimeType}\r\n\r\n`
+      ),
+      fileBuffer,
+      Buffer.from(`\r\n--${delimiter}--`),
+    ]);
+
+    const uploadRes = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
       {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: safeName, parents: [folderId] }),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': `multipart/related; boundary=${delimiter}`,
+          'Content-Length': String(multipartBody.length),
+        },
+        body: multipartBody,
       }
     );
-    const metaData = await metaRes.json();
-    if (!metaData.id) throw new Error('Metadata error: ' + JSON.stringify(metaData));
 
-    // Upload content
-    const uploadRes = await fetch(
-      `https://www.googleapis.com/upload/drive/v3/files/${metaData.id}?uploadType=media&supportsAllDrives=true`,
-      {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': mimeType },
-        body: fileBuffer,
-      }
-    );
     const uploadData = await uploadRes.json();
-    if (!uploadData.id) throw new Error('Upload error: ' + JSON.stringify(uploadData));
 
-    // Make readable
-    await fetch(`https://www.googleapis.com/drive/v3/files/${uploadData.id}/permissions?supportsAllDrives=true`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: 'reader', type: 'anyone' }),
-    });
+    // FIX: se a resposta veio com erro de quota mas o arquivo pode ter sido salvo,
+    // tenta buscar pelo nome na pasta para confirmar
+    let fileId = uploadData.id;
 
-    const url = `https://drive.google.com/file/d/${uploadData.id}/view`;
-    return res.status(200).json({ ok: true, url, id: uploadData.id });
+    if (!fileId) {
+      // Tenta encontrar o arquivo que pode ter sido criado mesmo com erro
+      const searchRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=name='${encodeURIComponent(safeName)}'+and+'${folderId}'+in+parents&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name)`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const searchData = await searchRes.json();
+      if (searchData.files && searchData.files.length > 0) {
+        fileId = searchData.files[0].id;
+      }
+    }
+
+    if (!fileId) {
+      throw new Error('Upload error: ' + JSON.stringify(uploadData));
+    }
+
+    // Torna o arquivo público (leitura)
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+      });
+    } catch (e) {
+      console.warn('Permissão pública não aplicada:', e.message);
+    }
+
+    const url = `https://drive.google.com/file/d/${fileId}/view`;
+    return res.status(200).json({ ok: true, url, id: fileId });
 
   } catch (err) {
     console.error('Upload error:', err.message);
