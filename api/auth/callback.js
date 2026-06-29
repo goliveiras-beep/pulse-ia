@@ -36,13 +36,16 @@ export default async function handler(req, res) {
 
     const googleUser = await userRes.json();
     const email = (googleUser.email || '').toLowerCase();
-    // FIX: usar encodeURIComponent no nome para evitar quebra por caracteres especiais
     const nomeGoogle = encodeURIComponent(googleUser.name || email.split('@')[0]);
 
     if (!email) throw new Error('Email não obtido');
 
-    // FIX: separador trocado de __ para ~~OAUTH~~ para não colidir com nomes/emails
-    const sessionData = `~~OAUTH~~${email}~~${nomeGoogle}`;
+    // Guardar access_token e refresh_token (se veio) no cookie OAuth
+    // Formato: ~~OAUTH~~email~~nomeEncoded~~accessToken~~refreshToken
+    const accessToken = tokenData.access_token || '';
+    const refreshToken = tokenData.refresh_token || '';
+
+    const sessionData = `~~OAUTH~~${email}~~${nomeGoogle}~~${accessToken}~~${refreshToken}`;
     const ts = String(Date.now());
     const h = hash(sessionData + ts);
     const token = Buffer.from(`${sessionData}|${h}|${ts}`).toString('base64');
