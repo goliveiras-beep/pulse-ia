@@ -593,10 +593,19 @@ export default async function handler(req, res) {
   <div class="hr">
     <div id="tempo-widget" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 10px;font-size:12px;color:#e2e8f0">
       <span id="tempo-icone">⏳</span>
-      <span id="tempo-temp">--°</span>
+      <span id="tempo-temp" style="font-weight:700">--°C</span>
       <span id="tempo-cidade" style="color:#718096;font-size:10px"></span>
     </div>
-    <span class="hs" id="relogio-hora" style="font-size:16px;font-weight:700;color:#e2e8f0;min-width:50px;text-align:right"></span>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:9px;font-weight:600;color:#718096;letter-spacing:.04em">BRT</span>
+        <span id="relogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:9px;font-weight:600;color:#4a5568;letter-spacing:.04em">GMT</span>
+        <span id="relogio-gmt" style="font-size:11px;font-weight:600;color:#718096;font-variant-numeric:tabular-nums"></span>
+      </div>
+    </div>
     <button id="tt" class="btn-sm" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;';})()" style="font-size:14px;padding:3px 8px">&#127769;</button>
     <form method="POST" action="/api/app?action=logout" style="display:inline"><button type="submit" class="btn-sm">Sair</button></form>
   </div>
@@ -711,34 +720,50 @@ function atualizarEventos() {
   renderEventos(_evAmanha, 'lista-eventos-amanha', minAtual, false);
 }
 
-// Relógio em tempo real
+// Relógio BRT + GMT em tempo real
 function atualizarRelogio() {
-  var brt = new Date();
-  var offset = (-3*60 - brt.getTimezoneOffset()) * 60000;
-  var agora = new Date(brt.getTime() + offset);
-  var h = String(agora.getHours()).padStart(2,'0');
-  var m = String(agora.getMinutes()).padStart(2,'0');
-  var s = String(agora.getSeconds()).padStart(2,'0');
-  var el = document.getElementById('relogio-hora');
-  if (el) el.textContent = h+':'+m+':'+s;
+  var now = new Date();
+  // BRT = UTC-3
+  var brtOff = -3 * 60;
+  var brtMs = now.getTime() + (brtOff - now.getTimezoneOffset()) * 60000;
+  var brt = new Date(brtMs);
+  var bh = String(brt.getHours()).padStart(2,'0');
+  var bm = String(brt.getMinutes()).padStart(2,'0');
+  var bs = String(brt.getSeconds()).padStart(2,'0');
+  var elBrt = document.getElementById('relogio-brt');
+  if (elBrt) elBrt.textContent = bh+':'+bm+':'+bs;
+  // GMT = UTC+0
+  var gh = String(now.getUTCHours()).padStart(2,'0');
+  var gm = String(now.getUTCMinutes()).padStart(2,'0');
+  var gs = String(now.getUTCSeconds()).padStart(2,'0');
+  var elGmt = document.getElementById('relogio-gmt');
+  if (elGmt) elGmt.textContent = gh+':'+gm+':'+gs;
 }
 
-// Previsão do tempo via IP → Open-Meteo
+// Previsão do tempo — ip-api (HTTP) para lat/lon, depois Open-Meteo
 async function carregarTempo() {
   try {
-    var loc = await fetch('https://ip-api.com/json/?fields=lat,lon,city').then(r=>r.json());
-    if (!loc.lat) return;
-    var cidade = loc.city || '';
-    var wmo = await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America/Sao_Paulo').then(r=>r.json());
-    var temp = Math.round(wmo.current?.temperature_2m ?? '--');
-    var code = wmo.current?.weathercode ?? 0;
+    // Tenta ipapi.co primeiro (HTTPS, sem CORS)
+    var loc = null;
+    try {
+      var r1 = await fetch('https://ipapi.co/json/');
+      var j1 = await r1.json();
+      if (j1.latitude) loc = {lat: j1.latitude, lon: j1.longitude, city: j1.city};
+    } catch(e) {}
+    // Fallback: Open-Meteo com localização fixa do Rio (caso ambos falhem)
+    if (!loc) loc = {lat: -22.9068, lon: -43.1729, city: 'Rio de Janeiro'};
+    var wmo = await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America%2FSao_Paulo');
+    var wd = await wmo.json();
+    var temp = Math.round(wd.current && wd.current.temperature_2m !== undefined ? wd.current.temperature_2m : 99);
+    var code = wd.current ? (wd.current.weathercode || 0) : 0;
     var icons = {0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',73:'❄️',75:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',96:'⛈️',99:'⛈️'};
     var ic = icons[code] || '🌡️';
     document.getElementById('tempo-icone').textContent = ic;
     document.getElementById('tempo-temp').textContent = temp+'°C';
-    document.getElementById('tempo-cidade').textContent = cidade;
+    document.getElementById('tempo-cidade').textContent = loc.city || '';
   } catch(e) {
     document.getElementById('tempo-icone').textContent = '🌡️';
+    document.getElementById('tempo-temp').textContent = '--°C';
   }
 }
 
