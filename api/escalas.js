@@ -5,6 +5,7 @@ import { analisarEscala, duracaoTurno } from '../lib/escalas-engine.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
+const COOKIE_MAX = 60 * 60 * 24 * 7;
 
 function getBRT() {
   const a = new Date();
@@ -16,16 +17,29 @@ function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('h
 
 function getSession(req) {
   const cookies = {};
-  (req.headers.cookie||'').split(';').forEach(c => { const [k,...v]=c.trim().split('='); cookies[k.trim()]=v.join('='); });
+  (req.headers.cookie||'').split(';').forEach(c => {
+    const cookieParts = c.trim().split('=');
+    const k = cookieParts.shift();
+    cookies[k] = cookieParts.join('=');
+  });
   const token = cookies[COOKIE_NAME];
   if (!token) return null;
   try {
-    const decoded = Buffer.from(token, 'base64').toString('utf8');
-    const [nome, h, ts] = decoded.split('|');
-    if (Date.now() - parseInt(ts) > 7*24*3600*1000) return null;
-    if (h !== hash(nome + ts)) return null;
+    const d = Buffer.from(token, 'base64').toString('utf8');
+    const lastPipe = d.lastIndexOf('|');
+    const secondPipe = d.lastIndexOf('|', lastPipe - 1);
+    const data = d.slice(0, secondPipe);
+    const h = d.slice(secondPipe + 1, lastPipe);
+    const ts = d.slice(lastPipe + 1);
+    if (Date.now() - parseInt(ts, 10) > COOKIE_MAX * 1000) return null;
+    if (h !== hash(data + ts)) return null;
+    if (data.startsWith('~~OAUTH~~')) return null;
+    const nome = data.split('~~')[0];
+    if (!nome) return null;
     return { nome };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 async function getSheet(range) {
