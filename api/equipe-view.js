@@ -34,7 +34,10 @@ export default async function handler(req, res) {
   const session = getSession(req);
   if (!session) return res.redirect(302, '/api/app');
 
-  const equipeRaw = await getSheet('Equipe!A2:L200');
+  const [equipeRaw, ausenciasRaw] = await Promise.all([
+    getSheet('Equipe!A2:L200'),
+    getSheet('Ausencias!A2:F500'),
+  ]);
   const usuario = equipeRaw.find(r=>r[0]===session.nome);
   if (usuario?.[8] !== 'gestor') return res.redirect(302, '/api/app');
 
@@ -51,6 +54,26 @@ export default async function handler(req, res) {
         perfil||'colaborador',
         row[9]||'', 'ativo', row[11]||''
       ]]);
+      return res.status(200).json({ ok: true });
+    }
+
+    if (acao === 'aprovar-ausencia') {
+      const { id } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'ID inválido' });
+      const aus = await getSheet('Ausencias!A2:F500');
+      const aidx = aus.findIndex(r => r[0] === id);
+      if (aidx < 0) return res.status(404).json({ error: 'Não encontrado' });
+      await setSheet(`Ausencias!A${aidx+2}:F${aidx+2}`, [['APROVADO-'+id, aus[aidx][1], aus[aidx][2], aus[aidx][3], aus[aidx][4], aus[aidx][5]]]);
+      return res.status(200).json({ ok: true });
+    }
+
+    if (acao === 'recusar-ausencia') {
+      const { id } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'ID inválido' });
+      const aus = await getSheet('Ausencias!A2:F500');
+      const aidx = aus.findIndex(r => r[0] === id);
+      if (aidx < 0) return res.status(404).json({ error: 'Não encontrado' });
+      await setSheet(`Ausencias!A${aidx+2}`, [['RECUSADO']]);
       return res.status(200).json({ ok: true });
     }
 
@@ -88,6 +111,17 @@ export default async function handler(req, res) {
   }
 
   // ── GET: renderizar ───────────────────────────────────────────────────────
+  // Process ausencias - pending requests
+  const solicitacoesPendentes = ausenciasRaw.filter(r => r[0] && r[0].startsWith('PLS-')).map((r,i) => ({
+    idx: i+2,
+    id: r[0],
+    nome: r[1]||'',
+    tipo: r[2]||'',
+    motivo: r[3]||'',
+    dataInicio: r[4]||'',
+    dataFim: r[5]||'',
+  }));
+
   const todos = equipeRaw.map((r,i) => ({
     linha: i+2,
     nome:       r[0]||'',
@@ -223,10 +257,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="text-align:center"><div style="font-size:26px;font-weight:700;color:#d97706">${pendentes.length}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase">Pendentes</div></div>
   </div>
 
+  ${solicitacoesPendentes.length ? `
+  <div class="section-title" style="margin-top:0">
+    <span style="background:#7c3aed;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">${solicitacoesPendentes.length}</span>
+    Solicitações de ausência
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+    ${solicitacoesPendentes.map(s => {
+      const cores = {
+        'Férias': ['#dbeafe','#1d4ed8','🏖️'],
+        'Folga programada': ['#dcfce7','#166534','📅'],
+        'Atestado médico': ['#fee2e2','#991b1b','🏥'],
+        'Troca de horário': ['#f3e8ff','#7c3aed','🔄'],
+      };
+      const [bg,c,ic] = cores[s.tipo] || ['#f3f4f6','#374151','📋'];
+      const hasAnexo = s.motivo && s.motivo.includes('Anexo:');
+      const anexoUrl = hasAnexo ? s.motivo.split('Anexo:')[1].trim() : '';
+      return \`<div style="background:var(--card);border:1px solid \${c};border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px">
+        <div style="font-size:20px">\${ic}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+            <span style="font-size:13px;font-weight:700">\${esc(s.nome)}</span>
+            <span style="background:\${bg};color:\${c};border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">\${esc(s.tipo)}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text3)">\${esc(s.dataInicio)}\${s.dataFim && s.dataFim !== s.dataInicio ? ' → '+esc(s.dataFim) : ''}</div>
+          \${s.motivo && !hasAnexo ? \`<div style="font-size:11px;color:var(--text2);margin-top:2px">\${esc(s.motivo)}</div>\` : ''}
+          \${hasAnexo ? \`<a href="\${esc(anexoUrl)}" target="_blank" style="font-size:11px;color:#1d4ed8;margin-top:2px;display:inline-block">📎 Ver atestado</a>\` : ''}
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${'ID:'} \${esc(s.id)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          <button onclick="aprovarAusencia('\${esc(s.id)}')" style="background:#16a34a;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">✓ OK</button>
+          <button onclick="recusarAusencia('\${esc(s.id)}')" style="background:none;border:1px solid #dc2626;border-radius:6px;padding:5px 8px;font-size:11px;color:#dc2626;cursor:pointer">✕</button>
+        </div>
+      </div>\`;
+    }).join('')}
+  </div>` : ''}
+
   ${pendentes.length ? `
   <div class="section-title">
     <span style="background:#d97706;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">${pendentes.length}</span>
-    Aguardando aprovação
+    Aguardando aprovação de acesso
   </div>
   <div class="grid">${pendentes.map(cardPendente).join('')}</div>` : ''}
 
@@ -322,6 +392,17 @@ async function removerMembro(){
   if(!confirm('Remover este colaborador?'))return;
   const d=await post({acao:'remover',linha:document.getElementById('ed-linha').value});
   if(d.ok){fecharModal();toast('Removido!');setTimeout(()=>location.reload(),1000);}
+  else toast('Erro: '+d.error,'#dc2626');
+}
+async function aprovarAusencia(id){
+  const d=await post({acao:'aprovar-ausencia',id});
+  if(d.ok){toast('Solicitação aprovada!');setTimeout(()=>location.reload(),1000);}
+  else toast('Erro: '+d.error,'#dc2626');
+}
+async function recusarAusencia(id){
+  if(!confirm('Recusar esta solicitação?'))return;
+  const d=await post({acao:'recusar-ausencia',id});
+  if(d.ok){toast('Solicitação recusada.');setTimeout(()=>location.reload(),1000);}
   else toast('Erro: '+d.error,'#dc2626');
 }
 function toast(msg,bg='#166534'){
