@@ -51,8 +51,16 @@ export default async function handler(req, res) {
     }
     try {
       // Prefix numbers with apostrophe to preserve leading zeros in Sheets
-      const fmtNum = v => v ? "'" + v : '';
-      await appendSheet('Equipe!A2:L', [[nome,'','',fmtNum(cpf),fmtNum(rg),nascimento,endereco,'','colaborador',email,'pendente',fmtNum(telefone)]]);
+      const fmtNum = v => v ? "'" + String(v) : '';
+      // Find next empty row to avoid writing in wrong place
+      const existingRows = await getSheet('Equipe!A:A');
+      const nextRow = existingRows.length + 1;
+      await sheetsRequest(
+        process.env.GOOGLE_SHEET_ID,
+        `/values/${encodeURIComponent('Equipe!A' + nextRow + ':L' + nextRow)}?valueInputOption=USER_ENTERED`,
+        'PUT',
+        { values: [[nome,'','',fmtNum(cpf),fmtNum(rg),nascimento,endereco,'','colaborador',email,'pendente',fmtNum(telefone)]] }
+      );
     } catch(e) { console.error('Register error:', e.message); }
     res.setHeader('Content-Type','text/html; charset=utf-8');
     return res.status(200).send(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Pulse</title>
