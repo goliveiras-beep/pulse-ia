@@ -202,6 +202,44 @@ export default async function handler(req, res) {
   });
   const membrosDataJson = JSON.stringify(membrosData);
 
+  function renderSolicitacoes() {
+    if (!solicitacoesPendentes.length) return '';
+    const cores = {
+      'Férias': ['#dbeafe','#1d4ed8','🏖️'],
+      'Folga programada': ['#dcfce7','#166534','📅'],
+      'Atestado médico': ['#fee2e2','#991b1b','🏥'],
+      'Troca de horário': ['#f3e8ff','#7c3aed','🔄'],
+    };
+    const cards = solicitacoesPendentes.map(s => {
+      const [bg,c,ic] = cores[s.tipo] || ['#f3f4f6','#374151','📋'];
+      const hasAnexo = s.motivo && s.motivo.includes('Anexo:');
+      const anexoUrl = hasAnexo ? s.motivo.split('Anexo:')[1].trim() : '';
+      const motivoTexto = hasAnexo ? s.motivo.split('Anexo:')[0].trim() : s.motivo;
+      return `<div style="background:var(--card);border:1px solid ${c};border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px">
+        <div style="font-size:20px">${ic}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">
+            <span style="font-size:13px;font-weight:700">${esc(s.nome)}</span>
+            <span style="background:${bg};color:${c};border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">${esc(s.tipo)}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text3)">${esc(s.dataInicio)}${s.dataFim && s.dataFim !== s.dataInicio ? ' → '+esc(s.dataFim) : ''}</div>
+          ${motivoTexto ? `<div style="font-size:11px;color:var(--text2);margin-top:2px">${esc(motivoTexto)}</div>` : ''}
+          ${hasAnexo ? `<a href="${esc(anexoUrl)}" target="_blank" style="font-size:11px;color:#1d4ed8;margin-top:2px;display:inline-block">📎 Ver atestado</a>` : ''}
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">ID: ${esc(s.id)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          <button onclick="aprovarAusencia('${esc(s.id)}')" style="background:#16a34a;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">✓ OK</button>
+          <button onclick="recusarAusencia('${esc(s.id)}')" style="background:none;border:1px solid #dc2626;border-radius:6px;padding:5px 8px;font-size:11px;color:#dc2626;cursor:pointer">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="section-title" style="margin-top:0">
+      <span style="background:#7c3aed;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">${solicitacoesPendentes.length}</span>
+      Solicitações de ausência
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">${cards}</div>`;
+  }
+
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -257,41 +295,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="text-align:center"><div style="font-size:26px;font-weight:700;color:#d97706">${pendentes.length}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase">Pendentes</div></div>
   </div>
 
-  ${solicitacoesPendentes.length ? `
-  <div class="section-title" style="margin-top:0">
-    <span style="background:#7c3aed;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">${solicitacoesPendentes.length}</span>
-    Solicitações de ausência
-  </div>
-  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
-    ${solicitacoesPendentes.map(s => {
-      const cores = {
-        'Férias': ['#dbeafe','#1d4ed8','🏖️'],
-        'Folga programada': ['#dcfce7','#166534','📅'],
-        'Atestado médico': ['#fee2e2','#991b1b','🏥'],
-        'Troca de horário': ['#f3e8ff','#7c3aed','🔄'],
-      };
-      const [bg,c,ic] = cores[s.tipo] || ['#f3f4f6','#374151','📋'];
-      const hasAnexo = s.motivo && s.motivo.includes('Anexo:');
-      const anexoUrl = hasAnexo ? s.motivo.split('Anexo:')[1].trim() : '';
-      return \`<div style="background:var(--card);border:1px solid \${c};border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:12px">
-        <div style="font-size:20px">\${ic}</div>
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-            <span style="font-size:13px;font-weight:700">\${esc(s.nome)}</span>
-            <span style="background:\${bg};color:\${c};border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">\${esc(s.tipo)}</span>
-          </div>
-          <div style="font-size:11px;color:var(--text3)">\${esc(s.dataInicio)}\${s.dataFim && s.dataFim !== s.dataInicio ? ' → '+esc(s.dataFim) : ''}</div>
-          \${s.motivo && !hasAnexo ? \`<div style="font-size:11px;color:var(--text2);margin-top:2px">\${esc(s.motivo)}</div>\` : ''}
-          \${hasAnexo ? \`<a href="\${esc(anexoUrl)}" target="_blank" style="font-size:11px;color:#1d4ed8;margin-top:2px;display:inline-block">📎 Ver atestado</a>\` : ''}
-          <div style="font-size:10px;color:var(--text3);margin-top:2px">${'ID:'} \${esc(s.id)}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
-          <button onclick="aprovarAusencia('\${esc(s.id)}')" style="background:#16a34a;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">✓ OK</button>
-          <button onclick="recusarAusencia('\${esc(s.id)}')" style="background:none;border:1px solid #dc2626;border-radius:6px;padding:5px 8px;font-size:11px;color:#dc2626;cursor:pointer">✕</button>
-        </div>
-      </div>\`;
-    }).join('')}
-  </div>` : ''}
+  ${renderSolicitacoes()}
+
+  ${pendentes.length
 
   ${pendentes.length ? `
   <div class="section-title">
