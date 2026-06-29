@@ -496,7 +496,7 @@ export default async function handler(req, res) {
 
     // ── CORREÇÃO: cardTurno trata obs com Anexo: ──
     function cardTurno(turno, aus, label, isAmanha = false) {
-      if (aus) return `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#991b1b;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:20px;font-weight:700;color:#991b1b">${aus[3] || 'Ausencia'}</div></div>`;
+      if (aus) return `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#991b1b;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:20px;font-weight:700;color:#991b1b">${aus[2] || 'Ausencia'}</div></div>`;
       if (!turno || (!turno[3] && !turno[4])) return `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:15px;color:#9ca3af">Sem escala</div></div>`;
       if (turno[5] === 'Folga') return `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#92400e;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:20px;font-weight:700;color:#d97706">Folga</div></div>`;
       const obsVal = turno[5] || '';
@@ -517,7 +517,7 @@ export default async function handler(req, res) {
         const isHoje = df === hojeStr;
         const isD1 = df === d1Str;
         let bg = 'var(--card)', bc = 'var(--border)', tc = 'var(--text3)', label = '--';
-        if (aus) { bg = '#fdf4ff'; bc = '#d8b4fe'; tc = '#7c3aed'; label = aus[3] || 'Aus.'; }
+        if (aus) { bg = '#fdf4ff'; bc = '#d8b4fe'; tc = '#7c3aed'; label = aus[2] || 'Aus.'; }
         else if (t?.[5] === 'Folga') { bg = '#fffbeb'; bc = '#fcd34d'; tc = '#92400e'; label = 'Folga'; }
         else if (t?.[3] && t?.[4]) { bg = isHoje ? '#f0fdf4' : isD1 ? '#eff6ff' : 'var(--card)'; bc = isHoje ? '#86efac' : isD1 ? '#93c5fd' : 'var(--border)'; tc = isHoje ? '#166534' : isD1 ? '#1d4ed8' : 'var(--text)'; label = `${t[3]}<br>${t[4]}`; }
         else if (t && !t[3] && !t[4] && t[5] && (t[5].includes('Anexo:') || t[5].startsWith('http'))) {
