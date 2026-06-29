@@ -36,7 +36,7 @@ export default async function handler(req, res) {
 
   const [equipeRaw, ausenciasRaw] = await Promise.all([
     getSheet('Equipe!A2:L200'),
-    getSheet('Ausencias!A2:F500'),
+    getSheet('Ausências!A2:F500'),
   ]);
   const usuario = equipeRaw.find(r=>r[0]===session.nome);
   if (usuario?.[8] !== 'gestor') return res.redirect(302, '/api/app');
@@ -60,20 +60,20 @@ export default async function handler(req, res) {
     if (acao === 'aprovar-ausencia') {
       const { id } = req.body || {};
       if (!id) return res.status(400).json({ error: 'ID inválido' });
-      const aus = await getSheet('Ausencias!A2:F500');
+      const aus = await getSheet('Ausências!A2:F500');
       const aidx = aus.findIndex(r => r[0] === id);
       if (aidx < 0) return res.status(404).json({ error: 'Não encontrado' });
-      await setSheet(`Ausencias!A${aidx+2}:F${aidx+2}`, [['APROVADO-'+id, aus[aidx][1], aus[aidx][2], aus[aidx][3], aus[aidx][4], aus[aidx][5]]]);
+      await setSheet(`Ausências!A${aidx+2}:F${aidx+2}`, [['APROVADO-'+id, aus[aidx][1], aus[aidx][2], aus[aidx][3], aus[aidx][4], aus[aidx][5]]]);
       return res.status(200).json({ ok: true });
     }
 
     if (acao === 'recusar-ausencia') {
       const { id } = req.body || {};
       if (!id) return res.status(400).json({ error: 'ID inválido' });
-      const aus = await getSheet('Ausencias!A2:F500');
+      const aus = await getSheet('Ausências!A2:F500');
       const aidx = aus.findIndex(r => r[0] === id);
       if (aidx < 0) return res.status(404).json({ error: 'Não encontrado' });
-      await setSheet(`Ausencias!A${aidx+2}`, [['RECUSADO']]);
+      await setSheet(`Ausências!A${aidx+2}`, [['RECUSADO']]);
       return res.status(200).json({ ok: true });
     }
 
