@@ -117,12 +117,11 @@ function getSession(req) {
     const h = parts[1];
     const ts = parts[2];
     if (Date.now() - parseInt(ts, 10) > COOKIE_MAX * 1000) return null;
-    if (h !== hash(nome + ts)) return null;
-    // OAuth token: contains email and google name
-    if (nome.startsWith('__oauth__')) {
-      const [, email, nomeGoogle] = nome.split('__').filter(Boolean);
-      return { nome: null, email: email || '', nomeGoogle: nomeGoogle || '', isOAuth: true };
-    }
+    if (h !== hash(data + ts)) return null;
+    if (data.startsWith('~~OAUTH~~')) return null;
+    const parts = data.split('~~');
+    const nome = parts[0];
+    if (!nome) return null;
     return { nome };
   } catch {
     return null;
@@ -318,7 +317,7 @@ ${script}
 function loginPage(erro = '') {
   const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
   const BASE_URL = process.env.PULSE_BASE_URL || 'https://pulse-ia-six.vercel.app';
-  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=email%20profile&prompt=select_account`;
+  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=email%20profile&access_type=offline&prompt=consent
 
   const erroMsg = erro === 'usuario_nao_encontrado' ? 'Sua conta Google não está na equipe. Fale com o gestor.'
     : erro === 'acesso_negado' ? 'Acesso negado pelo Google.'
