@@ -902,8 +902,6 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
     return res.status(200).send(baseHTML('Equipe', conteudoEquipe + SOLICITAR_BTN + CHAT_IA));
   }
 
-  }
-
   // ── VISÃO GESTOR ──────────────────────────────────────────────────────────
 
   const [
