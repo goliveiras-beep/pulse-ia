@@ -639,48 +639,87 @@ export default async function handler(req, res) {
         </div>`).join('');
     }
 
-    const SOLICITAR_BTN = `
-<div id="sol-btn" onclick="toggleSolicitar()" style="position:fixed;bottom:24px;left:24px;z-index:900;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#16a34a,#15803d);box-shadow:0 4px 20px rgba(22,163,74,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:transform .2s" title="Solicitar ausência">📋</div>
+    // Build colegas list for troca de horario
+    const colegasJson = JSON.stringify(nomes.filter(n => n !== nome));
 
-<div id="sol-box" style="display:none;position:fixed;bottom:88px;left:24px;z-index:900;width:360px;max-width:calc(100vw - 48px);background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);overflow:hidden">
-  <div style="background:var(--header);padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+    const SOLICITAR_BTN = `
+<div id="sol-btn" onclick="toggleSolicitar()" style="position:fixed;bottom:24px;left:24px;z-index:900;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#16a34a,#15803d);box-shadow:0 4px 20px rgba(22,163,74,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:transform .2s" title="Solicitações">📋</div>
+
+<div id="sol-box" style="display:none;position:fixed;bottom:88px;left:24px;z-index:900;width:380px;max-width:calc(100vw - 48px);background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);overflow:hidden;max-height:90vh;display:none;flex-direction:column">
+  <div style="background:var(--header);padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0">
     <span style="font-size:16px">📋</span>
     <div style="flex:1;font-size:13px;font-weight:600;color:#e2e8f0">Minhas solicitações</div>
     <button onclick="toggleSolicitar()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:20px;padding:4px;line-height:1">&times;</button>
   </div>
-  <div style="padding:14px">
-    <div id="sol-tab-bar" style="display:flex;gap:6px;margin-bottom:14px">
-      <button id="sol-tab-nova" onclick="solTab('nova')" style="flex:1;border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:600;background:#16a34a;color:#fff;cursor:pointer">+ Nova</button>
-      <button id="sol-tab-hist" onclick="solTab('hist')" style="flex:1;border:1px solid var(--border);border-radius:6px;padding:7px;font-size:12px;font-weight:600;background:none;color:var(--text2);cursor:pointer">Histórico</button>
-    </div>
+  <div style="display:flex;gap:4px;padding:10px 14px 0;flex-shrink:0">
+    <button id="sol-tab-nova" onclick="solTab('nova')" style="flex:1;border:none;border-radius:6px;padding:6px;font-size:11px;font-weight:600;background:#16a34a;color:#fff;cursor:pointer">+ Nova</button>
+    <button id="sol-tab-hist" onclick="solTab('hist')" style="flex:1;border:1px solid var(--border);border-radius:6px;padding:6px;font-size:11px;font-weight:600;background:none;color:var(--text2);cursor:pointer">Histórico</button>
+  </div>
+  <div style="overflow-y:auto;padding:12px 14px;flex:1">
     <div id="sol-form-area">
       <div style="margin-bottom:10px">
         <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Tipo</label>
-        <select id="sol-tipo" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+        <select id="sol-tipo" onchange="solTipoChange()" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
           <option value="Férias">🏖️ Férias</option>
           <option value="Folga programada">📅 Folga programada</option>
           <option value="Atestado médico">🏥 Atestado médico</option>
           <option value="Folga direcionada">📌 Folga direcionada</option>
+          <option value="Troca de horário">🔄 Troca de horário</option>
         </select>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-        <div>
-          <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Data início</label>
-          <input type="date" id="sol-inicio" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+
+      <!-- Ferias: campos com validação CLT -->
+      <div id="sol-ferias-area">
+        <div style="background:var(--blue-m-bg);border:1px solid var(--blue-m-border);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--blue-m-v);margin-bottom:10px">
+          📌 CLT: mín. 14 dias num período, mín. 5 dias nos demais. Máx. 3 períodos.
         </div>
-        <div>
-          <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Data fim</label>
-          <input type="date" id="sol-fim" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+        <div id="sol-periodos"></div>
+        <button onclick="adicionarPeriodo()" id="sol-add-periodo" style="width:100%;border:1px dashed var(--border);border-radius:6px;padding:7px;font-size:12px;color:var(--text3);background:none;cursor:pointer;margin-bottom:10px">+ Adicionar período</button>
+        <div id="sol-ferias-erro" style="display:none;color:#dc2626;font-size:11px;margin-bottom:8px"></div>
+      </div>
+
+      <!-- Outros tipos: datas simples -->
+      <div id="sol-datas-area">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Data início</label>
+            <input type="date" id="sol-inicio" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+          </div>
+          <div>
+            <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Data fim</label>
+            <input type="date" id="sol-fim" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+          </div>
         </div>
       </div>
+
+      <!-- Troca de horário -->
+      <div id="sol-troca-area" style="display:none">
+        <div style="margin-bottom:10px">
+          <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Colega para trocar</label>
+          <select id="sol-colega" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+            <option value="">Selecione...</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Meu dia</label>
+            <input type="date" id="sol-troca-meu-dia" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+          </div>
+          <div>
+            <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Dia do colega</label>
+            <input type="date" id="sol-troca-colega-dia" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+          </div>
+        </div>
+      </div>
+
       <div style="margin-bottom:12px">
         <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Observação (opcional)</label>
-        <textarea id="sol-obs" rows="2" placeholder="Ex: CID M54, aprovado pelo supervisor..." style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;background:var(--bg2);color:var(--text);outline:none;resize:none;font-family:inherit"></textarea>
+        <textarea id="sol-obs" rows="2" placeholder="Ex: viagem em família, CID M54..." style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;background:var(--bg2);color:var(--text);outline:none;resize:none;font-family:inherit"></textarea>
       </div>
       <button onclick="enviarSolicits()" style="width:100%;background:#16a34a;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:600;color:#fff;cursor:pointer">Enviar solicitação</button>
-      <div id="sol-msg" style="display:none;margin-top:8px;text-align:center;font-size:12px;font-weight:600"></div>
+      <div id="sol-msg" style="display:none;margin-top:8px;text-align:center;font-size:12px;font-weight:600;padding:8px;border-radius:6px"></div>
     </div>
-    <div id="sol-hist-area" style="display:none;max-height:280px;overflow-y:auto">
+    <div id="sol-hist-area" style="display:none">
       ${renderMinhasSolicits()}
     </div>
   </div>
@@ -688,43 +727,201 @@ export default async function handler(req, res) {
 
 <script>
 var solAberto=false;
+var solColegas=${colegasJson};
+var solPeriodos=1;
+
+// Inicializa colegas no select
+(function(){
+  var sel=document.getElementById('sol-colega');
+  solColegas.forEach(function(c){
+    var o=document.createElement('option');
+    o.value=c;o.textContent=c;sel.appendChild(o);
+  });
+  // Init primeiro período de férias
+  adicionarPeriodoInicial();
+})();
+
+function adicionarPeriodoInicial(){
+  var c=document.getElementById('sol-periodos');
+  c.innerHTML='';
+  solPeriodos=1;
+  c.innerHTML=criarPeriodoHTML(1);
+  atualizarBotaoAddPeriodo();
+}
+
+function criarPeriodoHTML(n){
+  var label=n===1?'1º período (mín. 14 dias)':n===2?'2º período (mín. 5 dias)':'3º período (mín. 5 dias)';
+  return '<div id="periodo-'+n+'" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+    +'<span style="font-size:11px;font-weight:600;color:var(--text3)">'+label+'</span>'
+    +(n>1?'<button onclick="removerPeriodo('+n+')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">✕</button>':'')
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+    +'<div><label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Início</label>'
+    +'<input type="date" id="p'+n+'-inicio" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:12px;background:var(--bg);color:var(--text);outline:none"></div>'
+    +'<div><label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Fim</label>'
+    +'<input type="date" id="p'+n+'-fim" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:12px;background:var(--bg);color:var(--text);outline:none"></div>'
+    +'</div>'
+    +'<div id="p'+n+'-dias" style="font-size:10px;color:var(--text3);margin-top:5px;text-align:right"></div>'
+    +'</div>';
+}
+
+function adicionarPeriodo(){
+  if(solPeriodos>=3)return;
+  solPeriodos++;
+  var c=document.getElementById('sol-periodos');
+  var div=document.createElement('div');
+  div.innerHTML=criarPeriodoHTML(solPeriodos);
+  c.appendChild(div.firstChild);
+  // Add change listeners
+  ['inicio','fim'].forEach(function(t){
+    var el=document.getElementById('p'+solPeriodos+'-'+t);
+    if(el)el.addEventListener('change',function(){calcDias(solPeriodos);});
+  });
+  atualizarBotaoAddPeriodo();
+}
+
+function removerPeriodo(n){
+  var el=document.getElementById('periodo-'+n);
+  if(el)el.remove();
+  solPeriodos=Math.max(1,solPeriodos-1);
+  atualizarBotaoAddPeriodo();
+}
+
+function atualizarBotaoAddPeriodo(){
+  var btn=document.getElementById('sol-add-periodo');
+  if(btn)btn.style.display=solPeriodos>=3?'none':'block';
+}
+
+function calcDias(n){
+  var ini=document.getElementById('p'+n+'-inicio');
+  var fim=document.getElementById('p'+n+'-fim');
+  var info=document.getElementById('p'+n+'-dias');
+  if(!ini||!fim||!info)return;
+  if(ini.value&&fim.value){
+    var d=Math.round((new Date(fim.value)-new Date(ini.value))/(1000*60*60*24))+1;
+    var min=n===1?14:5;
+    info.textContent=d+' dia'+(d!==1?'s':'')+(d<min?' ⚠ mín. '+min+' dias':'');
+    info.style.color=d<min?'#dc2626':'#16a34a';
+  }
+}
+
+// Add listeners to primeiro período
+['inicio','fim'].forEach(function(t){
+  setTimeout(function(){
+    var el=document.getElementById('p1-'+t);
+    if(el)el.addEventListener('change',function(){calcDias(1);});
+  },100);
+});
+
 function toggleSolicitar(){
   solAberto=!solAberto;
-  document.getElementById('sol-box').style.display=solAberto?'block':'none';
+  var box=document.getElementById('sol-box');
+  box.style.display=solAberto?'flex':'none';
   document.getElementById('sol-btn').style.transform=solAberto?'scale(0.9)':'scale(1)';
 }
+
 function solTab(tab){
   var isNova=tab==='nova';
   document.getElementById('sol-form-area').style.display=isNova?'block':'none';
+  document.getElementById('sol-hist-area').style.display=isNova?'block':'none';
+  document.getElementById('sol-form-area').style.display=isNova?'block':'none';
   document.getElementById('sol-hist-area').style.display=isNova?'none':'block';
-  document.getElementById('sol-tab-nova').style.background=isNova?'#16a34a':'none';
-  document.getElementById('sol-tab-nova').style.color=isNova?'#fff':'';
-  document.getElementById('sol-tab-nova').style.border=isNova?'none':'1px solid var(--border)';
-  document.getElementById('sol-tab-hist').style.background=isNova?'none':'#16a34a';
-  document.getElementById('sol-tab-hist').style.color=isNova?'':'#fff';
-  document.getElementById('sol-tab-hist').style.border=isNova?'1px solid var(--border)':'none';
+  document.getElementById('sol-tab-nova').style.cssText='flex:1;border:none;border-radius:6px;padding:6px;font-size:11px;font-weight:600;background:'+(isNova?'#16a34a':'none')+';color:'+(isNova?'#fff':'var(--text2)')+';cursor:pointer';
+  document.getElementById('sol-tab-hist').style.cssText='flex:1;border:'+(isNova?'1px solid var(--border)':'none')+';border-radius:6px;padding:6px;font-size:11px;font-weight:600;background:'+(isNova?'none':'#16a34a')+';color:'+(isNova?'var(--text2)':'#fff')+';cursor:pointer';
 }
+
+function solTipoChange(){
+  var tipo=document.getElementById('sol-tipo').value;
+  var isFerias=tipo==='Férias';
+  var isTroca=tipo==='Troca de horário';
+  document.getElementById('sol-ferias-area').style.display=isFerias?'block':'none';
+  document.getElementById('sol-datas-area').style.display=(!isFerias&&!isTroca)?'block':'none';
+  document.getElementById('sol-troca-area').style.display=isTroca?'block':'none';
+}
+
+function validarFerias(){
+  var periodos=[];
+  for(var i=1;i<=solPeriodos;i++){
+    var ini=document.getElementById('p'+i+'-inicio');
+    var fim=document.getElementById('p'+i+'-fim');
+    if(!ini||!fim||!document.getElementById('periodo-'+i))continue;
+    if(!ini.value||!fim.value)return 'Preencha todas as datas dos períodos';
+    var dias=Math.round((new Date(fim.value)-new Date(ini.value))/(1000*60*60*24))+1;
+    if(dias<1)return 'Data fim deve ser após data início';
+    periodos.push({inicio:ini.value,fim:fim.value,dias:dias});
+  }
+  if(periodos.length===0)return 'Informe pelo menos um período';
+  var total=periodos.reduce(function(s,p){return s+p.dias;},0);
+  var temMinimo14=periodos.some(function(p){return p.dias>=14;});
+  var todosMin5=periodos.every(function(p){return p.dias>=5;});
+  if(!temMinimo14)return 'Pelo menos um período deve ter mínimo 14 dias (CLT art. 134)';
+  if(!todosMin5)return 'Nenhum período pode ter menos de 5 dias (CLT art. 134)';
+  if(total>30)return 'Total de dias não pode exceder 30 dias';
+  return null;
+}
+
+function fmtDt(s){if(!s)return '';var p=s.split('-');return p[2]+'/'+p[1];}
+
 async function enviarSolicits(){
   var tipo=document.getElementById('sol-tipo').value;
-  var inicio=document.getElementById('sol-inicio').value;
-  var fim=document.getElementById('sol-fim').value;
   var obs=document.getElementById('sol-obs').value;
-  if(!inicio){alert('Informe a data de início');return;}
-  // Convert YYYY-MM-DD to DD/MM
-  function fmtDt(s){if(!s)return '';var p=s.split('-');return p[2]+'/'+p[1];}
   var msg=document.getElementById('sol-msg');
+  msg.style.display='none';
+
+  var body={tipo,motivo:obs};
+
+  if(tipo==='Férias'){
+    var err=validarFerias();
+    if(err){
+      msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='⚠ '+err;return;
+    }
+    var periodos=[];
+    for(var i=1;i<=solPeriodos;i++){
+      var ini=document.getElementById('p'+i+'-inicio');
+      var fim=document.getElementById('p'+i+'-fim');
+      if(!ini||!fim||!document.getElementById('periodo-'+i))continue;
+      if(ini.value&&fim.value)periodos.push({inicio:fmtDt(ini.value),fim:fmtDt(fim.value)});
+    }
+    body.periodos=periodos;
+    body.dataInicio=periodos[0].inicio;
+    body.dataFim=periodos[periodos.length-1].fim;
+    body.motivo=(obs?obs+' | ':'')+'Períodos: '+periodos.map(function(p,i){return (i+1)+'º: '+p.inicio+' a '+p.fim;}).join(', ');
+  } else if(tipo==='Troca de horário'){
+    var colega=document.getElementById('sol-colega').value;
+    var meuDia=document.getElementById('sol-troca-meu-dia').value;
+    var colegaDia=document.getElementById('sol-troca-colega-dia').value;
+    if(!colega||!meuDia||!colegaDia){
+      msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='⚠ Preencha colega e datas';return;
+    }
+    body.dataInicio=fmtDt(meuDia);
+    body.dataFim=fmtDt(meuDia);
+    body.motivo='Troca com '+colega+': meu dia '+fmtDt(meuDia)+' pelo dia '+fmtDt(colegaDia)+(obs?' | '+obs:'');
+  } else {
+    var inicio=document.getElementById('sol-inicio').value;
+    var fim=document.getElementById('sol-fim').value;
+    if(!inicio){msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='⚠ Informe a data de início';return;}
+    body.dataInicio=fmtDt(inicio);
+    body.dataFim=fmtDt(fim||inicio);
+  }
+
   try{
-    var r=await fetch('/api/app?action=solicitar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({tipo,motivo:obs,dataInicio:fmtDt(inicio),dataFim:fmtDt(fim||inicio)})});
+    var r=await fetch('/api/app?action=solicitar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     var d=await r.json();
     if(d.ok){
-      msg.style.display='block';msg.style.color='#16a34a';msg.textContent='✓ Solicitação enviada! ID: '+d.id;
-      document.getElementById('sol-inicio').value='';
-      document.getElementById('sol-fim').value='';
-      document.getElementById('sol-obs').value='';
-      setTimeout(function(){location.reload();},1500);
-    }else{msg.style.display='block';msg.style.color='#dc2626';msg.textContent='Erro: '+d.error;}
-  }catch(e){msg.style.display='block';msg.style.color='#dc2626';msg.textContent='Erro: '+e.message;}
+      msg.style.display='block';msg.style.background='#0d2010';msg.style.color='#68d391';
+      msg.textContent='✓ Enviado! ID: '+d.id;
+      setTimeout(function(){location.reload();},1800);
+    }else{
+      msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';
+      msg.textContent='Erro: '+d.error;
+    }
+  }catch(e){
+    msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';
+    msg.textContent='Erro de conexão: '+e.message;
+  }
 }
+
 async function cancelarSolicit(id){
   if(!confirm('Cancelar esta solicitação?'))return;
   var r=await fetch('/api/app?action=cancelar-solicitacao',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
@@ -732,7 +929,7 @@ async function cancelarSolicit(id){
   if(d.ok)location.reload();
   else alert('Erro: '+d.error);
 }
-</script>`;
+</script>`
 
     return res.status(200).send(baseHTML('Equipe', conteudoEquipe + SOLICITAR_BTN + CHAT_IA));
   }
