@@ -877,41 +877,42 @@ function renderEventos(eventos, containerId, agora, isHoje) {
   if (!c) return;
   if (!eventos.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>'; return; }
 
-  // Separar encerrados dos ativos/futuros
+  // Separar encerrados dos demais (todos os outros aparecem normais)
   var encerrados = [];
-  var ativos = [];
+  var restantes = [];
   eventos.forEach(function(ev) {
     var s = isHoje ? statusEvento(ev.hora, agora) : 'futuro';
-    if (s === 'encerrado') encerrados.push({ev:ev, s:s});
-    else ativos.push({ev:ev, s:s});
+    if (s === 'encerrado') encerrados.push(ev);
+    else restantes.push({ev:ev, s:s});
   });
 
-  var primeiroAtivo = null;
   var html = '';
+  var primeiroAtivo = null;
 
-  // Encerrados primeiro — muito apagados, compactos
-  encerrados.forEach(function(item) {
-    html += '<div style="border:1px solid transparent;border-radius:6px;margin-bottom:3px;opacity:.18;transition:opacity .3s" onmouseenter="this.style.opacity='.5'" onmouseleave="this.style.opacity='.18'">';
-    html += '<div style="padding:4px 10px;display:flex;align-items:center;gap:8px">';
-    html += '<div style="font-size:11px;font-weight:600;min-width:40px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">'+(item.ev.hora||'--')+'</div>';
-    html += '<div style="font-size:11px;color:var(--text3)">'+item.ev.nome+'</div>';
+  // Encerrados no topo — muito apagados e compactos, quase invisíveis
+  encerrados.forEach(function(ev) {
+    html += '<div style="border-radius:5px;margin-bottom:2px;opacity:.15;transition:opacity .25s" onmouseenter="this.style.opacity='.45'" onmouseleave="this.style.opacity='.15'">';
+    html += '<div style="padding:3px 10px;display:flex;align-items:center;gap:8px">';
+    html += '<div style="font-size:10px;font-weight:500;min-width:38px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">'+(ev.hora||'--')+'</div>';
+    html += '<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">'+ev.nome+'</div>';
     html += '</div></div>';
   });
 
-  // Separador se houver encerrados e ativos
-  if (encerrados.length && ativos.length) {
-    html += '<div style="border-top:1px solid var(--border);margin:6px 0;opacity:.4"></div>';
+  // Linha divisória fina se tiver encerrados e restantes
+  if (encerrados.length && restantes.length) {
+    html += '<div style="border-top:1px solid var(--border2);margin:4px 0 8px"></div>';
   }
 
-  // Ativos — em destaque
-  ativos.forEach(function(item) {
+  // Todos os demais — normais, com status colorido
+  restantes.forEach(function(item) {
     var s = item.s;
     var bc = borderClass(s);
     var lbl = statusLabel(s);
     var isAoVivo = s === 'aovivo';
-    var id = isAoVivo && !primeiroAtivo ? 'id="ev-ativo-colab"' : '';
+    var bgExtra = isAoVivo ? ';background:rgba(34,197,94,.05)' : s==='proximo30' ? ';background:rgba(245,158,11,.04)' : s==='proximo60' ? ';background:rgba(249,115,22,.03)' : '';
+    var idAttr = (isAoVivo && !primeiroAtivo) ? ' id="ev-ativo-colab"' : '';
     if (isAoVivo && !primeiroAtivo) primeiroAtivo = true;
-    html += '<div '+id+' class="'+bc+'" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s'+(isAoVivo?';background:rgba(34,197,94,.05)':'')+(s==='proximo30'?';background:rgba(245,158,11,.04)':'')+(s==='proximo60'?';background:rgba(249,115,22,.03)':'')+'">';
+    html += '<div'+idAttr+' class="'+bc+'" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s'+bgExtra+'">';
     html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
     html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">'+(item.ev.hora||'--')+'</div>';
     html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">'+item.ev.nome+'</div>';
@@ -922,13 +923,12 @@ function renderEventos(eventos, containerId, agora, isHoje) {
 
   c.innerHTML = html;
 
-  // Scroll automático para o evento ativo
+  // Scroll automático para o primeiro evento ativo
   if (isHoje) {
     var el = c.querySelector('#ev-ativo-colab');
     if (el) {
       setTimeout(function() {
-        var pos = el.offsetTop;
-        c.scrollTop = Math.max(0, pos - 60);
+        c.scrollTop = Math.max(0, el.offsetTop - 60);
       }, 80);
     }
   }
