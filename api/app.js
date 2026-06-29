@@ -691,12 +691,22 @@ export default async function handler(req, res) {
         </div>
       </div>
 
-      <!-- Atestado: link do documento -->
+      <!-- Atestado: upload de arquivo -->
       <div id="sol-atestado-area" style="display:none">
         <div style="margin-bottom:10px">
-          <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Link do atestado (Google Drive, etc.)</label>
-          <input type="url" id="sol-atestado-link" placeholder="https://drive.google.com/..." style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;background:var(--bg2);color:var(--text);outline:none">
-          <div style="font-size:10px;color:var(--text3);margin-top:3px">Faça upload no Google Drive e cole o link aqui</div>
+          <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Arquivo do atestado</label>
+          <div id="sol-upload-area" style="border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:border-color .2s" onclick="document.getElementById('sol-arquivo').click()">
+            <div style="font-size:24px;margin-bottom:4px">📎</div>
+            <div style="font-size:12px;color:var(--text3)">Clique para selecionar PDF, JPG ou PNG</div>
+            <div id="sol-arquivo-nome" style="font-size:11px;color:#16a34a;margin-top:4px;display:none"></div>
+          </div>
+          <input type="file" id="sol-arquivo" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="solArquivoSelecionado(this)">
+          <div id="sol-upload-progress" style="display:none;margin-top:6px">
+            <div style="background:var(--border);border-radius:4px;height:4px;overflow:hidden">
+              <div id="sol-upload-bar" style="background:#16a34a;height:100%;width:0%;transition:width .3s"></div>
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px" id="sol-upload-status">Enviando...</div>
+          </div>
         </div>
       </div>
 
@@ -873,6 +883,30 @@ function validarFerias(){
 
 function fmtDt(s){if(!s)return '';var p=s.split('-');return p[2]+'/'+p[1];}
 
+function solArquivoSelecionado(input){
+  var f=input.files[0];
+  if(!f)return;
+  var nome=document.getElementById('sol-arquivo-nome');
+  nome.textContent=f.name;nome.style.display='block';
+  document.getElementById('sol-upload-area').style.borderColor='#16a34a';
+}
+
+async function uploadAtestado(file){
+  var prog=document.getElementById('sol-upload-progress');
+  var bar=document.getElementById('sol-upload-bar');
+  var status=document.getElementById('sol-upload-status');
+  prog.style.display='block';bar.style.width='30%';status.textContent='Enviando arquivo...';
+  var fd=new FormData();fd.append('file',file);
+  try{
+    bar.style.width='60%';
+    var r=await fetch('/api/upload-atestado',{method:'POST',credentials:'include',body:fd});
+    bar.style.width='100%';
+    var d=await r.json();
+    if(d.ok){status.textContent='✓ Arquivo enviado!';return d.url;}
+    else{status.textContent='Erro: '+d.error;status.style.color='#dc2626';return null;}
+  }catch(e){status.textContent='Erro de conexão';status.style.color='#dc2626';return null;}
+}
+
 async function enviarSolicits(){
   var tipo=document.getElementById('sol-tipo').value;
   var obs=document.getElementById('sol-obs').value;
@@ -914,8 +948,12 @@ async function enviarSolicits(){
     body.dataInicio=fmtDt(inicio);
     body.dataFim=fmtDt(fim||inicio);
     if(tipo==='Atestado médico'){
-      var link=document.getElementById('sol-atestado-link').value;
-      if(link)body.motivo=(obs?obs+' | ':'')+'Anexo: '+link;
+      var arquivo=document.getElementById('sol-arquivo').files[0];
+      if(arquivo){
+        var url=await uploadAtestado(arquivo);
+        if(!url){return;}
+        body.motivo=(obs?obs+' | ':'')+'Anexo: '+url;
+      }
     }
   }
 
