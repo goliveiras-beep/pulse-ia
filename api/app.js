@@ -889,12 +889,14 @@ function renderEventos(eventos, containerId, agora, isHoje) {
   var html = '';
   var primeiroAtivo = null;
 
-  // Encerrados no topo — muito apagados e compactos, quase invisíveis
+  // Encerrados no topo — visíveis mas discretos, com linha no horário
   encerrados.forEach(function(ev) {
-    html += '<div style="border-radius:5px;margin-bottom:2px;opacity:.15;transition:opacity .25s" onmouseenter="this.style.opacity=.45" onmouseleave="this.style.opacity=.15">';
-    html += '<div style="padding:3px 10px;display:flex;align-items:center;gap:8px">';
-    html += '<div style="font-size:10px;font-weight:500;min-width:38px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">'+(ev.hora||'--')+'</div>';
-    html += '<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">'+ev.nome+'</div>';
+    html += '<div style="border:1px solid var(--border2);border-radius:6px;margin-bottom:4px;opacity:.45;transition:opacity .25s" onmouseenter="this.style.opacity=.85" onmouseleave="this.style.opacity=.45">';
+    html += '<div style="padding:5px 10px;display:flex;align-items:center;gap:10px">';
+    html += '<div style="font-size:12px;font-weight:700;min-width:44px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">'+(ev.hora||'--')+'</div>';
+    html += '<div style="flex:1"><div style="font-size:11px;font-weight:600;color:var(--text3)">'+ev.nome+'</div>';
+    html += '<div style="font-size:9px;color:var(--text4);margin-top:1px">'+ev.tipo+(ev.local?' · '+ev.local:'')+'</div></div>';
+    html += '<div style="font-size:9px;color:var(--text4)">Encerrado</div>';
     html += '</div></div>';
   });
 
