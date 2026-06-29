@@ -747,7 +747,6 @@ export default async function handler(req, res) {
 .ev-ao-vivo{border-color:#22c55e!important;animation:border-pulse-green 2s ease-in-out infinite}
 .ev-proximo-30{border-color:#f59e0b!important}
 .ev-proximo-60{border-color:#f97316!important}
-.ev-encerrado{opacity:.35!important}
 @keyframes border-pulse-green{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 4px rgba(34,197,94,0)}}
 .tab-nav-colab{display:flex;gap:6px;margin-bottom:14px}
 .tab-btn-colab{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px;font-size:12px;font-weight:600;background:none;color:var(--text3);cursor:pointer;transition:all .15s}
@@ -945,13 +944,13 @@ function renderEventos(eventos, containerId, agora, isHoje) {
     html += '</div></div>';
   });
 
+  c.innerHTML = html;
+
   // Altura dinâmica: começa em 480px e vai compactando conforme % encerrados
   var total = eventos.length;
   var pct = total > 0 ? encerrados.length / total : 0;
-  var maxH = Math.round(480 - pct * 200); // vai de 480 até 280px
+  var maxH = Math.round(480 - pct * 200);
   c.style.maxHeight = maxH + 'px';
-
-  c.innerHTML = html;
 
   // Scroll automático para o evento ativo
   if (isHoje) {
