@@ -877,7 +877,6 @@ function renderEventos(eventos, containerId, agora, isHoje) {
   if (!c) return;
   if (!eventos.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>'; return; }
 
-  // Separar encerrados dos demais (todos os outros aparecem normais)
   var encerrados = [];
   var restantes = [];
   eventos.forEach(function(ev) {
@@ -887,55 +886,81 @@ function renderEventos(eventos, containerId, agora, isHoje) {
   });
 
   var html = '';
-  var primeiroAtivo = null;
 
-  // Encerrados no topo — visíveis mas discretos, com linha no horário
-  encerrados.forEach(function(ev) {
-    html += '<div style="border:1px solid var(--border2);border-radius:6px;margin-bottom:4px;opacity:.45;transition:opacity .25s" onmouseenter="this.style.opacity=.85" onmouseleave="this.style.opacity=.45">';
+  // Encerrados: só últimos 3 visíveis, scroll interno para os anteriores
+  var enc3 = encerrados.slice(-3); // últimos 3
+  var encExtras = encerrados.length - enc3.length;
+  if (encExtras > 0) {
+    html += '<div style="font-size:10px;color:var(--text4);text-align:center;padding:2px 0 4px;cursor:pointer" onclick="var p=this.nextSibling;p.style.display=p.style.display===\'none\'?\'block\':\'none\'">▲ '+encExtras+' anteriores</div>';
+    html += '<div style="display:none">';
+    encerrados.slice(0, encExtras).forEach(function(ev) {
+      html += '<div style="border:1px solid var(--border2);border-radius:5px;margin-bottom:3px;opacity:.4">';
+      html += '<div style="padding:4px 10px;display:flex;align-items:center;gap:8px">';
+      html += '<div style="font-size:11px;font-weight:600;min-width:40px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">'+(ev.hora||'--')+'</div>';
+      html += '<div style="font-size:10px;color:var(--text3);flex:1">'+ev.nome+'</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+  }
+  enc3.forEach(function(ev) {
+    html += '<div style="border:1px solid var(--border2);border-radius:6px;margin-bottom:3px;opacity:.5;transition:opacity .2s" onmouseenter="this.style.opacity=.85" onmouseleave="this.style.opacity=.5">';
     html += '<div style="padding:5px 10px;display:flex;align-items:center;gap:10px">';
     html += '<div style="font-size:12px;font-weight:700;min-width:44px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">'+(ev.hora||'--')+'</div>';
     html += '<div style="flex:1"><div style="font-size:11px;font-weight:600;color:var(--text3)">'+ev.nome+'</div>';
-    html += '<div style="font-size:9px;color:var(--text4);margin-top:1px">'+ev.tipo+(ev.local?' · '+ev.local:'')+'</div></div>';
-    html += '<div style="font-size:9px;color:var(--text4)">Encerrado</div>';
+    html += '<div style="font-size:9px;color:var(--text4)">'+ev.tipo+(ev.local?' · '+ev.local:'')+'</div></div>';
+    html += '<div style="font-size:9px;color:var(--text4);white-space:nowrap">Encerrado</div>';
     html += '</div></div>';
   });
 
-  // Linha divisória fina se tiver encerrados e restantes
   if (encerrados.length && restantes.length) {
     html += '<div style="border-top:1px solid var(--border2);margin:4px 0 8px"></div>';
   }
 
-  // Todos os demais — normais, com status colorido
+  // Agrupar restantes por horário para detectar simultâneos
+  var grupos = {};
+  restantes.forEach(function(item) {
+    var h = item.ev.hora || '--';
+    if (!grupos[h]) grupos[h] = [];
+    grupos[h].push(item);
+  });
+
+  var primeiroAtivo = false;
   restantes.forEach(function(item) {
     var s = item.s;
     var bc = borderClass(s);
     var lbl = statusLabel(s);
     var isAoVivo = s === 'aovivo';
-    var bgExtra = isAoVivo ? ';background:rgba(34,197,94,.05)' : s==='proximo30' ? ';background:rgba(245,158,11,.04)' : s==='proximo60' ? ';background:rgba(249,115,22,.03)' : '';
+    var nSimult = grupos[item.ev.hora||'--'].length;
+    var bgExtra = isAoVivo ? ';background:rgba(34,197,94,.07)' : s==='proximo30' ? ';background:rgba(245,158,11,.04)' : s==='proximo60' ? ';background:rgba(249,115,22,.03)' : '';
+    // Simultâneos ao vivo: label extra
+    var simultLabel = (isAoVivo && nSimult > 1) ? '<span style="font-size:9px;background:#166534;color:#86efac;border-radius:3px;padding:1px 5px;margin-left:4px">+'+( nSimult-1)+' simultâneo'+(nSimult>2?'s':'')+'</span>' : '';
     var idAttr = (isAoVivo && !primeiroAtivo) ? ' id="ev-ativo-colab"' : '';
     if (isAoVivo && !primeiroAtivo) primeiroAtivo = true;
     html += '<div'+idAttr+' class="'+bc+'" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s'+bgExtra+'">';
     html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
     html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">'+(item.ev.hora||'--')+'</div>';
-    html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">'+item.ev.nome+'</div>';
+    html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">'+item.ev.nome+simultLabel+'</div>';
     html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+item.ev.tipo+(item.ev.local?' · <span style="font-weight:600">'+item.ev.local+'</span>':'')+'</div></div>';
     if (lbl) html += '<div>'+lbl+'</div>';
     html += '</div></div>';
   });
 
+  // Altura dinâmica: começa em 480px e vai compactando conforme % encerrados
+  var total = eventos.length;
+  var pct = total > 0 ? encerrados.length / total : 0;
+  var maxH = Math.round(480 - pct * 200); // vai de 480 até 280px
+  c.style.maxHeight = maxH + 'px';
+
   c.innerHTML = html;
 
-  // Scroll automático para o primeiro evento ativo
+  // Scroll automático para o evento ativo
   if (isHoje) {
-    var el = c.querySelector('#ev-ativo-colab');
-    if (el) {
-      setTimeout(function() {
-        c.scrollTop = Math.max(0, el.offsetTop - 60);
-      }, 80);
-    }
+    setTimeout(function() {
+      var el = c.querySelector('#ev-ativo-colab');
+      if (el) c.scrollTop = Math.max(0, el.offsetTop - 40);
+    }, 80);
   }
 }
-
 function atualizarEventos() {
   var now = new Date();
   var brtParts = new Intl.DateTimeFormat('pt-BR', {timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(now);
