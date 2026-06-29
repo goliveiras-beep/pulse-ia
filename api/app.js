@@ -358,6 +358,17 @@ h1{font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:6px}
 </html>`;
 }
 
+
+// Verifica se uma data DD/MM está dentro do intervalo de ausência
+function dentroAusencia(aus, df) {
+  const ini = aus[4] || "";
+  const fim = aus[5] || ini;
+  if (!ini) return false;
+  const toNum = s => { const p = s.split("/"); return parseInt(p[1]) * 100 + parseInt(p[0]); };
+  const n = toNum(df), i = toNum(ini), f = toNum(fim);
+  if (f >= i) return n >= i && n <= f;
+  return n >= i || n <= f;
+}
 function cruzarEventos(eventos, escHoje, dataStr) {
   return eventos.map(ev => {
     const disp = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && estaDeServico(r[3], r[4], ev.hora));
@@ -484,8 +495,8 @@ export default async function handler(req, res) {
     const nucleo = usuario?.[2] || 'Operacoes';
     const turnoHoje = escala.find(r => r[0] === hojeStr && r[2] === nome);
     const turnoD1 = escala.find(r => r[0] === d1Str && r[2] === nome);
-    const ausHoje = ausencias.find(a => a[1] === nome && (a[4] === hojeStr || a[5] === hojeStr) && a[0] !== 'CANCELADO');
-    const ausD1 = ausencias.find(a => a[1] === nome && (a[4] === d1Str || a[5] === d1Str) && a[0] !== 'CANCELADO');
+    const ausHoje = ausencias.find(a => a[1] === nome && dentroAusencia(a, hojeStr) && a[0] !== 'CANCELADO');
+    const ausD1 = ausencias.find(a => a[1] === nome && dentroAusencia(a, d1Str) && a[0] !== 'CANCELADO');
     const minhasSolicits = ausencias.filter(a => a[1] === nome && a[0] !== 'CANCELADO').sort((a,b) => (b[4]||'').localeCompare(a[4]||'')).slice(0,10);
 
     const [eventosHoje, eventosAmanha, fraseDoDia] = await Promise.all([
@@ -513,7 +524,7 @@ export default async function handler(req, res) {
       return dias.map(d => {
         const df = fmtData(d);
         const t = escala.find(r => r[0] === df && r[2] === nome);
-        const aus = ausencias.find(a => a[1] === nome && (a[4] === df || a[5] === df));
+        const aus = ausencias.find(a => a[1] === nome && dentroAusencia(a, df));
         const isHoje = df === hojeStr;
         const isD1 = df === d1Str;
         let bg = 'var(--card)', bc = 'var(--border)', tc = 'var(--text3)', label = '--';
@@ -832,7 +843,7 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
     dias.forEach(d => {
       const df = fmtData(d), isD1 = df === d1Str, isHoje = df === hojeStr;
       const reg = escSem.find(r => r[0] === df && r[2] === n);
-      const ausente = ausSem.find(a => a[1] === n && (a[4] === df || a[5] === df));
+      const ausente = ausSem.find(a => a[1] === n && dentroAusencia(a, df));
       const bg = isD1 ? '#eff6ff' : isHoje ? '#fafafa' : '';
       tabelaHTML += `<td style="padding:5px 8px;border-bottom:1px solid #f5f5f5;text-align:center;background:${bg};cursor:pointer" onclick="abrirAjuste('${df}','${n}','${reg ? reg[3] : ''}','${reg ? reg[4] : ''}','${reg ? reg[5] : ''}')">`;
       if (ausente) {
