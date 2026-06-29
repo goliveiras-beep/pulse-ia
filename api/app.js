@@ -891,7 +891,7 @@ function renderEventos(eventos, containerId, agora, isHoje) {
 
   // Encerrados no topo — muito apagados e compactos, quase invisíveis
   encerrados.forEach(function(ev) {
-    html += '<div style="border-radius:5px;margin-bottom:2px;opacity:.15;transition:opacity .25s" onmouseenter="this.style.opacity='.45'" onmouseleave="this.style.opacity='.15'">';
+    html += '<div style="border-radius:5px;margin-bottom:2px;opacity:.15;transition:opacity .25s" onmouseenter="this.style.opacity=.45" onmouseleave="this.style.opacity=.15">';
     html += '<div style="padding:3px 10px;display:flex;align-items:center;gap:8px">';
     html += '<div style="font-size:10px;font-weight:500;min-width:38px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">'+(ev.hora||'--')+'</div>';
     html += '<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">'+ev.nome+'</div>';
