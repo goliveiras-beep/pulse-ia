@@ -318,7 +318,7 @@ ${script}
 function loginPage(erro = '') {
   const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
   const BASE_URL = process.env.PULSE_BASE_URL || 'https://pulse-ia-six.vercel.app';
-  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=email%20profile&prompt=select_account`;
+  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=email%20profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.file&prompt=select_account&access_type=offline`;
 
   const erroMsg = erro === 'usuario_nao_encontrado' ? 'Sua conta Google não está na equipe. Fale com o gestor.'
     : erro === 'acesso_negado' ? 'Acesso negado pelo Google.'
@@ -896,7 +896,12 @@ async function uploadAtestado(file){
   var bar=document.getElementById('sol-upload-bar');
   var status=document.getElementById('sol-upload-status');
   prog.style.display='block';bar.style.width='30%';status.textContent='Enviando arquivo...';
-  var fd=new FormData();fd.append('file',file);
+  // Get drive token from cookie
+  var driveToken='';
+  document.cookie.split(';').forEach(function(c){var p=c.trim().split('=');if(p[0]==='pulse_drive_token')driveToken=p[1]||'';});
+  var fd=new FormData();
+  fd.append('file',file);
+  fd.append('driveToken',driveToken);
   try{
     bar.style.width='60%';
     var r=await fetch('/api/upload-atestado',{method:'POST',credentials:'include',body:fd});
@@ -904,7 +909,7 @@ async function uploadAtestado(file){
     var d=await r.json();
     if(d.ok){status.textContent='✓ Arquivo enviado!';return d.url;}
     else{status.textContent='Erro: '+d.error;status.style.color='#dc2626';return null;}
-  }catch(e){status.textContent='Erro de conexão';status.style.color='#dc2626';return null;}
+  }catch(e){status.textContent='Erro de conexão: '+e.message;status.style.color='#dc2626';return null;}
 }
 
 async function enviarSolicits(){
