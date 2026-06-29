@@ -98,7 +98,10 @@ export default async function handler(req, res) {
     // Upload to Drive
     const safeName = `Atestado_${session.nome.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}_${fileName}`;
     
-    const metadata = JSON.stringify({ name: safeName, parents: [folderId] });
+    // Ensure we use the shared folder ID
+    const targetFolder = process.env.DRIVE_ATESTADOS_FOLDER_ID;
+    if (!targetFolder) throw new Error('DRIVE_ATESTADOS_FOLDER_ID não configurado');
+    const metadata = JSON.stringify({ name: safeName, parents: [targetFolder] });
     const boundary2 = '-------314159265358979323846';
     const uploadBody = [
       `--${boundary2}`,
@@ -113,7 +116,7 @@ export default async function handler(req, res) {
       `--${boundary2}--`,
     ].join('\r\n');
 
-    const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+    const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink&supportsAllDrives=true', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -126,7 +129,7 @@ export default async function handler(req, res) {
     if (!uploadData.id) throw new Error(JSON.stringify(uploadData));
 
     // Make file readable by anyone with link
-    await fetch(`https://www.googleapis.com/drive/v3/files/${uploadData.id}/permissions`, {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${uploadData.id}/permissions?supportsAllDrives=true`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'reader', type: 'anyone' }),
