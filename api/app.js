@@ -598,7 +598,7 @@ export default async function handler(req, res) {
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
       <div style="display:flex;align-items:center;gap:5px">
-        <span style="font-size:9px;font-weight:600;color:#718096;letter-spacing:.04em">BRT</span>
+        <span style="font-size:9px;font-weight:600;color:#718096;letter-spacing:.04em">Brasil</span>
         <span id="relogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
       </div>
       <div style="display:flex;align-items:center;gap:5px">
@@ -619,13 +619,26 @@ export default async function handler(req, res) {
 @keyframes border-pulse-green{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 4px rgba(34,197,94,0)}}
 </style>
 <div class="wrap">
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;align-items:center;gap:14px">
-    <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);color:#fff;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(99,102,241,.4)">${iniciais(nome)}</div>
-    <div style="flex:1">
-      <div style="font-size:16px;font-weight:700">${nome}</div>
-      <div style="font-size:12px;color:var(--text3)">${cargo}${nucleo ? ' · ' + nucleo : ''}</div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);color:#fff;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(99,102,241,.4)">${iniciais(nome)}</div>
+      <div>
+        <div style="font-size:16px;font-weight:700">${nome}</div>
+        <div style="font-size:12px;color:var(--text3)">${cargo}${nucleo ? ' · ' + nucleo : ''}</div>
+      </div>
     </div>
-    <div style="font-size:12px;font-style:italic;color:#22c55e;text-align:right;max-width:220px;line-height:1.5">"${fraseDoDia}"</div>
+    <div style="border-left:1px solid var(--border);padding-left:14px;display:flex;align-items:center;gap:12px">
+      <svg style="animation:pulse-heart-colab ${pulseSpeed} ease-in-out infinite;flex-shrink:0" width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/>
+        <rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/>
+        <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
+        <polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <div style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Frase do dia</div>
+        <div style="font-size:13px;font-weight:600;font-style:italic;color:#22c55e;line-height:1.5;text-shadow:0 0 10px rgba(34,197,94,.25)">"${fraseDoDia}"</div>
+      </div>
+    </div>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
