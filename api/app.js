@@ -435,7 +435,7 @@ export default async function handler(req, res) {
       const { tipo, motivo, dataInicio, dataFim } = req.body || {};
       if (!tipo || !dataInicio) return res.status(400).json({ error: 'Dados inválidos' });
       const novoId = 'PLS-' + String(Date.now()).slice(-6);
-      await appendSheet('Ausencias!A2:F', [[novoId, nome, tipo, motivo || '', dataInicio, dataFim || dataInicio]]);
+      await appendSheet('Ausências!A:F', [[novoId, nome, tipo, motivo || '', dataInicio, dataFim || dataInicio]]);
       return res.status(200).json({ ok: true, id: novoId });
     } catch(err) {
       return res.status(500).json({ error: String(err.message || err) });
@@ -446,10 +446,10 @@ export default async function handler(req, res) {
   if (req.method === 'POST' && action === 'cancelar-solicitacao') {
     const { id } = req.body || {};
     if (!id) return res.status(400).json({ error: 'ID inválido' });
-    const ausRaw = await getSheet('Ausencias!A2:F500');
+    const ausRaw = await getSheet('Ausências!A2:F500');
     const idx = ausRaw.findIndex(r => r[0] === id && r[1] === nome);
     if (idx < 0) return res.status(404).json({ error: 'Solicitação não encontrada' });
-    await setSheet(`Ausencias!A${idx + 2}:F${idx + 2}`, [['CANCELADO', nome, ausRaw[idx][2], ausRaw[idx][3], ausRaw[idx][4], ausRaw[idx][5]]]);
+    await setSheet(`Ausências!A${idx + 2}:F${idx + 2}`, [['CANCELADO', nome, ausRaw[idx][2], ausRaw[idx][3], ausRaw[idx][4], ausRaw[idx][5]]]);
     return res.status(200).json({ ok: true });
   }
 
@@ -473,7 +473,7 @@ export default async function handler(req, res) {
   const [equipeRaw, escalaRaw, ausenciasRaw] = await Promise.all([
     getSheet('Equipe!A2:L200'),
     getSheet('Escala!A2:F2000'),
-    getSheet('Ausencias!A2:I500'),
+    getSheet('Ausências!A2:I500'),
   ]);
 
   const usuario = equipeRaw.find(r => r[0] === nome && (r[10]||'ativo') === 'ativo');
