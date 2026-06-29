@@ -100,9 +100,9 @@ function parseCookies(cookieHeader) {
   const cookies = {};
   if (!cookieHeader) return cookies;
   cookieHeader.split(';').forEach(c => {
-    const parts = c.trim().split('=');
-    const k = parts.shift();
-    cookies[k] = parts.join('=');
+    const cookieParts = c.trim().split('=');
+    const k = cookieParts.shift();
+    cookies[k] = cookieParts.join('=');
   });
   return cookies;
 }
@@ -111,16 +111,17 @@ function getSession(req) {
   const token = parseCookies(req.headers.cookie)[COOKIE_NAME];
   if (!token) return null;
   try {
-    const decoded = Buffer.from(token, 'base64').toString('utf8');
-    const parts = decoded.split('|');
-    const nome = parts[0];
-    const h = parts[1];
-    const ts = parts[2];
+    const d = Buffer.from(token, 'base64').toString('utf8');
+    const lastPipe = d.lastIndexOf('|');
+    const secondPipe = d.lastIndexOf('|', lastPipe - 1);
+    const data = d.slice(0, secondPipe);
+    const h = d.slice(secondPipe + 1, lastPipe);
+    const ts = d.slice(lastPipe + 1);
     if (Date.now() - parseInt(ts, 10) > COOKIE_MAX * 1000) return null;
     if (h !== hash(data + ts)) return null;
     if (data.startsWith('~~OAUTH~~')) return null;
-    const parts = data.split('~~');
-    const nome = parts[0];
+    const sessionParts = data.split('~~');
+    const nome = sessionParts[0];
     if (!nome) return null;
     return { nome };
   } catch {
@@ -317,7 +318,7 @@ ${script}
 function loginPage(erro = '') {
   const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
   const BASE_URL = process.env.PULSE_BASE_URL || 'https://pulse-ia-six.vercel.app';
-  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=email%20profile&access_type=offline&prompt=consent
+  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=email%20profile&access_type=offline&prompt=consent`;
 
   const erroMsg = erro === 'usuario_nao_encontrado' ? 'Sua conta Google não está na equipe. Fale com o gestor.'
     : erro === 'acesso_negado' ? 'Acesso negado pelo Google.'
@@ -393,8 +394,6 @@ export default async function handler(req, res) {
     clearSession(res);
     return res.redirect(302, '/api/app');
   }
-
-
 
   // Sem sessão → login
   const session = getSession(req);
@@ -477,7 +476,6 @@ export default async function handler(req, res) {
 
   const usuario = equipeRaw.find(r => r[0] === nome && (r[10]||'ativo') === 'ativo');
 
-  // Usuário não encontrado ou inativo — volta para login
   if (!usuario) {
     clearSession(res);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -489,7 +487,6 @@ export default async function handler(req, res) {
   const escala = escalaRaw.map(r => r);
   const ausencias = ausenciasRaw.map(r => r);
 
-  // Semana (7 dias)
   const dias = [hoje, d1, d2, d3, d4, d5, d6];
   const escSem = escala.filter(r => dias.some(d => fmtData(d) === r[0]));
   const ausSem = ausencias;
@@ -522,7 +519,6 @@ export default async function handler(req, res) {
       return `<div style="background:${bg};border:1px solid ${bc};border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:${isAmanha ? '#3b82f6' : 'var(--text3)'};font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:22px;font-weight:700;color:${tc}">${turno[3]} -- ${turno[4]}</div></div>`;
     }
 
-    // Semana do colaborador (próximos 7 dias)
     function renderSemanaColab() {
       return dias.map(d => {
         const df = fmtData(d);
@@ -542,7 +538,6 @@ export default async function handler(req, res) {
       }).join('');
     }
 
-    // Eventos com cobertura para equipe
     function renderEventosEquipe(eventos, escDia) {
       if (!eventos.length) return `<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>`;
       return eventos.map(ev => {
@@ -611,7 +606,7 @@ export default async function handler(req, res) {
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
-    // ── Botão Solicitar + Modal ──────────────────────────────────────────────
+
     const TIPO_CORES = {
       'Férias': ['#dbeafe','#1d4ed8'],
       'Folga programada': ['#dcfce7','#166534'],
@@ -638,7 +633,6 @@ export default async function handler(req, res) {
         </div>`).join('');
     }
 
-    // Build colegas list for troca de horario
     const colegasJson = JSON.stringify(nomes.filter(n => n !== nome));
 
     const SOLICITAR_BTN = `
@@ -665,8 +659,6 @@ export default async function handler(req, res) {
           <option value="Troca de horário">🔄 Troca de horário</option>
         </select>
       </div>
-
-      <!-- Ferias: campos com validação CLT -->
       <div id="sol-ferias-area">
         <div style="background:var(--blue-m-bg);border:1px solid var(--blue-m-border);border-radius:6px;padding:8px 10px;font-size:11px;color:var(--blue-m-v);margin-bottom:10px">
           📌 CLT: mín. 14 dias num período, mín. 5 dias nos demais. Máx. 3 períodos.
@@ -675,8 +667,6 @@ export default async function handler(req, res) {
         <button onclick="adicionarPeriodo()" id="sol-add-periodo" style="width:100%;border:1px dashed var(--border);border-radius:6px;padding:7px;font-size:12px;color:var(--text3);background:none;cursor:pointer;margin-bottom:10px">+ Adicionar período</button>
         <div id="sol-ferias-erro" style="display:none;color:#dc2626;font-size:11px;margin-bottom:8px"></div>
       </div>
-
-      <!-- Outros tipos: datas simples -->
       <div id="sol-datas-area">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
           <div>
@@ -689,8 +679,6 @@ export default async function handler(req, res) {
           </div>
         </div>
       </div>
-
-      <!-- Atestado: upload de arquivo -->
       <div id="sol-atestado-area" style="display:none">
         <div style="margin-bottom:10px">
           <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Arquivo do atestado</label>
@@ -708,8 +696,6 @@ export default async function handler(req, res) {
           </div>
         </div>
       </div>
-
-      <!-- Troca de horário -->
       <div id="sol-troca-area" style="display:none">
         <div style="margin-bottom:10px">
           <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Colega para trocar</label>
@@ -728,7 +714,6 @@ export default async function handler(req, res) {
           </div>
         </div>
       </div>
-
       <div style="margin-bottom:12px">
         <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Observação (opcional)</label>
         <textarea id="sol-obs" rows="2" placeholder="Ex: viagem em família, CID M54..." style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;background:var(--bg2);color:var(--text);outline:none;resize:none;font-family:inherit"></textarea>
@@ -746,246 +731,28 @@ export default async function handler(req, res) {
 var solAberto=false;
 var solColegas=${colegasJson};
 var solPeriodos=1;
-
-// Inicializa colegas no select
 (function(){
   var sel=document.getElementById('sol-colega');
-  solColegas.forEach(function(c){
-    var o=document.createElement('option');
-    o.value=c;o.textContent=c;sel.appendChild(o);
-  });
-  // Init primeiro período de férias
+  solColegas.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
   adicionarPeriodoInicial();
 })();
-
-function adicionarPeriodoInicial(){
-  var c=document.getElementById('sol-periodos');
-  c.innerHTML='';
-  solPeriodos=1;
-  c.innerHTML=criarPeriodoHTML(1);
-  atualizarBotaoAddPeriodo();
-}
-
-function criarPeriodoHTML(n){
-  var label=n===1?'1º período (mín. 14 dias)':n===2?'2º período (mín. 5 dias)':'3º período (mín. 5 dias)';
-  return '<div id="periodo-'+n+'" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px">'
-    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-    +'<span style="font-size:11px;font-weight:600;color:var(--text3)">'+label+'</span>'
-    +(n>1?'<button onclick="removerPeriodo('+n+')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">✕</button>':'')
-    +'</div>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
-    +'<div><label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Início</label>'
-    +'<input type="date" id="p'+n+'-inicio" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:12px;background:var(--bg);color:var(--text);outline:none"></div>'
-    +'<div><label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Fim</label>'
-    +'<input type="date" id="p'+n+'-fim" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:12px;background:var(--bg);color:var(--text);outline:none"></div>'
-    +'</div>'
-    +'<div id="p'+n+'-dias" style="font-size:10px;color:var(--text3);margin-top:5px;text-align:right"></div>'
-    +'</div>';
-}
-
-function adicionarPeriodo(){
-  if(solPeriodos>=3)return;
-  solPeriodos++;
-  var c=document.getElementById('sol-periodos');
-  var div=document.createElement('div');
-  div.innerHTML=criarPeriodoHTML(solPeriodos);
-  c.appendChild(div.firstChild);
-  // Add change listeners
-  ['inicio','fim'].forEach(function(t){
-    var el=document.getElementById('p'+solPeriodos+'-'+t);
-    if(el)el.addEventListener('change',function(){calcDias(solPeriodos);});
-  });
-  atualizarBotaoAddPeriodo();
-}
-
-function removerPeriodo(n){
-  var el=document.getElementById('periodo-'+n);
-  if(el)el.remove();
-  solPeriodos=Math.max(1,solPeriodos-1);
-  atualizarBotaoAddPeriodo();
-}
-
-function atualizarBotaoAddPeriodo(){
-  var btn=document.getElementById('sol-add-periodo');
-  if(btn)btn.style.display=solPeriodos>=3?'none':'block';
-}
-
-function calcDias(n){
-  var ini=document.getElementById('p'+n+'-inicio');
-  var fim=document.getElementById('p'+n+'-fim');
-  var info=document.getElementById('p'+n+'-dias');
-  if(!ini||!fim||!info)return;
-  if(ini.value&&fim.value){
-    var d=Math.round((new Date(fim.value)-new Date(ini.value))/(1000*60*60*24))+1;
-    var min=n===1?14:5;
-    info.textContent=d+' dia'+(d!==1?'s':'')+(d<min?' ⚠ mín. '+min+' dias':'');
-    info.style.color=d<min?'#dc2626':'#16a34a';
-  }
-}
-
-// Add listeners to primeiro período
-['inicio','fim'].forEach(function(t){
-  setTimeout(function(){
-    var el=document.getElementById('p1-'+t);
-    if(el)el.addEventListener('change',function(){calcDias(1);});
-  },100);
-});
-
-function toggleSolicitar(){
-  solAberto=!solAberto;
-  var box=document.getElementById('sol-box');
-  box.style.display=solAberto?'flex':'none';
-  document.getElementById('sol-btn').style.transform=solAberto?'scale(0.9)':'scale(1)';
-}
-
-function solTab(tab){
-  var isNova=tab==='nova';
-  document.getElementById('sol-form-area').style.display=isNova?'block':'none';
-  document.getElementById('sol-hist-area').style.display=isNova?'block':'none';
-  document.getElementById('sol-form-area').style.display=isNova?'block':'none';
-  document.getElementById('sol-hist-area').style.display=isNova?'none':'block';
-  document.getElementById('sol-tab-nova').style.cssText='flex:1;border:none;border-radius:6px;padding:6px;font-size:11px;font-weight:600;background:'+(isNova?'#16a34a':'none')+';color:'+(isNova?'#fff':'var(--text2)')+';cursor:pointer';
-  document.getElementById('sol-tab-hist').style.cssText='flex:1;border:'+(isNova?'1px solid var(--border)':'none')+';border-radius:6px;padding:6px;font-size:11px;font-weight:600;background:'+(isNova?'none':'#16a34a')+';color:'+(isNova?'var(--text2)':'#fff')+';cursor:pointer';
-}
-
-function solTipoChange(){
-  var tipo=document.getElementById('sol-tipo').value;
-  var isFerias=tipo==='Férias';
-  var isTroca=tipo==='Troca de horário';
-  var isAtestado=tipo==='Atestado médico';
-  document.getElementById('sol-ferias-area').style.display=isFerias?'block':'none';
-  document.getElementById('sol-datas-area').style.display=(!isFerias&&!isTroca)?'block':'none';
-  document.getElementById('sol-troca-area').style.display=isTroca?'block':'none';
-  document.getElementById('sol-atestado-area').style.display=isAtestado?'block':'none';
-}
-
-function validarFerias(){
-  var periodos=[];
-  for(var i=1;i<=solPeriodos;i++){
-    var ini=document.getElementById('p'+i+'-inicio');
-    var fim=document.getElementById('p'+i+'-fim');
-    if(!ini||!fim||!document.getElementById('periodo-'+i))continue;
-    if(!ini.value||!fim.value)return 'Preencha todas as datas dos períodos';
-    var dias=Math.round((new Date(fim.value)-new Date(ini.value))/(1000*60*60*24))+1;
-    if(dias<1)return 'Data fim deve ser após data início';
-    periodos.push({inicio:ini.value,fim:fim.value,dias:dias});
-  }
-  if(periodos.length===0)return 'Informe pelo menos um período';
-  var total=periodos.reduce(function(s,p){return s+p.dias;},0);
-  var temMinimo14=periodos.some(function(p){return p.dias>=14;});
-  var todosMin5=periodos.every(function(p){return p.dias>=5;});
-  if(!temMinimo14)return 'Pelo menos um período deve ter mínimo 14 dias (CLT art. 134)';
-  if(!todosMin5)return 'Nenhum período pode ter menos de 5 dias (CLT art. 134)';
-  if(total>30)return 'Total de dias não pode exceder 30 dias';
-  return null;
-}
-
+function adicionarPeriodoInicial(){var c=document.getElementById('sol-periodos');c.innerHTML='';solPeriodos=1;c.innerHTML=criarPeriodoHTML(1);atualizarBotaoAddPeriodo();}
+function criarPeriodoHTML(n){var label=n===1?'1º período (mín. 14 dias)':n===2?'2º período (mín. 5 dias)':'3º período (mín. 5 dias)';return '<div id="periodo-'+n+'" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:600;color:var(--text3)">'+label+'</span>'+(n>1?'<button onclick="removerPeriodo('+n+')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">✕</button>':'')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Início</label><input type="date" id="p'+n+'-inicio" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:12px;background:var(--bg);color:var(--text);outline:none"></div><div><label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Fim</label><input type="date" id="p'+n+'-fim" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:12px;background:var(--bg);color:var(--text);outline:none"></div></div><div id="p'+n+'-dias" style="font-size:10px;color:var(--text3);margin-top:5px;text-align:right"></div></div>';}
+function adicionarPeriodo(){if(solPeriodos>=3)return;solPeriodos++;var c=document.getElementById('sol-periodos');var div=document.createElement('div');div.innerHTML=criarPeriodoHTML(solPeriodos);c.appendChild(div.firstChild);['inicio','fim'].forEach(function(t){var el=document.getElementById('p'+solPeriodos+'-'+t);if(el)el.addEventListener('change',function(){calcDias(solPeriodos);});});atualizarBotaoAddPeriodo();}
+function removerPeriodo(n){var el=document.getElementById('periodo-'+n);if(el)el.remove();solPeriodos=Math.max(1,solPeriodos-1);atualizarBotaoAddPeriodo();}
+function atualizarBotaoAddPeriodo(){var btn=document.getElementById('sol-add-periodo');if(btn)btn.style.display=solPeriodos>=3?'none':'block';}
+function calcDias(n){var ini=document.getElementById('p'+n+'-inicio');var fim=document.getElementById('p'+n+'-fim');var info=document.getElementById('p'+n+'-dias');if(!ini||!fim||!info)return;if(ini.value&&fim.value){var d=Math.round((new Date(fim.value)-new Date(ini.value))/(1000*60*60*24))+1;var min=n===1?14:5;info.textContent=d+' dia'+(d!==1?'s':'')+(d<min?' ⚠ mín. '+min+' dias':'');info.style.color=d<min?'#dc2626':'#16a34a';}}
+setTimeout(function(){['inicio','fim'].forEach(function(t){var el=document.getElementById('p1-'+t);if(el)el.addEventListener('change',function(){calcDias(1);});});},100);
+function toggleSolicitar(){solAberto=!solAberto;var box=document.getElementById('sol-box');box.style.display=solAberto?'flex':'none';document.getElementById('sol-btn').style.transform=solAberto?'scale(0.9)':'scale(1)';}
+function solTab(tab){var isNova=tab==='nova';document.getElementById('sol-form-area').style.display=isNova?'block':'none';document.getElementById('sol-hist-area').style.display=isNova?'none':'block';document.getElementById('sol-tab-nova').style.cssText='flex:1;border:none;border-radius:6px;padding:6px;font-size:11px;font-weight:600;background:'+(isNova?'#16a34a':'none')+';color:'+(isNova?'#fff':'var(--text2)')+';cursor:pointer';document.getElementById('sol-tab-hist').style.cssText='flex:1;border:'+(isNova?'1px solid var(--border)':'none')+';border-radius:6px;padding:6px;font-size:11px;font-weight:600;background:'+(isNova?'none':'#16a34a')+';color:'+(isNova?'var(--text2)':'#fff')+';cursor:pointer';}
+function solTipoChange(){var tipo=document.getElementById('sol-tipo').value;var isFerias=tipo==='Férias';var isTroca=tipo==='Troca de horário';var isAtestado=tipo==='Atestado médico';document.getElementById('sol-ferias-area').style.display=isFerias?'block':'none';document.getElementById('sol-datas-area').style.display=(!isFerias&&!isTroca)?'block':'none';document.getElementById('sol-troca-area').style.display=isTroca?'block':'none';document.getElementById('sol-atestado-area').style.display=isAtestado?'block':'none';}
+function validarFerias(){var periodos=[];for(var i=1;i<=solPeriodos;i++){var ini=document.getElementById('p'+i+'-inicio');var fim=document.getElementById('p'+i+'-fim');if(!ini||!fim||!document.getElementById('periodo-'+i))continue;if(!ini.value||!fim.value)return 'Preencha todas as datas dos períodos';var dias=Math.round((new Date(fim.value)-new Date(ini.value))/(1000*60*60*24))+1;if(dias<1)return 'Data fim deve ser após data início';periodos.push({inicio:ini.value,fim:fim.value,dias:dias});}if(periodos.length===0)return 'Informe pelo menos um período';var total=periodos.reduce(function(s,p){return s+p.dias;},0);var temMinimo14=periodos.some(function(p){return p.dias>=14;});var todosMin5=periodos.every(function(p){return p.dias>=5;});if(!temMinimo14)return 'Pelo menos um período deve ter mínimo 14 dias (CLT art. 134)';if(!todosMin5)return 'Nenhum período pode ter menos de 5 dias (CLT art. 134)';if(total>30)return 'Total de dias não pode exceder 30 dias';return null;}
 function fmtDt(s){if(!s)return '';var p=s.split('-');return p[2]+'/'+p[1];}
-
-function solArquivoSelecionado(input){
-  var f=input.files[0];
-  if(!f)return;
-  var nome=document.getElementById('sol-arquivo-nome');
-  nome.textContent=f.name;nome.style.display='block';
-  document.getElementById('sol-upload-area').style.borderColor='#16a34a';
-}
-
-async function uploadAtestado(file){
-  var prog=document.getElementById('sol-upload-progress');
-  var bar=document.getElementById('sol-upload-bar');
-  var status=document.getElementById('sol-upload-status');
-  prog.style.display='block';bar.style.width='30%';status.textContent='Enviando arquivo...';
-  // Get drive token from cookie
-  var driveToken='';
-  document.cookie.split(';').forEach(function(c){var p=c.trim().split('=');if(p[0]==='pulse_drive_token')driveToken=p[1]||'';});
-  var fd=new FormData();
-  fd.append('file',file);
-  fd.append('driveToken',driveToken);
-  try{
-    bar.style.width='60%';
-    var r=await fetch('/api/upload-atestado',{method:'POST',credentials:'include',body:fd});
-    bar.style.width='100%';
-    var d=await r.json();
-    if(d.ok){status.textContent='✓ Arquivo enviado!';return d.url;}
-    else{status.textContent='Erro: '+d.error;status.style.color='#dc2626';return null;}
-  }catch(e){status.textContent='Erro de conexão: '+e.message;status.style.color='#dc2626';return null;}
-}
-
-async function enviarSolicits(){
-  var tipo=document.getElementById('sol-tipo').value;
-  var obs=document.getElementById('sol-obs').value;
-  var msg=document.getElementById('sol-msg');
-  msg.style.display='none';
-
-  var body={tipo,motivo:obs};
-
-  if(tipo==='Férias'){
-    var err=validarFerias();
-    if(err){
-      msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='⚠ '+err;return;
-    }
-    var periodos=[];
-    for(var i=1;i<=solPeriodos;i++){
-      var ini=document.getElementById('p'+i+'-inicio');
-      var fim=document.getElementById('p'+i+'-fim');
-      if(!ini||!fim||!document.getElementById('periodo-'+i))continue;
-      if(ini.value&&fim.value)periodos.push({inicio:fmtDt(ini.value),fim:fmtDt(fim.value)});
-    }
-    body.periodos=periodos;
-    body.dataInicio=periodos[0].inicio;
-    body.dataFim=periodos[periodos.length-1].fim;
-    body.motivo=(obs?obs+' | ':'')+'Períodos: '+periodos.map(function(p,i){return (i+1)+'º: '+p.inicio+' a '+p.fim;}).join(', ');
-  } else if(tipo==='Troca de horário'){
-    var colega=document.getElementById('sol-colega').value;
-    var meuDia=document.getElementById('sol-troca-meu-dia').value;
-    var colegaDia=document.getElementById('sol-troca-colega-dia').value;
-    if(!colega||!meuDia||!colegaDia){
-      msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='⚠ Preencha colega e datas';return;
-    }
-    body.dataInicio=fmtDt(meuDia);
-    body.dataFim=fmtDt(meuDia);
-    body.motivo='Troca com '+colega+': meu dia '+fmtDt(meuDia)+' pelo dia '+fmtDt(colegaDia)+(obs?' | '+obs:'');
-  } else {
-    var inicio=document.getElementById('sol-inicio').value;
-    var fim=document.getElementById('sol-fim').value;
-    if(!inicio){msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='⚠ Informe a data de início';return;}
-    body.dataInicio=fmtDt(inicio);
-    body.dataFim=fmtDt(fim||inicio);
-    if(tipo==='Atestado médico'){
-      var arquivo=document.getElementById('sol-arquivo').files[0];
-      if(arquivo){
-        var url=await uploadAtestado(arquivo);
-        if(!url){return;}
-        body.motivo=(obs?obs+' | ':'')+'Anexo: '+url;
-      }
-    }
-  }
-
-  try{
-    var r=await fetch('/api/app?action=solicitar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    var d=await r.json();
-    if(d.ok){
-      msg.style.display='block';msg.style.background='#0d2010';msg.style.color='#68d391';
-      msg.textContent='✓ Enviado! ID: '+d.id;
-      setTimeout(function(){location.reload();},1800);
-    }else{
-      msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';
-      msg.textContent='Erro: '+d.error;
-    }
-  }catch(e){
-    msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';
-    msg.textContent='Erro de conexão: '+e.message;
-  }
-}
-
-async function cancelarSolicit(id){
-  if(!confirm('Cancelar esta solicitação?'))return;
-  var r=await fetch('/api/app?action=cancelar-solicitacao',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
-  var d=await r.json();
-  if(d.ok)location.reload();
-  else alert('Erro: '+d.error);
-}
-</script>`
+function solArquivoSelecionado(input){var f=input.files[0];if(!f)return;var nome=document.getElementById('sol-arquivo-nome');nome.textContent=f.name;nome.style.display='block';document.getElementById('sol-upload-area').style.borderColor='#16a34a';}
+async function uploadAtestado(file){var prog=document.getElementById('sol-upload-progress');var bar=document.getElementById('sol-upload-bar');var status=document.getElementById('sol-upload-status');prog.style.display='block';bar.style.width='30%';status.textContent='Enviando arquivo...';var fd=new FormData();fd.append('file',file);try{bar.style.width='60%';var r=await fetch('/api/upload-atestado',{method:'POST',credentials:'include',body:fd});bar.style.width='100%';var d=await r.json();if(d.ok){status.textContent='✓ Arquivo enviado!';return d.url;}else{status.textContent='Erro: '+d.error;status.style.color='#dc2626';return null;}}catch(e){status.textContent='Erro de conexão: '+e.message;status.style.color='#dc2626';return null;}}
+async function enviarSolicits(){var tipo=document.getElementById('sol-tipo').value;var obs=document.getElementById('sol-obs').value;var msg=document.getElementById('sol-msg');msg.style.display='none';var body={tipo,motivo:obs};if(tipo==='Férias'){var err=validarFerias();if(err){msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='⚠ '+err;return;}var periodos=[];for(var i=1;i<=solPeriodos;i++){var ini=document.getElementById('p'+i+'-inicio');var fim=document.getElementById('p'+i+'-fim');if(!ini||!fim||!document.getElementById('periodo-'+i))continue;if(ini.value&&fim.value)periodos.push({inicio:fmtDt(ini.value),fim:fmtDt(fim.value)});}body.periodos=periodos;body.dataInicio=periodos[0].inicio;body.dataFim=periodos[periodos.length-1].fim;body.motivo=(obs?obs+' | ':'')+'Períodos: '+periodos.map(function(p,i){return (i+1)+'º: '+p.inicio+' a '+p.fim;}).join(', ');}else if(tipo==='Troca de horário'){var colega=document.getElementById('sol-colega').value;var meuDia=document.getElementById('sol-troca-meu-dia').value;var colegaDia=document.getElementById('sol-troca-colega-dia').value;if(!colega||!meuDia||!colegaDia){msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='⚠ Preencha colega e datas';return;}body.dataInicio=fmtDt(meuDia);body.dataFim=fmtDt(meuDia);body.motivo='Troca com '+colega+': meu dia '+fmtDt(meuDia)+' pelo dia '+fmtDt(colegaDia)+(obs?' | '+obs:'');}else{var inicio=document.getElementById('sol-inicio').value;var fim=document.getElementById('sol-fim').value;if(!inicio){msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='⚠ Informe a data de início';return;}body.dataInicio=fmtDt(inicio);body.dataFim=fmtDt(fim||inicio);if(tipo==='Atestado médico'){var arquivo=document.getElementById('sol-arquivo').files[0];if(arquivo){var url=await uploadAtestado(arquivo);if(!url){return;}body.motivo=(obs?obs+' | ':'')+'Anexo: '+url;}}}try{var r=await fetch('/api/app?action=solicitar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});var d=await r.json();if(d.ok){msg.style.display='block';msg.style.background='#0d2010';msg.style.color='#68d391';msg.textContent='✓ Enviado! ID: '+d.id;setTimeout(function(){location.reload();},1800);}else{msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='Erro: '+d.error;}}catch(e){msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='Erro de conexão: '+e.message;}}
+async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))return;var r=await fetch('/api/app?action=cancelar-solicitacao',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});var d=await r.json();if(d.ok)location.reload();else alert('Erro: '+d.error);}
+</script>`;
 
     return res.status(200).send(baseHTML('Equipe', conteudoEquipe + SOLICITAR_BTN + CHAT_IA));
   }
@@ -1008,10 +775,6 @@ async function cancelarSolicit(id){
   ]);
 
   const eventosCruzadosHoje = cruzarEventos(eventosHoje, escHoje, hojeStr);
-  const numEncerradosHoje = eventosCruzadosHoje.filter(e => {
-    const evMin = toMin(e.hora);
-    return evMin !== null && evMin < horaAtualMin - 30;
-  }).length;
   const eventosCruzadosAmanha = cruzarEventos(eventosAmanha, escD1, d1Str);
 
   const diasNav = [
@@ -1025,7 +788,6 @@ async function cancelarSolicit(id){
   ];
 
   const semCob = eventosCruzadosAmanha.filter(e => e.semCob).length;
-  const solicitacoesAtivas = ausencias.filter(a => a[0] && a[0] !== 'CANCELADO' && a[0].startsWith('PLS-'));
   const comAtenc = eventosCruzadosAmanha.filter(e => e.atenc.length > 0).length;
   const trabAmanha = escD1.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente').length;
   const folgAmanha = escD1.filter(r => !r[3] || r[5] === 'Folga' || r[5] === 'Folga/Ausente').length;
@@ -1166,7 +928,6 @@ async function cancelarSolicit(id){
       </div>
     </div>
   </div>
-
 </div>
 
 <div class="modal-bg" id="modal">
@@ -1196,49 +957,15 @@ async function cancelarSolicit(id){
 <div class="toast" id="toast"></div>`;
 
   const script = `<script>
-function abrirAjuste(data,nome,ent,sai,obs){
-  document.getElementById('aj-data').value=data;
-  document.getElementById('aj-nome').value=nome;
-  document.getElementById('aj-colab').value=nome;
-  document.getElementById('aj-data-show').value=data;
-  document.getElementById('aj-entrada').value=ent||'';
-  document.getElementById('aj-saida').value=sai||'';
-  document.getElementById('aj-obs').value=obs||'';
-  document.getElementById('aj-acao').value='horario';
-  toggleAcao();
-  document.getElementById('modal').classList.add('open');
-}
+function abrirAjuste(data,nome,ent,sai,obs){document.getElementById('aj-data').value=data;document.getElementById('aj-nome').value=nome;document.getElementById('aj-colab').value=nome;document.getElementById('aj-data-show').value=data;document.getElementById('aj-entrada').value=ent||'';document.getElementById('aj-saida').value=sai||'';document.getElementById('aj-obs').value=obs||'';document.getElementById('aj-acao').value='horario';toggleAcao();document.getElementById('modal').classList.add('open');}
 function fecharModal(){document.getElementById('modal').classList.remove('open');}
 function toggleAcao(){document.getElementById('aj-horarios').style.display=document.getElementById('aj-acao').value==='horario'?'block':'none';}
-async function salvarAjuste(){
-  const body={acao:document.getElementById('aj-acao').value,data:document.getElementById('aj-data').value,colaborador:document.getElementById('aj-nome').value,entrada:document.getElementById('aj-entrada').value,saida:document.getElementById('aj-saida').value,obs:document.getElementById('aj-obs').value};
-  const r=await fetch('/api/app?action=ajuste',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const d=await r.json();
-  if(d.ok){fecharModal();toast('Escala atualizada!');setTimeout(()=>location.reload(),1200);}
-  else toast('Erro: '+d.error,'#dc2626');
-}
+async function salvarAjuste(){const body={acao:document.getElementById('aj-acao').value,data:document.getElementById('aj-data').value,colaborador:document.getElementById('aj-nome').value,entrada:document.getElementById('aj-entrada').value,saida:document.getElementById('aj-saida').value,obs:document.getElementById('aj-obs').value};const r=await fetch('/api/app?action=ajuste',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(d.ok){fecharModal();toast('Escala atualizada!');setTimeout(()=>location.reload(),1200);}else toast('Erro: '+d.error,'#dc2626');}
 function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.textContent=msg;t.style.background=bg;t.style.display='block';setTimeout(()=>t.style.display='none',2500);}
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
-window.addEventListener('load',function(){
-  var b=document.getElementById('cb-hoje');
-  var a=document.getElementById('primeiro-ativo-hoje');
-  if(b&&a){
-    var pos=0,el=a.previousElementSibling;
-    while(el){pos+=el.offsetHeight+10;el=el.previousElementSibling;}
-    b.scrollTop=Math.max(0,pos-280);
-  }
-});
+window.addEventListener('load',function(){var b=document.getElementById('cb-hoje');var a=document.getElementById('primeiro-ativo-hoje');if(b&&a){var pos=0,el=a.previousElementSibling;while(el){pos+=el.offsetHeight+10;el=el.previousElementSibling;}b.scrollTop=Math.max(0,pos-280);}});
 var diaAtual3=0;
-function navDia(dir){
-  var total=5;
-  diaAtual3=(diaAtual3+dir+total)%total;
-  for(var i=0;i<total;i++){
-    var p=document.getElementById('painel3-'+i);
-    var l=document.getElementById('tab3-label-'+i);
-    if(p)p.style.display=i===diaAtual3?'block':'none';
-    if(l)l.style.display=i===diaAtual3?'block':'none';
-  }
-}
+function navDia(dir){var total=5;diaAtual3=(diaAtual3+dir+total)%total;for(var i=0;i<total;i++){var p=document.getElementById('painel3-'+i);var l=document.getElementById('tab3-label-'+i);if(p)p.style.display=i===diaAtual3?'block':'none';if(l)l.style.display=i===diaAtual3?'block':'none';}}
 </script>`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
