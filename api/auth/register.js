@@ -15,10 +15,8 @@ function getOAuthSession(req) {
     const [k, ...v] = c.trim().split('=');
     cookies[k.trim()] = v.join('=');
   });
-
   const token = cookies[COOKIE_NAME];
   if (!token) return null;
-
   try {
     const d = Buffer.from(token, 'base64').toString('utf8');
     const lastPipe = d.lastIndexOf('|');
@@ -26,17 +24,14 @@ function getOAuthSession(req) {
     const data = d.slice(0, secondPipe);
     const h = d.slice(secondPipe + 1, lastPipe);
     const ts = d.slice(lastPipe + 1);
-
     if (!data.startsWith('~~OAUTH~~')) return null;
     if (Date.now() - parseInt(ts) > COOKIE_MAX * 1000) return null;
     if (h !== hash(data + ts)) return null;
-
     const parts = data.split('~~').filter(Boolean);
     const email = parts[1] || '';
     const nomeGoogle = decodeURIComponent(parts[2] || '');
     const accessToken = parts[3] || '';
     const refreshToken = parts[4] || '';
-
     if (!email) return null;
     return { email, nomeGoogle, accessToken, refreshToken };
   } catch {
@@ -61,9 +56,30 @@ function setSession(res, nome, accessToken = '', refreshToken = '') {
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=${token}; Path=/; Max-Age=${COOKIE_MAX}; HttpOnly; SameSite=Lax`);
 }
 
-const PAGINA_AGUARDANDO = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Pulse</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,sans-serif;background:#0f1117;min-height:100vh;display:flex;align-items:center;justify-content:center}.box{background:#161920;border:1px solid #2d3748;border-radius:16px;padding:40px;width:400px;text-align:center;color:#e2e8f0}.icon{font-size:48px;margin-bottom:16px}h1{font-size:20px;font-weight:700;margin-bottom:8px}p{font-size:13px;color:#718096;line-height:1.6}</style>
-</head><body><div class="box"><div class="icon">⏳</div><h1>Aguardando aprovação</h1><p>Seus dados foram enviados.<br>O gestor vai liberar seu acesso em breve.</p></div></body></html>`;
+function paginaAguardando() {
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Pulse</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,sans-serif;background:#0f1117;min-height:100vh;display:flex;align-items:center;justify-content:center}.box{background:#161920;border:1px solid #2d3748;border-radius:16px;padding:40px;width:400px;text-align:center;color:#e2e8f0}.icon{font-size:48px;margin-bottom:16px}h1{font-size:20px;font-weight:700;margin-bottom:8px}p{font-size:13px;color:#718096;line-height:1.6;margin-bottom:6px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;margin:12px 3px 0;animation:pulse 1.4s ease-in-out infinite}.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}@keyframes pulse{0%,80%,100%{transform:scale(0);opacity:.5}40%{transform:scale(1);opacity:1}}</style>
+</head><body><div class="box">
+  <div class="icon">⏳</div>
+  <h1>Aguardando aprovação</h1>
+  <p>Seus dados foram enviados.<br>O gestor vai liberar seu acesso em breve.</p>
+  <p style="font-size:11px;color:#4a5568;margin-top:8px">Verificando automaticamente...</p>
+  <div><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+</div>
+<script>
+// Verifica a cada 5 segundos se foi aprovado
+setInterval(async function() {
+  try {
+    const r = await fetch('/api/auth/check-status', { credentials: 'include' });
+    const d = await r.json();
+    if (d.status === 'ativo') {
+      window.location.href = '/api/app';
+    }
+  } catch(e) {}
+}, 5000);
+</script>
+</body></html>`;
+}
 
 export default async function handler(req, res) {
   const session = getOAuthSession(req);
@@ -77,17 +93,15 @@ export default async function handler(req, res) {
       return res.redirect(302, '/api/auth/register?erro=campos');
     }
     try {
-      // ── Verificação anti-duplicata: checa se email já existe ──
+      // Anti-duplicata: checa se email já existe
       const existingRows = await getSheet('Equipe!A2:L200');
       const jaExiste = existingRows.find(r => (r[9] || '').toLowerCase() === email.toLowerCase());
       if (jaExiste) {
-        // Já cadastrado — só mostra tela de aguardando
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        return res.status(200).send(PAGINA_AGUARDANDO);
+        return res.status(200).send(paginaAguardando());
       }
-
       const fmtNum = v => v ? "'" + String(v) : '';
-      const nextRow = existingRows.length + 2; // +2 porque começa na linha 2
+      const nextRow = existingRows.length + 2;
       await sheetsRequest(
         process.env.GOOGLE_SHEET_ID,
         `/values/${encodeURIComponent('Equipe!A' + nextRow + ':L' + nextRow)}?valueInputOption=USER_ENTERED`,
@@ -97,11 +111,8 @@ export default async function handler(req, res) {
     } catch (e) {
       console.error('Register error:', e.message);
     }
-
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.status(200).send(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Pulse</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,sans-serif;background:#0f1117;min-height:100vh;display:flex;align-items:center;justify-content:center}.box{background:#161920;border:1px solid #2d3748;border-radius:16px;padding:40px;width:400px;text-align:center;color:#e2e8f0}.icon{font-size:48px;margin-bottom:16px}h1{font-size:20px;font-weight:700;margin-bottom:8px}p{font-size:13px;color:#718096;line-height:1.6}</style>
-</head><body><div class="box"><div class="icon">✅</div><h1>Solicitação enviada!</h1><p>Seus dados foram recebidos.<br>Aguarde a aprovação do gestor.</p></div></body></html>`);
+    return res.status(200).send(paginaAguardando());
   }
 
   // GET — verificar se já tem cadastro
@@ -110,17 +121,14 @@ export default async function handler(req, res) {
 
   if (usuario) {
     const status = (usuario[10] || 'ativo').toLowerCase();
-
     if (status === 'ativo') {
       setSession(res, usuario[0], accessToken, refreshToken);
       return res.redirect(302, '/api/app');
     }
-
     if (status === 'pendente') {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.status(200).send(PAGINA_AGUARDANDO);
+      return res.status(200).send(paginaAguardando());
     }
-
     return res.redirect(302, '/api/app?erro=acesso_negado');
   }
 
@@ -133,8 +141,7 @@ export default async function handler(req, res) {
   return res.status(200).send(`<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse - Cadastro</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.box{background:#161920;border:1px solid #2d3748;border-radius:16px;padding:32px;width:480px;max-width:100%}h1{text-align:center;font-size:20px;font-weight:700;color:#e2e8f0;margin-bottom:6px}.sub{text-align:center;font-size:13px;color:#718096;margin-bottom:20px}.email-badge{background:#1e2230;border:1px solid #2d3748;border-radius:8px;padding:8px 14px;font-size:13px;color:#63b3ed;margin-bottom:20px;text-align:center}.info{background:#1a2744;border:1px solid #2a4080;border-radius:8px;padding:10px 14px;font-size:12px;color:#63b3ed;margin-bottom:20px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin-bottom:12px}.field label{display:block;font-size:10px;font-weight:600;color:#718096;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.field input{width:100%;background:#1e2230;border:1px solid #2d3748;border-radius:8px;padding:10px 12px;font-size:13px;color:#e2e8f0;outline:none}.field input:focus{border-color:#4a90d9}.btn{width:100%;background:#1d4ed8;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;margin-top:8px}
-.btn:disabled{opacity:.5;cursor:not-allowed}</style>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.box{background:#161920;border:1px solid #2d3748;border-radius:16px;padding:32px;width:480px;max-width:100%}h1{text-align:center;font-size:20px;font-weight:700;color:#e2e8f0;margin-bottom:6px}.sub{text-align:center;font-size:13px;color:#718096;margin-bottom:20px}.email-badge{background:#1e2230;border:1px solid #2d3748;border-radius:8px;padding:8px 14px;font-size:13px;color:#63b3ed;margin-bottom:20px;text-align:center}.info{background:#1a2744;border:1px solid #2a4080;border-radius:8px;padding:10px 14px;font-size:12px;color:#63b3ed;margin-bottom:20px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin-bottom:12px}.field label{display:block;font-size:10px;font-weight:600;color:#718096;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.field input{width:100%;background:#1e2230;border:1px solid #2d3748;border-radius:8px;padding:10px 12px;font-size:13px;color:#e2e8f0;outline:none}.field input:focus{border-color:#4a90d9}.btn{width:100%;background:#1d4ed8;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;margin-top:8px}.btn:disabled{opacity:.5;cursor:not-allowed}</style>
 </head><body><div class="box">
   <h1>Complete seu cadastro</h1>
   <p class="sub">Preencha seus dados para solicitar acesso ao Pulse</p>
