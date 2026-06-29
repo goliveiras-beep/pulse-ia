@@ -40,7 +40,12 @@ export default async function handler(req, res) {
     const ts = String(Date.now());
     const h = hash(sessionData + ts);
     const token = Buffer.from(`${sessionData}|${h}|${ts}`).toString('base64');
-    res.setHeader('Set-Cookie', `${COOKIE_NAME}=${token}; Path=/; Max-Age=${COOKIE_MAX}; HttpOnly; SameSite=Lax`);
+    // Save oauth session cookie
+    const cookies = [
+      `${COOKIE_NAME}=${token}; Path=/; Max-Age=${COOKIE_MAX}; HttpOnly; SameSite=Lax`,
+      `pulse_drive_token=${tokenData.access_token}; Path=/; Max-Age=3600; SameSite=Lax`,
+    ];
+    res.setHeader('Set-Cookie', cookies);
     return res.redirect(302, '/api/auth/register');
 
   } catch (err) {
