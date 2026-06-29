@@ -747,6 +747,7 @@ export default async function handler(req, res) {
 .ev-ao-vivo{border-color:#22c55e!important;animation:border-pulse-green 2s ease-in-out infinite}
 .ev-proximo-30{border-color:#f59e0b!important}
 .ev-proximo-60{border-color:#f97316!important}
+.ev-encerrado{opacity:.35!important}
 @keyframes border-pulse-green{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 4px rgba(34,197,94,0)}}
 .tab-nav-colab{display:flex;gap:6px;margin-bottom:14px}
 .tab-btn-colab{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px;font-size:12px;font-weight:600;background:none;color:var(--text3);cursor:pointer;transition:all .15s}
@@ -874,63 +875,23 @@ function borderClass(s) {
 function renderEventos(eventos, containerId, agora, isHoje) {
   var c = document.getElementById(containerId);
   if (!c) return;
-  if (!eventos.length) {
-    c.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>';
-    return;
-  }
-
+  if (!eventos.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>'; return; }
   var html = '';
-  var primeiroAtivo = false;
-
   eventos.forEach(function(ev) {
     var s = isHoje ? statusEvento(ev.hora, agora) : 'futuro';
-    var encerrado = s === 'encerrado';
-
-    if (encerrado) {
-      // Encerrado: compacto, apagado, hora riscada
-      html += '<div style="border:1px solid var(--border2);border-radius:6px;margin-bottom:3px;opacity:0.45;transition:opacity .2s" onmouseenter="this.style.opacity=0.85" onmouseleave="this.style.opacity=0.45">';
-      html += '<div style="padding:5px 10px;display:flex;align-items:center;gap:10px">';
-      html += '<div style="font-size:12px;font-weight:700;min-width:44px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">' + (ev.hora||'--') + '</div>';
-      html += '<div style="flex:1"><div style="font-size:11px;color:var(--text3)">' + ev.nome + '</div>';
-      html += '<div style="font-size:9px;color:var(--text4)">' + ev.tipo + (ev.local ? ' · ' + ev.local : '') + '</div></div>';
-      html += '<div style="font-size:9px;color:var(--text4)">Encerrado</div>';
-      html += '</div></div>';
-    } else {
-      // Ativo/futuro: destaque normal com status
-      var bc = borderClass(s);
-      var lbl = statusLabel(s);
-      var isAoVivo = s === 'aovivo';
-      var bgExtra = isAoVivo ? ';background:rgba(34,197,94,.07)' : s === 'proximo30' ? ';background:rgba(245,158,11,.04)' : s === 'proximo60' ? ';background:rgba(249,115,22,.03)' : '';
-      var idAttr = (isAoVivo && !primeiroAtivo) ? ' id="ev-ativo-colab"' : '';
-      if (isAoVivo && !primeiroAtivo) primeiroAtivo = true;
-      html += '<div' + idAttr + ' class="' + bc + '" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s' + bgExtra + '">';
-      html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
-      html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">' + (ev.hora||'--') + '</div>';
-      html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">' + ev.nome + '</div>';
-      html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">' + ev.tipo + (ev.local ? ' · <span style="font-weight:600">' + ev.local + '</span>' : '') + '</div></div>';
-      if (lbl) html += '<div>' + lbl + '</div>';
-      html += '</div></div>';
-    }
+    var bc = borderClass(s);
+    var lbl = statusLabel(s);
+    html += '<div class="'+bc+'" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s">';
+    html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
+    html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">'+(ev.hora||'--')+'</div>';
+    html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">'+ev.nome+'</div>';
+    html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+ev.tipo+(ev.local?' · <span style="font-weight:600">'+ev.local+'</span>':'')+'</div></div>';
+    if (lbl) html += '<div>'+lbl+'</div>';
+    html += '</div></div>';
   });
-
   c.innerHTML = html;
-
-  // Altura dinâmica: reduz conforme encerrados (480 → 200px)
-  if (isHoje) {
-    var total = eventos.length;
-    var nEnc = eventos.filter(function(ev){ return statusEvento(ev.hora, agora) === 'encerrado'; }).length;
-    var pct = total > 0 ? nEnc / total : 0;
-    c.style.maxHeight = Math.round(480 - pct * 280) + 'px';
-  }
-
-  // Scroll automático para o primeiro evento ativo
-  if (isHoje) {
-    setTimeout(function() {
-      var el = c.querySelector('#ev-ativo-colab');
-      if (el) c.scrollTop = Math.max(0, el.offsetTop - 40);
-    }, 80);
-  }
 }
+
 function atualizarEventos() {
   var now = new Date();
   var brtParts = new Intl.DateTimeFormat('pt-BR', {timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(now);
@@ -939,6 +900,7 @@ function atualizarEventos() {
   var minAtual = bh*60 + bm;
   renderEventos(_evHoje, 'lista-eventos-hoje', minAtual, true);
   renderEventos(_evAmanha, 'lista-eventos-amanha', minAtual, false);
+  // Inicializa coluna extra com D+2
   if (_diasExtras.length) {
     var d = _diasExtras[_diaExtraAtual];
     renderEventos(d.evs, 'lista-eventos-extra', 0, false);
@@ -1003,17 +965,9 @@ function navDiaColab(dir) {
   renderEventos(d.evs, 'lista-eventos-extra', 0, false);
 }
 
-// Garantir execução após DOM pronto
-function iniciar() {
-  try { atualizarEventos(); } catch(e) { console.error('atualizarEventos erro:', e); }
-  try { atualizarRelogio(); } catch(e) {}
-  try { carregarTempo(); } catch(e) {}
-}
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', iniciar);
-} else {
-  iniciar();
-}
+atualizarEventos();
+atualizarRelogio();
+carregarTempo();
 setInterval(atualizarRelogio, 1000);
 setInterval(atualizarEventos, 60000);
 </script>`;
