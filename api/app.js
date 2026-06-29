@@ -499,9 +499,14 @@ export default async function handler(req, res) {
     const ausD1 = ausencias.find(a => a[1] === nome && dentroAusencia(a, d1Str) && a[0] !== 'CANCELADO');
     const minhasSolicits = ausencias.filter(a => a[1] === nome && a[0] !== 'CANCELADO').sort((a,b) => (b[4]||'').localeCompare(a[4]||'')).slice(0,10);
 
-    const [eventosHoje, eventosAmanha] = await Promise.all([
+    const [eventosHoje, eventosAmanha, eventosD2c, eventosD3c, eventosD4c, eventosD5c, eventosD6c] = await Promise.all([
       getEventos(hojeAirtable),
       getEventos(fmtAirtable(d1)),
+      getEventos(fmtAirtable(d2)),
+      getEventos(fmtAirtable(d3)),
+      getEventos(fmtAirtable(d4)),
+      getEventos(fmtAirtable(d5)),
+      getEventos(fmtAirtable(d6)),
     ]);
 
     // ── Frase do dia inteligente ──────────────────────────────────────────
@@ -689,6 +694,14 @@ export default async function handler(req, res) {
       return html;
     }
 
+    const diasExtras = [
+      {label: fmtData(d2), sub: DIAS_PT[d2.getDay()], evs: eventosD2c},
+      {label: fmtData(d3), sub: DIAS_PT[d3.getDay()], evs: eventosD3c},
+      {label: fmtData(d4), sub: DIAS_PT[d4.getDay()], evs: eventosD4c},
+      {label: fmtData(d5), sub: DIAS_PT[d5.getDay()], evs: eventosD5c},
+      {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: eventosD6c},
+    ];
+    const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,tipo:e.tipo,local:e.local}))})));
     const eventosHojeJson = JSON.stringify(eventosHoje.map(e => ({nome:e.nome,hora:e.hora,tipo:e.tipo,local:e.local})));
     const eventosAmanhaJson = JSON.stringify(eventosAmanha.map(e => ({nome:e.nome,hora:e.hora,tipo:e.tipo,local:e.local})));
     const hojeAno = hoje.getFullYear();
@@ -774,7 +787,7 @@ export default async function handler(req, res) {
       ${cardTurno(turnoHoje, ausHoje, 'Hoje')}
       ${cardTurno(turnoD1, ausD1, 'Amanhã', true)}
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
       <div class="card">
         <div class="card-header">
           <span class="card-title" style="color:#22c55e">🟢 Hoje</span>
@@ -790,6 +803,17 @@ export default async function handler(req, res) {
           <span style="font-size:10px;color:var(--text3);margin-left:auto">${d1Str}</span>
         </div>
         <div id="lista-eventos-amanha" class="card-body" style="max-height:480px;overflow-y:auto;padding:8px"></div>
+      </div>
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;gap:6px">
+          <button onclick="navDiaColab(-1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8249;</button>
+          <div style="flex:1;text-align:center" id="nav-colab-label">
+            <span class="card-title" style="color:#a855f7">${fmtData(d2)}</span>
+            <span class="badge" style="background:#f3e8ff;color:#6b21a8;margin-left:4px">${eventosD2c.length} ev.</span>
+          </div>
+          <button onclick="navDiaColab(1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8250;</button>
+        </div>
+        <div id="lista-eventos-extra" class="card-body" style="max-height:480px;overflow-y:auto;padding:8px"></div>
       </div>
     </div>
   </div>
@@ -817,6 +841,8 @@ export default async function handler(req, res) {
 <script>
 var _evHoje = ${eventosHojeJson};
 var _evAmanha = ${eventosAmanhaJson};
+var _diasExtras = ${diasExtrasJson};
+var _diaExtraAtual = 0;
 
 function toMin(h){if(!h)return null;var p=h.split(':');return parseInt(p[0])*60+(parseInt(p[1])||0);}
 
@@ -874,6 +900,11 @@ function atualizarEventos() {
   var minAtual = bh*60 + bm;
   renderEventos(_evHoje, 'lista-eventos-hoje', minAtual, true);
   renderEventos(_evAmanha, 'lista-eventos-amanha', minAtual, false);
+  // Inicializa coluna extra com D+2
+  if (_diasExtras.length) {
+    var d = _diasExtras[_diaExtraAtual];
+    renderEventos(d.evs, 'lista-eventos-extra', 0, false);
+  }
 }
 
 function atualizarRelogio() {
@@ -924,6 +955,14 @@ function trocarAba(aba) {
     if (p) p.style.display = a === aba ? 'block' : 'none';
     if (t) t.className = 'tab-btn-colab' + (a === aba ? ' ativo' : '');
   });
+}
+
+function navDiaColab(dir) {
+  _diaExtraAtual = (_diaExtraAtual + dir + _diasExtras.length) % _diasExtras.length;
+  var d = _diasExtras[_diaExtraAtual];
+  var lbl = document.getElementById('nav-colab-label');
+  if (lbl) lbl.innerHTML = '<span class="card-title" style="color:#a855f7">'+d.sub+' · '+d.label+'</span><span class="badge" style="background:#f3e8ff;color:#6b21a8;margin-left:4px">'+d.evs.length+' ev.</span>';
+  renderEventos(d.evs, 'lista-eventos-extra', 0, false);
 }
 
 atualizarEventos();
