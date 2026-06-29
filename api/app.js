@@ -94,8 +94,6 @@ async function getFraseDoDia(dataStr) {
   } catch { return 'Camera ligada, coração acelerado, vamos nessa!'; }
 }
 
-// ── Auth ─────────────────────────────────────────────────────────────────────
-
 function parseCookies(cookieHeader) {
   const cookies = {};
   if (!cookieHeader) return cookies;
@@ -139,8 +137,6 @@ function setSession(res, nome) {
 function clearSession(res) {
   res.setHeader('Set-Cookie', `${COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);
 }
-
-// ── HTML base ────────────────────────────────────────────────────────────────
 
 const CHAT_IA = `
 <div id="chat-ia-btn" onclick="toggleChat()" style="position:fixed;bottom:24px;right:24px;z-index:900;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);box-shadow:0 4px 20px rgba(99,102,241,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:transform .2s" title="Assistente IA">&#10024;</div>
@@ -313,8 +309,6 @@ ${script}
 </html>`;
 }
 
-// ── Login page ───────────────────────────────────────────────────────────────
-
 function loginPage(erro = '') {
   const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
   const BASE_URL = process.env.PULSE_BASE_URL || 'https://pulse-ia-six.vercel.app';
@@ -364,8 +358,6 @@ h1{font-size:22px;font-weight:700;color:#e2e8f0;margin-bottom:6px}
 </html>`;
 }
 
-// ── Cruzar eventos com escala ────────────────────────────────────────────────
-
 function cruzarEventos(eventos, escHoje, dataStr) {
   return eventos.map(ev => {
     const disp = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && estaDeServico(r[3], r[4], ev.hora));
@@ -384,18 +376,14 @@ function cruzarEventos(eventos, escHoje, dataStr) {
   });
 }
 
-// ── Handler principal ────────────────────────────────────────────────────────
-
 export default async function handler(req, res) {
   const action = req.query.action || '';
 
-  // Logout
   if (req.method === 'POST' && action === 'logout') {
     clearSession(res);
     return res.redirect(302, '/api/app');
   }
 
-  // Sem sessão → login
   const session = getSession(req);
   if (!session) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -404,7 +392,6 @@ export default async function handler(req, res) {
 
   const { nome } = session;
 
-  // Ajuste de escala (gestor)
   if (req.method === 'POST' && action === 'ajuste') {
     const equipeCheck = await getSheet('Equipe!A2:L200');
     const usuarioCheck = equipeCheck.find(r => r[0] === nome);
@@ -427,7 +414,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
-  // Solicitação de ausência (colaborador)
   if (req.method === 'POST' && action === 'solicitar') {
     try {
       const { tipo, motivo, dataInicio, dataFim } = req.body || {};
@@ -440,7 +426,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // Cancelar solicitação (colaborador cancela a própria)
   if (req.method === 'POST' && action === 'cancelar-solicitacao') {
     const { id } = req.body || {};
     if (!id) return res.status(400).json({ error: 'ID inválido' });
@@ -451,7 +436,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
-  // GET — carregar dados
   const hoje = getBRT();
   const hojeStr = fmtData(hoje);
   const horaAtualMin = hoje.getHours() * 60 + hoje.getMinutes();
@@ -495,7 +479,6 @@ export default async function handler(req, res) {
   const escHoje = escala.filter(r => r[0] === hojeStr);
   const escD1 = escala.filter(r => r[0] === d1Str);
 
-  // ── VISÃO EQUIPE ──────────────────────────────────────────────────────────
   if (!isGestor) {
     const cargo = usuario?.[1] || '';
     const nucleo = usuario?.[2] || 'Operacoes';
@@ -511,14 +494,21 @@ export default async function handler(req, res) {
       getFraseDoDia(hojeStr),
     ]);
 
+    // ── CORREÇÃO: cardTurno trata obs com Anexo: ──
     function cardTurno(turno, aus, label, isAmanha = false) {
       if (aus) return `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#991b1b;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:20px;font-weight:700;color:#991b1b">${aus[3] || 'Ausencia'}</div></div>`;
       if (!turno || (!turno[3] && !turno[4])) return `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:15px;color:#9ca3af">Sem escala</div></div>`;
       if (turno[5] === 'Folga') return `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:#92400e;font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:20px;font-weight:700;color:#d97706">Folga</div></div>`;
+      const obsVal = turno[5] || '';
+      const temAnexo = obsVal.includes('Anexo:') || obsVal.startsWith('http');
+      const anexoUrl = temAnexo ? (obsVal.includes('Anexo:') ? obsVal.split('Anexo:')[1].trim() : obsVal) : '';
+      const obsDisplay = (!temAnexo && obsVal) ? `<div style="font-size:11px;color:var(--text3);margin-top:4px">${obsVal}</div>` : '';
+      const anexoDisplay = temAnexo ? `<a href="${anexoUrl}" target="_blank" style="font-size:12px;color:#3b82f6;margin-top:6px;display:block">📎 Ver atestado</a>` : '';
       const [bg, bc, tc] = isAmanha ? ['#eff6ff', '#93c5fd', '#1d4ed8'] : ['var(--card)', 'var(--border)', 'var(--text)'];
-      return `<div style="background:${bg};border:1px solid ${bc};border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:${isAmanha ? '#3b82f6' : 'var(--text3)'};font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:22px;font-weight:700;color:${tc}">${turno[3]} -- ${turno[4]}</div></div>`;
+      return `<div style="background:${bg};border:1px solid ${bc};border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:${isAmanha ? '#3b82f6' : 'var(--text3)'};font-weight:600;text-transform:uppercase;margin-bottom:4px">${label}</div><div style="font-size:22px;font-weight:700;color:${tc}">${turno[3]} -- ${turno[4]}</div>${obsDisplay}${anexoDisplay}</div>`;
     }
 
+    // ── CORREÇÃO: renderSemanaColab trata obs com Anexo: ──
     function renderSemanaColab() {
       return dias.map(d => {
         const df = fmtData(d);
@@ -530,6 +520,11 @@ export default async function handler(req, res) {
         if (aus) { bg = '#fdf4ff'; bc = '#d8b4fe'; tc = '#7c3aed'; label = aus[3] || 'Aus.'; }
         else if (t?.[5] === 'Folga') { bg = '#fffbeb'; bc = '#fcd34d'; tc = '#92400e'; label = 'Folga'; }
         else if (t?.[3] && t?.[4]) { bg = isHoje ? '#f0fdf4' : isD1 ? '#eff6ff' : 'var(--card)'; bc = isHoje ? '#86efac' : isD1 ? '#93c5fd' : 'var(--border)'; tc = isHoje ? '#166534' : isD1 ? '#1d4ed8' : 'var(--text)'; label = `${t[3]}<br>${t[4]}`; }
+        else if (t && !t[3] && !t[4] && t[5] && (t[5].includes('Anexo:') || t[5].startsWith('http'))) {
+          const url = t[5].includes('Anexo:') ? t[5].split('Anexo:')[1].trim() : t[5];
+          bg = '#fdf4ff'; bc = '#d8b4fe'; tc = '#7c3aed';
+          label = `<a href="${url}" target="_blank" style="color:#7c3aed;text-decoration:none">📎</a>`;
+        }
         return `<div style="background:${bg};border:1px solid ${bc};border-radius:8px;padding:8px 6px;text-align:center">
           <div style="font-size:9px;font-weight:700;color:${tc};text-transform:uppercase;margin-bottom:3px">${DIAS_PT[d.getDay()]}</div>
           <div style="font-size:9px;color:${tc};margin-bottom:4px">${df}</div>
