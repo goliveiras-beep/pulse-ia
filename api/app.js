@@ -499,16 +499,86 @@ export default async function handler(req, res) {
     const ausD1 = ausencias.find(a => a[1] === nome && dentroAusencia(a, d1Str) && a[0] !== 'CANCELADO');
     const minhasSolicits = ausencias.filter(a => a[1] === nome && a[0] !== 'CANCELADO').sort((a,b) => (b[4]||'').localeCompare(a[4]||'')).slice(0,10);
 
-    const [eventosHoje, eventosAmanha, fraseDoDia] = await Promise.all([
+    const [eventosHoje, eventosAmanha] = await Promise.all([
       getEventos(hojeAirtable),
       getEventos(fmtAirtable(d1)),
-      getFraseDoDia(hojeStr),
     ]);
 
+    // ── Frase do dia inteligente ──────────────────────────────────────────
+    async function getFraseInteligente() {
+      // Detectar contexto do colaborador
+      const toDateNum = s => { if (!s) return 0; const p = s.split('/'); return parseInt(p[1])*100+parseInt(p[0]); };
+      const hojeNum = toDateNum(hojeStr);
+      const d1Num = toDateNum(d1Str);
+
+      // Verificar férias próximas (nos próximos 14 dias)
+      const minhasAus = ausencias.filter(a => a[1] === nome && a[0] !== 'CANCELADO');
+      let feriasBreve = null;
+      let folgaAmanha = null;
+      for (const a of minhasAus) {
+        const iniNum = toDateNum(a[4]);
+        const diff = iniNum - hojeNum;
+        if (a[2] === 'Férias' && diff > 0 && diff <= 1400) { // próximos ~14 dias (MMDD)
+          const dias = Math.abs(Math.round((new Date(a[4].split('/')[1]+'/'+a[4].split('/')[0]+'/'+new Date().getFullYear()) - new Date()) / 86400000));
+          if (dias <= 14) feriasBreve = { tipo: a[2], inicio: a[4], dias };
+        }
+        if (dentroAusencia(a, d1Str) && (a[2] === 'Folga programada' || a[2] === 'Folga direcionada')) {
+          folgaAmanha = a;
+        }
+      }
+
+      // Colegas de folga amanhã
+      const colegasFolgaAmanha = ausencias.filter(a =>
+        a[1] !== nome && dentroAusencia(a, d1Str) && a[0] !== 'CANCELADO' &&
+        (a[2] === 'Folga programada' || a[2] === 'Folga direcionada')
+      ).map(a => a[1].split(' ')[0]);
+
+      // Turno de amanhã
+      const turnoD1Str = turnoD1 ? `${turnoD1[3]}–${turnoD1[4]}` : null;
+
+      // Montar contexto para a IA
+      let contexto = `Colaborador: ${nome.split(' ')[0]}. Hoje: ${DIAS_FULL[hoje.getDay()]}, ${hojeStr}.`;
+      if (ausHoje) contexto += ` Hoje está de ${ausHoje[2]}.`;
+      else if (turnoHoje) contexto += ` Turno hoje: ${turnoHoje[3]}–${turnoHoje[4]}.`;
+      if (folgaAmanha) contexto += ` AMANHÃ TEM FOLGA!`;
+      else if (turnoD1Str) contexto += ` Amanhã: ${turnoD1Str}.`;
+      if (feriasBreve) contexto += ` FÉRIAS em ${feriasBreve.dias} dias (${feriasBreve.inicio})!`;
+      if (colegasFolgaAmanha.length) contexto += ` Colegas de folga amanhã: ${colegasFolgaAmanha.slice(0,3).join(', ')}.`;
+
+      try {
+        // Verificar cache
+        try {
+          const cache = await getSheet('Equipe!K1:L1');
+          if (cache?.[0]?.[0] === hojeStr+nome && cache?.[0]?.[1]) return cache[0][1];
+        } catch {}
+
+        const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
+          body: JSON.stringify({
+            model: 'llama-3.1-8b-instant', max_tokens: 100,
+            messages: [
+              { role: 'system', content: 'Voce e o assistente do Pulse, app interno de uma empresa de TV. Gere UMA mensagem curta (max 12 palavras) e animada para o colaborador. Se houver info sobre ferias proximas, folga amanha ou colegas de folga, use isso de forma criativa e personalizada. Sem explicacoes, so a mensagem. Use o primeiro nome do colaborador quando relevante.' },
+              { role: 'user', content: contexto }
+            ]
+          })
+        });
+        const d = await r.json();
+        const frase = d.choices?.[0]?.message?.content?.trim() || 'Câmera ligada, coração acelerado!';
+        try { await setSheet('Equipe!K1:L1', [[hojeStr+nome, frase]]); } catch {}
+        return frase;
+      } catch {
+        if (folgaAmanha) return `Amanhã é seu dia de descanso, ${nome.split(' ')[0]}! ☀️`;
+        if (feriasBreve) return `${feriasBreve.dias} dias para as férias! Aguenta firme! 🏖️`;
+        return 'Câmera ligada, coração acelerado! 🎬';
+      }
+    }
+
+    const fraseDoDia = await getFraseInteligente();
     const totalEventosHoje = eventosHoje.length;
-    // Velocidade de pulso: poucos eventos = lento, muitos = rápido
     const pulseSpeed = totalEventosHoje >= 15 ? '0.6s' : totalEventosHoje >= 10 ? '1s' : totalEventosHoje >= 5 ? '1.5s' : '2.5s';
 
+    // ── Helpers de card ───────────────────────────────────────────────────
     function cardTurno(turno, aus, label, isAmanha = false) {
       if (aus) {
         const tipo = aus[2] || 'Ausencia';
@@ -550,15 +620,14 @@ export default async function handler(req, res) {
         const aus = ausencias.find(a => a[1] === nome && dentroAusencia(a, df));
         const isHoje = df === hojeStr;
         const isD1 = df === d1Str;
-        let bg = 'var(--card)', bc = 'var(--border)', tc = 'var(--text3)', label = '--', ic = '';
+        let bg = 'var(--card)', bc = 'var(--border)', tc = 'var(--text3)', label = '--';
         if (aus) {
-          const tipo = aus[2] || '';
           const icones = {'Férias':'🏖️','Folga programada':'☀️','Atestado médico':'🏥','Troca de horário':'🔄','Folga direcionada':'📌'};
-          ic = icones[tipo] || '📋'; bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; label = ic;
+          bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; label = icones[aus[2]] || '📋';
         }
         else if (t?.[5] === 'Folga') { bg = '#1f1a0d'; bc = '#3d3010'; tc = '#f6ad55'; label = '☀️'; }
-        else if (t?.[3] && t?.[4]) { bg = isHoje ? '#0d2010' : isD1 ? '#1a2744' : 'var(--card)'; bc = isHoje ? '#166534' : isD1 ? '#2a4080' : 'var(--border)'; tc = isHoje ? '#68d391' : isD1 ? '#63b3ed' : 'var(--text)'; label = `${t[3]}<br><span style="font-size:9px;opacity:.7">→</span><br>${t[4]}`; }
-        else if (t && !t[3] && !t[4] && t[5] && (t[5].includes('Anexo:') || t[5].startsWith('http'))) {
+        else if (t?.[3] && t?.[4]) { bg = isHoje ? '#0d2010' : isD1 ? '#1a2744' : 'var(--card)'; bc = isHoje ? '#166534' : isD1 ? '#2a4080' : 'var(--border)'; tc = isHoje ? '#68d391' : isD1 ? '#63b3ed' : 'var(--text)'; label = `${t[3]}<br><span style="opacity:.5;font-size:8px">→</span><br>${t[4]}`; }
+        else if (t && t[5] && (t[5].includes('Anexo:') || t[5].startsWith('http'))) {
           const url = t[5].includes('Anexo:') ? t[5].split('Anexo:')[1].trim() : t[5];
           bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc';
           label = `<a href="${url}" target="_blank" style="color:#c084fc;text-decoration:none">📎</a>`;
@@ -571,9 +640,59 @@ export default async function handler(req, res) {
       }).join('');
     }
 
-    // Serializa eventos para o JS frontend fazer o status dinâmico
+    // ── Grade mensal ──────────────────────────────────────────────────────
+    function renderMesColab() {
+      const ano = hoje.getFullYear();
+      const mes = hoje.getMonth();
+      const primeiroDia = new Date(ano, mes, 1);
+      const ultimoDia = new Date(ano, mes + 1, 0);
+      const nomeMes = primeiroDia.toLocaleString('pt-BR', { month: 'long' });
+      const diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+      let html = `<div style="margin-bottom:8px">
+        <div style="font-size:13px;font-weight:700;text-transform:capitalize;color:var(--text);margin-bottom:10px">${nomeMes} ${ano}</div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px">
+          ${diasSemana.map(d => `<div style="text-align:center;font-size:9px;font-weight:700;color:var(--text3);padding:3px 0;text-transform:uppercase">${d}</div>`).join('')}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">`;
+
+      // Células vazias antes do primeiro dia
+      for (let i = 0; i < primeiroDia.getDay(); i++) {
+        html += `<div></div>`;
+      }
+
+      for (let d = 1; d <= ultimoDia.getDate(); d++) {
+        const data = new Date(ano, mes, d);
+        const df = fmtData(data);
+        const t = escala.find(r => r[0] === df && r[2] === nome);
+        const aus = ausencias.find(a => a[1] === nome && dentroAusencia(a, df) && a[0] !== 'CANCELADO');
+        const isHoje = df === hojeStr;
+
+        let bg = 'var(--bg2)', bc = 'transparent', tc = 'var(--text3)', label = '', ic = '';
+        if (aus) {
+          const icones = {'Férias':'🏖️','Folga programada':'☀️','Atestado médico':'🏥','Troca de horário':'🔄','Folga direcionada':'📌'};
+          bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; ic = icones[aus[2]] || '📋';
+        } else if (t?.[5] === 'Folga') {
+          bg = '#1f1a0d'; bc = '#3d3010'; tc = '#f6ad55'; ic = '☀️';
+        } else if (t?.[3] && t?.[4]) {
+          bg = '#0d1a10'; bc = '#166534'; tc = '#68d391';
+          label = `<div style="font-size:7px;line-height:1.2;margin-top:2px">${t[3]}<br>${t[4]}</div>`;
+        }
+
+        html += `<div style="background:${bg};border:1px solid ${bc};border-radius:6px;padding:4px 3px;text-align:center;min-height:42px${isHoje ? ';box-shadow:0 0 0 2px #63b3ed' : ''}">
+          <div style="font-size:10px;font-weight:${isHoje?'800':'600'};color:${isHoje?'#63b3ed':tc}">${d}</div>
+          ${ic ? `<div style="font-size:13px;line-height:1">${ic}</div>` : label}
+        </div>`;
+      }
+
+      html += `</div></div>`;
+      return html;
+    }
+
     const eventosHojeJson = JSON.stringify(eventosHoje.map(e => ({nome:e.nome,hora:e.hora,tipo:e.tipo,local:e.local})));
     const eventosAmanhaJson = JSON.stringify(eventosAmanha.map(e => ({nome:e.nome,hora:e.hora,tipo:e.tipo,local:e.local})));
+    const hojeAno = hoje.getFullYear();
+    const hojeNumMes = hoje.getMonth();
 
     const conteudoEquipe = `
 <div class="header" style="background:var(--header)">
@@ -617,6 +736,9 @@ export default async function handler(req, res) {
 .ev-proximo-60{border-color:#f97316!important}
 .ev-encerrado{opacity:.35!important}
 @keyframes border-pulse-green{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 4px rgba(34,197,94,0)}}
+.tab-nav-colab{display:flex;gap:6px;margin-bottom:14px}
+.tab-btn-colab{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px;font-size:12px;font-weight:600;background:none;color:var(--text3);cursor:pointer;transition:all .15s}
+.tab-btn-colab.ativo{background:var(--blue-m-bg);border-color:var(--blue-m-border);color:var(--blue-m-v)}
 </style>
 <div class="wrap">
   <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
@@ -641,32 +763,53 @@ export default async function handler(req, res) {
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-    ${cardTurno(turnoHoje, ausHoje, 'Hoje')}
-    ${cardTurno(turnoD1, ausD1, 'Amanhã', true)}
+  <div class="tab-nav-colab">
+    <button class="tab-btn-colab ativo" onclick="trocarAba('dia')" id="tab-dia">📅 Hoje / Amanhã</button>
+    <button class="tab-btn-colab" onclick="trocarAba('semana')" id="tab-semana">📆 Semana</button>
+    <button class="tab-btn-colab" onclick="trocarAba('mes')" id="tab-mes">🗓️ Mês</button>
   </div>
 
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">Minha semana</div>
-    <div class="grid7">${renderSemanaColab()}</div>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title" style="color:#22c55e">🟢 Hoje</span>
-        <span class="badge blue" id="badge-hoje">${eventosHoje.length}</span>
-        <span style="font-size:10px;color:var(--text3);margin-left:auto">${hojeStr}</span>
-      </div>
-      <div id="lista-eventos-hoje" class="card-body" style="max-height:520px;overflow-y:auto;padding:8px"></div>
+  <div id="painel-dia">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      ${cardTurno(turnoHoje, ausHoje, 'Hoje')}
+      ${cardTurno(turnoD1, ausD1, 'Amanhã', true)}
     </div>
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title" style="color:#3b82f6">📅 Amanhã</span>
-        <span class="badge blue">${eventosAmanha.length}</span>
-        <span style="font-size:10px;color:var(--text3);margin-left:auto">${d1Str}</span>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" style="color:#22c55e">🟢 Hoje</span>
+          <span class="badge blue">${eventosHoje.length}</span>
+          <span style="font-size:10px;color:var(--text3);margin-left:auto">${hojeStr}</span>
+        </div>
+        <div id="lista-eventos-hoje" class="card-body" style="max-height:480px;overflow-y:auto;padding:8px"></div>
       </div>
-      <div id="lista-eventos-amanha" class="card-body" style="max-height:520px;overflow-y:auto;padding:8px"></div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" style="color:#3b82f6">📅 Amanhã</span>
+          <span class="badge blue">${eventosAmanha.length}</span>
+          <span style="font-size:10px;color:var(--text3);margin-left:auto">${d1Str}</span>
+        </div>
+        <div id="lista-eventos-amanha" class="card-body" style="max-height:480px;overflow-y:auto;padding:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="painel-semana" style="display:none">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">Próximos 7 dias</div>
+      <div class="grid7">${renderSemanaColab()}</div>
+    </div>
+  </div>
+
+  <div id="painel-mes" style="display:none">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px">
+      ${renderMesColab()}
+      <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border);padding-top:10px">
+        <span style="font-size:10px;color:var(--text3)">Legenda:</span>
+        <span style="font-size:10px;background:#0d1a10;border:1px solid #166534;color:#68d391;border-radius:4px;padding:1px 7px">🟢 Trabalhando</span>
+        <span style="font-size:10px;background:#1f1a0d;border:1px solid #3d3010;color:#f6ad55;border-radius:4px;padding:1px 7px">☀️ Folga</span>
+        <span style="font-size:10px;background:#1a0d2e;border:1px solid #6b21a8;color:#c084fc;border-radius:4px;padding:1px 7px">🏖️ Ausência</span>
+      </div>
     </div>
   </div>
 </div>
@@ -674,7 +817,6 @@ export default async function handler(req, res) {
 <script>
 var _evHoje = ${eventosHojeJson};
 var _evAmanha = ${eventosAmanhaJson};
-var _horaAtual = ${horaAtualMin};
 
 function toMin(h){if(!h)return null;var p=h.split(':');return parseInt(p[0])*60+(parseInt(p[1])||0);}
 
@@ -689,7 +831,7 @@ function statusEvento(hora, agora) {
 }
 
 function statusLabel(s) {
-  if (s==='aovivo') return '<span style="background:#166534;color:#86efac;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;animation:border-pulse-green 2s infinite">● AO VIVO</span>';
+  if (s==='aovivo') return '<span style="background:#166534;color:#86efac;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">● AO VIVO</span>';
   if (s==='proximo30') return '<span style="background:#451a03;color:#fcd34d;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">⚡ &lt;30min</span>';
   if (s==='proximo60') return '<span style="background:#431407;color:#fb923c;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">🔜 &lt;60min</span>';
   if (s==='encerrado') return '<span style="color:#4a5568;font-size:10px">Encerrado</span>';
@@ -715,7 +857,7 @@ function renderEventos(eventos, containerId, agora, isHoje) {
     var lbl = statusLabel(s);
     html += '<div class="'+bc+'" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s">';
     html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
-    html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">'+( ev.hora||'--')+'</div>';
+    html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">'+(ev.hora||'--')+'</div>';
     html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">'+ev.nome+'</div>';
     html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+ev.tipo+(ev.local?' · <span style="font-weight:600">'+ev.local+'</span>':'')+'</div></div>';
     if (lbl) html += '<div>'+lbl+'</div>';
@@ -725,28 +867,26 @@ function renderEventos(eventos, containerId, agora, isHoje) {
 }
 
 function atualizarEventos() {
-  var brt = new Date();
-  var offset = (-3*60 - brt.getTimezoneOffset()) * 60000;
-  var agora = new Date(brt.getTime() + offset);
-  var minAtual = agora.getHours()*60 + agora.getMinutes();
+  var now = new Date();
+  var brtParts = new Intl.DateTimeFormat('pt-BR', {timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(now);
+  var bh = parseInt(brtParts.find(function(p){return p.type==='hour';}).value);
+  var bm = parseInt(brtParts.find(function(p){return p.type==='minute';}).value);
+  var minAtual = bh*60 + bm;
   renderEventos(_evHoje, 'lista-eventos-hoje', minAtual, true);
   renderEventos(_evAmanha, 'lista-eventos-amanha', minAtual, false);
 }
 
-// Relógio BRT + GMT em tempo real
 function atualizarRelogio() {
   var now = new Date();
-  // BRT via Intl — sempre correto independente do fuso do browser
   var brtParts = new Intl.DateTimeFormat('pt-BR', {
     timeZone: 'America/Sao_Paulo',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
   }).formatToParts(now);
-  var bh = brtParts.find(p=>p.type==='hour').value;
-  var bm = brtParts.find(p=>p.type==='minute').value;
-  var bs = brtParts.find(p=>p.type==='second').value;
+  var bh = brtParts.find(function(p){return p.type==='hour';}).value;
+  var bm = brtParts.find(function(p){return p.type==='minute';}).value;
+  var bs = brtParts.find(function(p){return p.type==='second';}).value;
   var elBrt = document.getElementById('relogio-brt');
   if (elBrt) elBrt.textContent = bh+':'+bm+':'+bs;
-  // GMT = UTC puro
   var gh = String(now.getUTCHours()).padStart(2,'0');
   var gm = String(now.getUTCMinutes()).padStart(2,'0');
   var gs = String(now.getUTCSeconds()).padStart(2,'0');
@@ -754,31 +894,36 @@ function atualizarRelogio() {
   if (elGmt) elGmt.textContent = gh+':'+gm+':'+gs;
 }
 
-// Previsão do tempo — ip-api (HTTP) para lat/lon, depois Open-Meteo
 async function carregarTempo() {
   try {
-    // Tenta ipapi.co primeiro (HTTPS, sem CORS)
     var loc = null;
     try {
       var r1 = await fetch('https://ipapi.co/json/');
       var j1 = await r1.json();
       if (j1.latitude) loc = {lat: j1.latitude, lon: j1.longitude, city: j1.city};
     } catch(e) {}
-    // Fallback: Open-Meteo com localização fixa do Rio (caso ambos falhem)
     if (!loc) loc = {lat: -22.9068, lon: -43.1729, city: 'Rio de Janeiro'};
     var wmo = await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America%2FSao_Paulo');
     var wd = await wmo.json();
-    var temp = Math.round(wd.current && wd.current.temperature_2m !== undefined ? wd.current.temperature_2m : 99);
+    var temp = wd.current && wd.current.temperature_2m !== undefined ? Math.round(wd.current.temperature_2m) : '--';
     var code = wd.current ? (wd.current.weathercode || 0) : 0;
-    var icons = {0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',73:'❄️',75:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',96:'⛈️',99:'⛈️'};
-    var ic = icons[code] || '🌡️';
-    document.getElementById('tempo-icone').textContent = ic;
+    var icons = {0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',99:'⛈️'};
+    document.getElementById('tempo-icone').textContent = icons[code] || '🌡️';
     document.getElementById('tempo-temp').textContent = temp+'°C';
     document.getElementById('tempo-cidade').textContent = loc.city || '';
   } catch(e) {
     document.getElementById('tempo-icone').textContent = '🌡️';
     document.getElementById('tempo-temp').textContent = '--°C';
   }
+}
+
+function trocarAba(aba) {
+  ['dia','semana','mes'].forEach(function(a) {
+    var p = document.getElementById('painel-'+a);
+    var t = document.getElementById('tab-'+a);
+    if (p) p.style.display = a === aba ? 'block' : 'none';
+    if (t) t.className = 'tab-btn-colab' + (a === aba ? ' ativo' : '');
+  });
 }
 
 atualizarEventos();
@@ -822,7 +967,7 @@ setInterval(atualizarEventos, 60000);
     const SOLICITAR_BTN = `
 <div id="sol-btn" onclick="toggleSolicitar()" style="position:fixed;bottom:24px;left:24px;z-index:900;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#16a34a,#15803d);box-shadow:0 4px 20px rgba(22,163,74,.5);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;transition:transform .2s" title="Solicitações">📋</div>
 
-<div id="sol-box" style="display:none;position:fixed;bottom:88px;left:24px;z-index:900;width:380px;max-width:calc(100vw - 48px);background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);overflow:hidden;max-height:90vh;display:none;flex-direction:column">
+<div id="sol-box" style="display:none;position:fixed;bottom:88px;left:24px;z-index:900;width:380px;max-width:calc(100vw - 48px);background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.3);overflow:hidden;max-height:90vh;flex-direction:column">
   <div style="background:var(--header);padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0">
     <span style="font-size:16px">📋</span>
     <div style="flex:1;font-size:13px;font-weight:600;color:#e2e8f0">Minhas solicitações</div>
@@ -866,7 +1011,7 @@ setInterval(atualizarEventos, 60000);
       <div id="sol-atestado-area" style="display:none">
         <div style="margin-bottom:10px">
           <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Arquivo do atestado</label>
-          <div id="sol-upload-area" style="border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:border-color .2s" onclick="document.getElementById('sol-arquivo').click()">
+          <div id="sol-upload-area" style="border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer" onclick="document.getElementById('sol-arquivo').click()">
             <div style="font-size:24px;margin-bottom:4px">📎</div>
             <div style="font-size:12px;color:var(--text3)">Clique para selecionar PDF, JPG ou PNG</div>
             <div id="sol-arquivo-nome" style="font-size:11px;color:#16a34a;margin-top:4px;display:none"></div>
