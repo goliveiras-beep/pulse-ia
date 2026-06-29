@@ -435,7 +435,7 @@ export default async function handler(req, res) {
       const { tipo, motivo, dataInicio, dataFim } = req.body || {};
       if (!tipo || !dataInicio) return res.status(400).json({ error: 'Dados inválidos' });
       const novoId = 'PLS-' + String(Date.now()).slice(-6);
-      await appendSheet('Ausencias!A:F', [[novoId, nome, tipo, motivo || '', dataInicio, dataFim || dataInicio]]);
+      await appendSheet('Ausencias!A2:F', [[novoId, nome, tipo, motivo || '', dataInicio, dataFim || dataInicio]]);
       return res.status(200).json({ ok: true, id: novoId });
     } catch(err) {
       return res.status(500).json({ error: String(err.message || err) });
@@ -663,7 +663,6 @@ export default async function handler(req, res) {
           <option value="Férias">🏖️ Férias</option>
           <option value="Folga programada">📅 Folga programada</option>
           <option value="Atestado médico">🏥 Atestado médico</option>
-          <option value="Folga direcionada">📌 Folga direcionada</option>
           <option value="Troca de horário">🔄 Troca de horário</option>
         </select>
       </div>
@@ -689,6 +688,15 @@ export default async function handler(req, res) {
             <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Data fim</label>
             <input type="date" id="sol-fim" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
           </div>
+        </div>
+      </div>
+
+      <!-- Atestado: link do documento -->
+      <div id="sol-atestado-area" style="display:none">
+        <div style="margin-bottom:10px">
+          <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Link do atestado (Google Drive, etc.)</label>
+          <input type="url" id="sol-atestado-link" placeholder="https://drive.google.com/..." style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;background:var(--bg2);color:var(--text);outline:none">
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">Faça upload no Google Drive e cole o link aqui</div>
         </div>
       </div>
 
@@ -835,9 +843,11 @@ function solTipoChange(){
   var tipo=document.getElementById('sol-tipo').value;
   var isFerias=tipo==='Férias';
   var isTroca=tipo==='Troca de horário';
+  var isAtestado=tipo==='Atestado médico';
   document.getElementById('sol-ferias-area').style.display=isFerias?'block':'none';
   document.getElementById('sol-datas-area').style.display=(!isFerias&&!isTroca)?'block':'none';
   document.getElementById('sol-troca-area').style.display=isTroca?'block':'none';
+  document.getElementById('sol-atestado-area').style.display=isAtestado?'block':'none';
 }
 
 function validarFerias(){
@@ -903,6 +913,10 @@ async function enviarSolicits(){
     if(!inicio){msg.style.display='block';msg.style.background='#1f1010';msg.style.color='#fc8181';msg.textContent='⚠ Informe a data de início';return;}
     body.dataInicio=fmtDt(inicio);
     body.dataFim=fmtDt(fim||inicio);
+    if(tipo==='Atestado médico'){
+      var link=document.getElementById('sol-atestado-link').value;
+      if(link)body.motivo=(obs?obs+' | ':'')+'Anexo: '+link;
+    }
   }
 
   try{
