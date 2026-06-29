@@ -4,22 +4,36 @@ import { sheetsRequest } from '../lib/google-auth.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
+const COOKIE_MAX = 60 * 60 * 24 * 7;
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
 function iniciais(n) { return (n||'?').split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function getSession(req) {
   const cookies = {};
-  (req.headers.cookie||'').split(';').forEach(c=>{const[k,...v]=c.trim().split('=');cookies[k.trim()]=v.join('=');});
+  (req.headers.cookie||'').split(';').forEach(c => {
+    const cookieParts = c.trim().split('=');
+    const k = cookieParts.shift();
+    cookies[k] = cookieParts.join('=');
+  });
   const token = cookies[COOKIE_NAME];
   if (!token) return null;
   try {
-    const d = Buffer.from(token,'base64').toString('utf8');
-    const [nome,h,ts] = d.split('|');
-    if (Date.now()-parseInt(ts) > 7*24*3600*1000) return null;
-    if (h !== hash(nome+ts)) return null;
+    const d = Buffer.from(token, 'base64').toString('utf8');
+    const lastPipe = d.lastIndexOf('|');
+    const secondPipe = d.lastIndexOf('|', lastPipe - 1);
+    const data = d.slice(0, secondPipe);
+    const h = d.slice(secondPipe + 1, lastPipe);
+    const ts = d.slice(lastPipe + 1);
+    if (Date.now() - parseInt(ts, 10) > COOKIE_MAX * 1000) return null;
+    if (h !== hash(data + ts)) return null;
+    if (data.startsWith('~~OAUTH~~')) return null;
+    const nome = data.split('~~')[0];
+    if (!nome) return null;
     return { nome };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 async function getSheet(range) {
@@ -111,7 +125,6 @@ export default async function handler(req, res) {
   }
 
   // ── GET: renderizar ───────────────────────────────────────────────────────
-  // Process ausencias - pending requests
   const solicitacoesPendentes = ausenciasRaw.filter(r => r[0] && r[0].startsWith('PLS-')).map((r,i) => ({
     idx: i+2,
     id: r[0],
@@ -178,7 +191,6 @@ export default async function handler(req, res) {
     const badge = isGestor
       ? `<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">Gestor</span>`
       : `<span style="background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600">Colaborador</span>`;
-    const dataId = `data-linha="${m.linha}"`;
     return `
     <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px">
       <div style="width:44px;height:44px;border-radius:50%;background:${cor};color:${corT};font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(m.nome)}</div>
@@ -195,11 +207,8 @@ export default async function handler(req, res) {
     </div>`;
   }
 
-  // Mapa de dados para edição (evita problemas com chars especiais inline)
   const membrosData = {};
-  todos.filter(m=>m.nome).forEach(m => {
-    membrosData[m.linha] = m;
-  });
+  todos.filter(m=>m.nome).forEach(m => { membrosData[m.linha] = m; });
   const membrosDataJson = JSON.stringify(membrosData);
 
   function renderSolicitacoes() {
@@ -286,7 +295,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div class="wrap">
-  <!-- Métricas -->
   <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 20px;margin-bottom:20px;display:flex;gap:24px;flex-wrap:wrap">
     <div style="text-align:center"><div style="font-size:26px;font-weight:700">${ativos.length}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase">Ativos</div></div>
     <div style="width:1px;background:var(--border)"></div>
@@ -311,7 +319,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="grid">${colaboradores.length ? colaboradores.map(cardAtivo).join('') : '<div style="color:var(--text3);font-size:13px;padding:10px">Nenhum colaborador ativo.</div>'}</div>
 </div>
 
-<!-- Modal editar -->
 <div class="modal-bg" id="modal">
   <div class="modal">
     <h3>Editar colaborador</h3>
