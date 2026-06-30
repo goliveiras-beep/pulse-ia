@@ -1440,7 +1440,18 @@ setInterval(atualizarEventos, 60000);
   const trabAmanha = escD1.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente').length;
   const folgAmanha = escD1.filter(r => !r[3] || r[5] === 'Folga' || r[5] === 'Folga/Ausente').length;
   const folgHoje = escHoje.filter(r => !r[3] || r[5] === 'Folga' || r[5] === 'Folga/Ausente').length;
-  const feriasAtivas = ausencias.filter(a => a[0] !== 'CANCELADO' && a[2] === 'Férias' && (dentroAusencia(a, hojeStr) || dentroAusencia(a, d1Str))).length;
+  // Férias que iniciam nos próximos 7 dias (alerta antecipado)
+  const d7 = new Date(hoje); d7.setDate(hoje.getDate() + 7);
+  const feriasProximas = ausencias.filter(a => {
+    if (a[0] === 'CANCELADO' || a[2] !== 'Férias' || !a[4]) return false;
+    const [dd, mm] = a[4].split('/').map(Number);
+    const anoRef = hoje.getFullYear();
+    // tenta com ano atual, se ficar no passado tenta com ano seguinte
+    let inicioFerias = new Date(anoRef, mm - 1, dd);
+    if (inicioFerias < hoje) inicioFerias = new Date(anoRef + 1, mm - 1, dd);
+    return inicioFerias >= hoje && inicioFerias <= d7;
+  });
+  const feriasAtivas = feriasProximas.length;
   const cobPct = equipeRaw.length > 0 ? Math.round(trabAmanha / equipeRaw.length * 100) : 0;
   const atualizado = hoje.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
@@ -1561,7 +1572,7 @@ setInterval(atualizarEventos, 60000);
     <div class="metric blue-m"><div class="ml">Trabalhando amanha</div><div class="mv">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
     <div class="metric ${folgHoje > 2 ? 'amber-m' : ''}"><div class="ml">Folgas hoje</div><div class="mv">${folgHoje}</div><div class="ms">${ausencias.filter(a => a[0] !== 'CANCELADO' && dentroAusencia(a, hojeStr)).length} via Pulse</div></div>
     <div class="metric ${folgAmanha > 2 ? 'amber-m' : ''}"><div class="ml">Folgas amanha</div><div class="mv">${folgAmanha}</div><div class="ms">${ausencias.filter(a => a[4] === d1Str).length} via Pulse</div></div>
-    <div class="metric ${feriasAtivas > 0 ? 'blue-m' : ''}"><div class="ml">Ferias (hoje/amanhã)</div><div class="mv">${feriasAtivas}</div><div class="ms">colaborador(es) de férias</div></div>
+    <div class="metric ${feriasAtivas > 0 ? 'amber-m' : ''}"><div class="ml">Férias em até 7 dias</div><div class="mv">${feriasAtivas}</div><div class="ms">${feriasAtivas > 0 ? feriasProximas.map(a => `${a[1].split(' ')[0]} (${a[4]})`).join(', ') : 'nenhuma prevista'}</div></div>
     <div class="metric ${semCob > 0 ? 'red-m' : ''}" title="Considera sem cobertura quando, no horário do evento (entre início e término), nenhum colaborador da escala está de turno ativo cobrindo aquele intervalo."><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">eventos amanhã sem ninguém de turno cobrindo do início ao fim (de ${eventosAmanha.length})</div></div>
     <div class="metric" style="display:flex;align-items:center;justify-content:center;text-align:center">
       <div style="width:100%">
