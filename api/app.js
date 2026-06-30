@@ -873,8 +873,12 @@ export default async function handler(req, res) {
 
   <div id="painel-semana" style="display:none">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">Próximos 7 dias</div>
-      <div class="grid7">${renderSemanaColab()}</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+        <button onclick="navSemana(-1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8249;</button>
+        <div style="flex:1;text-align:center;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em" id="semana-label">Próximos 7 dias</div>
+        <button onclick="navSemana(1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8250;</button>
+      </div>
+      <div class="grid7" id="semana-grid"></div>
       <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--border);padding-top:10px;align-items:center">
         <span style="font-size:10px;color:var(--text3);font-weight:600">Legenda:</span>
         <span style="font-size:10px;background:#0d1a10;border:1px solid #166534;color:#68d391;border-radius:4px;padding:2px 8px">🟢 Trabalhando</span>
@@ -888,7 +892,15 @@ export default async function handler(req, res) {
 
   <div id="painel-mes" style="display:none">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px">
-      ${renderMesColab()}
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+        <button onclick="navMes(-1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8249;</button>
+        <div style="flex:1;text-align:center;font-size:13px;font-weight:700;text-transform:capitalize;color:var(--text)" id="mes-label"></div>
+        <button onclick="navMes(1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8250;</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px">
+        ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d => `<div style="text-align:center;font-size:9px;font-weight:700;color:var(--text3);padding:3px 0;text-transform:uppercase">${d}</div>`).join('')}
+      </div>
+      <div id="mes-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px"></div>
       <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--border);padding-top:10px;align-items:center">
         <span style="font-size:10px;color:var(--text3);font-weight:600">Legenda:</span>
         <span style="font-size:10px;background:#0d1a10;border:1px solid #166534;color:#68d391;border-radius:4px;padding:2px 8px">🟢 Trabalhando</span>
@@ -906,6 +918,121 @@ var _evHoje = ${eventosHojeJson};
 var _evAmanha = ${eventosAmanhaJson};
 var _diasExtras = ${diasExtrasJson};
 var _diaExtraAtual = 0;
+
+// Dados completos do colaborador para navegação livre de semana/mês (independem da janela dos próximos 7 dias)
+var _escalaColab = ${JSON.stringify(escala.filter(r => r[2] === nome).map(r => [r[0], r[3] || '', r[4] || '', r[5] || '']))};
+var _ausenciasColab = ${JSON.stringify(ausencias.filter(a => a[1] === nome && a[0] !== 'CANCELADO').map(a => [a[2] || '', a[3] || '', a[4] || '', a[5] || '']))};
+var _hojeBase = new Date(${hoje.getFullYear()}, ${hoje.getMonth()}, ${hoje.getDate()});
+var _hojeStrJs = '${hojeStr}';
+var DIAS_PT_JS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+var _semanaOffset = 0;
+var _mesOffset = 0;
+
+function fmtDataJs(d) { return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0'); }
+function dentroAusenciaJs(aus, df) {
+  var ini = aus[2] || '', fim = aus[3] || ini;
+  if (!ini) return false;
+  function toNum(s) { var p = s.split('/'); return parseInt(p[1])*100 + parseInt(p[0]); }
+  var n = toNum(df), i = toNum(ini), f = toNum(fim);
+  if (f >= i) return n >= i && n <= f;
+  return n >= i || n <= f;
+}
+function findEscalaColab(df) { return _escalaColab.find(function(r) { return r[0] === df; }); }
+function findAusenciaColab(df) { return _ausenciasColab.find(function(a) { return dentroAusenciaJs(a, df); }); }
+
+function renderSemanaGrid(offsetDays) {
+  var html = '';
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(_hojeBase); d.setDate(_hojeBase.getDate() + offsetDays + i);
+    var df = fmtDataJs(d);
+    var t = findEscalaColab(df);
+    var aus = findAusenciaColab(df);
+    var isHoje = (offsetDays === 0 && i === 0);
+    var bg = 'var(--card)', bc = 'var(--border)', tc = 'var(--text3)', label = '--';
+    if (aus) {
+      var tipo = aus[0] || '';
+      var icones = {'Férias':'🏖️','Folga programada':'☀️','Atestado médico':'🏥','Troca de horário':'🔄','Folga direcionada':'📌'};
+      if (tipo === 'Férias') { bg='#1a2744'; bc='#2a4080'; tc='#63b3ed'; }
+      else if (tipo === 'Atestado médico') { bg='#1f1010'; bc='#991b1b'; tc='#fc8181'; }
+      else { bg='#1a0d2e'; bc='#6b21a8'; tc='#c084fc'; }
+      label = icones[tipo] || '📋';
+    } else if (t && t[3] === 'Folga') {
+      bg='#1f1a0d'; bc='#3d3010'; tc='#f6ad55'; label='☀️';
+    } else if (t && t[1] && t[2]) {
+      bg = isHoje ? '#0d2010' : 'var(--card)';
+      bc = isHoje ? '#166534' : 'var(--border)';
+      tc = isHoje ? '#68d391' : 'var(--text)';
+      label = t[1] + '<br><span style="opacity:.5;font-size:8px">&rarr;</span><br>' + t[2];
+    } else if (t && t[3] && (t[3].indexOf('Anexo:') >= 0 || t[3].indexOf('http') === 0)) {
+      var url = t[3].indexOf('Anexo:') >= 0 ? t[3].split('Anexo:')[1].trim() : t[3];
+      bg='#1a0d2e'; bc='#6b21a8'; tc='#c084fc';
+      label = '<a href="'+url+'" target="_blank" style="color:#c084fc;text-decoration:none">📎</a>';
+    }
+    html += '<div style="background:'+bg+';border:1px solid '+bc+';border-radius:8px;padding:7px 4px;text-align:center'+(isHoje?';box-shadow:0 0 0 2px '+bc:'')+'">'
+      + '<div style="font-size:8px;font-weight:700;color:'+tc+';text-transform:uppercase;margin-bottom:2px">'+DIAS_PT_JS[d.getDay()]+'</div>'
+      + '<div style="font-size:8px;color:'+tc+';opacity:.7;margin-bottom:4px">'+df+'</div>'
+      + '<div style="font-size:10px;font-weight:700;color:'+tc+';line-height:1.4">'+label+'</div>'
+      + '</div>';
+  }
+  return html;
+}
+
+function navSemana(dir) { _semanaOffset += dir * 7; atualizarSemana(); }
+
+function atualizarSemana() {
+  var ini = new Date(_hojeBase); ini.setDate(_hojeBase.getDate() + _semanaOffset);
+  var fim = new Date(ini); fim.setDate(ini.getDate() + 6);
+  var lbl = document.getElementById('semana-label');
+  if (lbl) lbl.textContent = (_semanaOffset === 0 ? 'Próximos 7 dias · ' : '') + fmtDataJs(ini) + ' — ' + fmtDataJs(fim);
+  var grid = document.getElementById('semana-grid');
+  if (grid) grid.innerHTML = renderSemanaGrid(_semanaOffset);
+}
+
+function renderMesGrid(offsetMonths) {
+  var base = new Date(_hojeBase.getFullYear(), _hojeBase.getMonth() + offsetMonths, 1);
+  var ano = base.getFullYear(), mes = base.getMonth();
+  var ultimoDia = new Date(ano, mes + 1, 0).getDate();
+  var primeiroDiaSemana = new Date(ano, mes, 1).getDay();
+  var html = '';
+  for (var i = 0; i < primeiroDiaSemana; i++) html += '<div></div>';
+  for (var dd = 1; dd <= ultimoDia; dd++) {
+    var data = new Date(ano, mes, dd);
+    var df = fmtDataJs(data);
+    var t = findEscalaColab(df);
+    var aus = findAusenciaColab(df);
+    var isHoje = (offsetMonths === 0 && df === _hojeStrJs);
+    var bg = 'var(--bg2)', bc = 'transparent', tc = 'var(--text3)', label = '', ic = '';
+    if (aus) {
+      var tipo = aus[0] || '';
+      var icones = {'Férias':'🏖️','Folga programada':'☀️','Atestado médico':'🏥','Troca de horário':'🔄','Folga direcionada':'📌'};
+      if (tipo === 'Férias') { bg='#1a2744'; bc='#2a4080'; tc='#63b3ed'; }
+      else if (tipo === 'Atestado médico') { bg='#1f1010'; bc='#991b1b'; tc='#fc8181'; }
+      else { bg='#1a0d2e'; bc='#6b21a8'; tc='#c084fc'; }
+      ic = icones[tipo] || '📋';
+    } else if (t && t[3] === 'Folga') {
+      bg='#1f1a0d'; bc='#3d3010'; tc='#f6ad55'; ic='☀️';
+    } else if (t && t[1] && t[2]) {
+      bg='#0d1a10'; bc='#166534'; tc='#68d391';
+      label = '<div style="font-size:7px;line-height:1.2;margin-top:2px">'+t[1]+'<br>'+t[2]+'</div>';
+    }
+    html += '<div style="background:'+bg+';border:1px solid '+bc+';border-radius:6px;padding:4px 3px;text-align:center;min-height:42px'+(isHoje?';box-shadow:0 0 0 2px #63b3ed':'')+'">'
+      + '<div style="font-size:10px;font-weight:'+(isHoje?'800':'600')+';color:'+(isHoje?'#63b3ed':tc)+'">'+dd+'</div>'
+      + (ic ? '<div style="font-size:13px;line-height:1">'+ic+'</div>' : label)
+      + '</div>';
+  }
+  return html;
+}
+
+function navMes(dir) { _mesOffset += dir; atualizarMes(); }
+
+function atualizarMes() {
+  var base = new Date(_hojeBase.getFullYear(), _hojeBase.getMonth() + _mesOffset, 1);
+  var nomeMes = base.toLocaleString('pt-BR', { month: 'long' });
+  var lbl = document.getElementById('mes-label');
+  if (lbl) lbl.textContent = nomeMes + ' ' + base.getFullYear();
+  var grid = document.getElementById('mes-grid');
+  if (grid) grid.innerHTML = renderMesGrid(_mesOffset);
+}
 
 function toMin(h){if(!h)return null;var p=h.split(':');return parseInt(p[0])*60+(parseInt(p[1])||0);}
 
@@ -1072,6 +1199,8 @@ function iniciar() {
   try { atualizarEventos(); } catch(e) { console.error('atualizarEventos erro:', e); }
   try { atualizarRelogio(); } catch(e) {}
   try { carregarTempo(); } catch(e) {}
+  try { atualizarSemana(); } catch(e) { console.error('atualizarSemana erro:', e); }
+  try { atualizarMes(); } catch(e) { console.error('atualizarMes erro:', e); }
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', iniciar);
@@ -1338,6 +1467,14 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
 
   const pulseSpeedGestor = eventosHoje.length >= 15 ? '0.6s' : eventosHoje.length >= 10 ? '1s' : eventosHoje.length >= 5 ? '1.5s' : '2.5s';
 
+  // Contador de requisições pendentes (solicitações de ausência + novos membros aguardando aprovação)
+  const pendAusenciasGestor = ausencias.filter(a => a[0] && a[0].startsWith('PLS-')).length;
+  const pendEquipeGestor = equipeRaw.filter(r => (r[10] || 'ativo').toLowerCase() === 'pendente').length;
+  const totalPendentesGestor = pendAusenciasGestor + pendEquipeGestor;
+  const badgeEquipeGestor = totalPendentesGestor > 0
+    ? ` <span style="background:#dc2626;color:#fff;border-radius:50%;min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;padding:0 3px;vertical-align:middle">${totalPendentesGestor}</span>`
+    : '';
+
   const conteudo = `
 <div class="header">
   <div class="logo" style="background:none;padding:0;overflow:visible">
@@ -1367,7 +1504,7 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
     </div>
     <span style="font-size:12px;color:#666">Ola, ${nome.split(' ')[0]}</span>
     <a href="/api/escalas?v=semana" class="btn-sm">Escala</a>
-    <a href="/api/equipe-view" class="btn-sm">Equipe</a>
+    <a href="/api/equipe-view" class="btn-sm" style="display:inline-flex;align-items:center;gap:4px">Equipe${badgeEquipeGestor}</a>
     <a href="/api/repositorio" class="btn-sm">Repositorio</a>
     <a href="/api/gerar-escala" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">&#10024; IA</a>
     <button class="btn-sm" onclick="location.reload()">&#8635;</button>
