@@ -299,7 +299,23 @@ a{text-decoration:none;color:inherit}
 @keyframes pulse-heart{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
 .pulse-heart-anim{animation:pulse-heart 1.5s ease-in-out infinite}
 @media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:600px){.metrics{grid-template-columns:1fr}.wrap{padding:12px}}
+@media(max-width:600px){
+  .metrics{grid-template-columns:1fr}
+  .wrap{padding:12px}
+  .header{padding:8px 12px;gap:6px}
+  .ht{font-size:12px}
+  .hr{gap:4px}
+  .btn-sm{padding:3px 7px;font-size:10px}
+  /* Gestor: tabela de escala scroll horizontal */
+  .wrap table{display:block;overflow-x:auto;white-space:nowrap}
+  /* Gestor: 3 colunas de eventos empilha */
+  .wrap > div > div[style*="grid-template-columns:1fr 1fr 1fr"]{grid-template-columns:1fr!important}
+  /* Gestor: 2 colunas empilha */
+  .wrap > div > div[style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
+  /* Esconde relógio GMT no mobile do gestor */
+  #grelogio-gmt{display:none}
+  #gtempo-cidade{display:none}
+}
 </style>
 </head>
 <body>
@@ -759,6 +775,26 @@ export default async function handler(req, res) {
 .tab-nav-colab{display:flex;gap:6px;margin-bottom:14px}
 .tab-btn-colab{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px;font-size:12px;font-weight:600;background:none;color:var(--text3);cursor:pointer;transition:all .15s}
 .tab-btn-colab.ativo{background:var(--blue-m-bg);border-color:var(--blue-m-border);color:var(--blue-m-v)}
+/* ── MOBILE ── */
+@media(max-width:640px){
+  .header{padding:8px 12px;gap:6px}
+  .ht{font-size:12px!important}
+  .hr{gap:4px}
+  .btn-sm{padding:3px 7px;font-size:10px}
+  #gtempo-cidade,#tempo-cidade{display:none}
+  #grelogio-brt,#relogio-brt{font-size:12px!important}
+  #grelogio-gmt,#relogio-gmt{font-size:9px!important}
+  #gtempo-temp,#tempo-temp{font-size:11px!important}
+  .wrap{padding:10px 12px}
+  /* Perfil: empilha no mobile */
+  .wrap > div[style*="grid-template-columns:1fr 1fr"]:first-child{grid-template-columns:1fr!important}
+  /* Cards hoje/amanhã: empilha */
+  #painel-dia > div[style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
+  /* 3 colunas de eventos: empilha */
+  #painel-dia > div[style*="grid-template-columns:1fr 1fr 1fr"]{grid-template-columns:1fr!important}
+  /* Abas menores */
+  .tab-btn-colab{font-size:10px;padding:6px 4px}
+}
 </style>
 <div class="wrap">
   <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
