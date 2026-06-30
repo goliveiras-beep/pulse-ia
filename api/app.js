@@ -281,14 +281,21 @@ a{text-decoration:none;color:inherit}
 .btn-sm{border:1px solid #3d4660;border-radius:5px;padding:4px 10px;font-size:11px;color:#a0aec0;background:none;cursor:pointer;text-decoration:none}
 .btn-sm:hover{border-color:#6b7280;color:#e2e8f0}
 .wrap{max-width:1200px;margin:0 auto;padding:16px 20px}
-.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px}
-.metric{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;min-width:0}
+/* ── Métricas ────────────────────────────────────────────────────────────── */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;min-width:0;display:flex;flex-direction:column;gap:4px;height:96px;justify-content:center}
 .metric.blue-m{background:var(--blue-m-bg);border-color:var(--blue-m-border)}
 .metric.red-m{background:var(--red-m-bg);border-color:var(--red-m-border)}
 .metric.amber-m{background:var(--amber-m-bg);border-color:var(--amber-m-border)}
-.ml{font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mv{font-size:28px;font-weight:800;line-height:1;margin-bottom:4px}
-.ms{font-size:10px;color:var(--text3);margin-top:2px;line-height:1.4;word-break:break-word}
+.ml{font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.mv{font-size:32px;font-weight:800;line-height:1;color:var(--text)}
+.mv.blue-v{color:var(--blue-m-v)}.mv.red-v{color:var(--red-m-v)}.mv.amber-v{color:var(--amber-m-v)}
+.ms{font-size:11px;color:var(--text3);line-height:1.35}
+/* ── Frase do dia (banner) ───────────────────────────────────────────────── */
+.frase-banner{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 18px;display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.frase-banner .frase-ic{flex-shrink:0}
+.frase-banner .frase-label{font-size:10px;font-weight:700;color:#e53e3e;text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.frase-banner .frase-txt{font-size:13px;font-weight:600;font-style:italic;color:#22c55e;line-height:1.4}
 .card{background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
 .card-header{padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border2)}
 .card-title{font-size:13px;font-weight:700}
@@ -314,6 +321,7 @@ a{text-decoration:none;color:inherit}
 @keyframes pulsar{0%,100%{opacity:1}50%{opacity:.3}}
 @keyframes pulse-heart{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
 .pulse-heart-anim{animation:pulse-heart 1.5s ease-in-out infinite}
+@media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:640px){
   .wrap{padding:10px}
   .header{padding:8px 10px;gap:6px;flex-wrap:nowrap}
@@ -327,7 +335,10 @@ a{text-decoration:none;color:inherit}
   .eventos-tab{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;white-space:nowrap;padding-bottom:4px}
   .eventos-tab-btn{flex-shrink:0;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;background:none;color:var(--text3);cursor:pointer}
   .eventos-tab-btn.ativo{background:var(--blue-m-bg);border-color:var(--blue-m-border);color:var(--blue-m-v)}
-  .mv{font-size:22px!important}
+  .mv{font-size:26px!important}
+  .metrics{grid-template-columns:repeat(2,1fr)!important;gap:8px}
+  .metric{height:84px!important;padding:12px 14px!important}
+  .frase-banner{padding:10px 14px!important}
 }
 </style>
 </head>
@@ -1571,19 +1582,20 @@ setInterval(atualizarEventos, 60000);
 </div>
 <div class="wrap">
   <div class="metrics">
-    <div class="metric blue-m"><div class="ml">Trabalhando amanhã</div><div class="mv">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
-    <div class="metric ${folgHoje > 2 ? 'amber-m' : ''}"><div class="ml">Folgas hoje</div><div class="mv">${folgHoje}</div><div class="ms">${ausencias.filter(a => a[0] !== 'CANCELADO' && dentroAusencia(a, hojeStr)).length} via Pulse</div></div>
-    <div class="metric ${folgAmanha > 2 ? 'amber-m' : ''}"><div class="ml">Folgas amanhã</div><div class="mv">${folgAmanha}</div><div class="ms">${ausencias.filter(a => a[4] === d1Str).length} via Pulse</div></div>
-    <div class="metric ${semCob > 0 ? 'red-m' : ''}" title="Eventos cujo intervalo (início→fim) não é coberto por nenhum turno escalado."><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanhã</div></div>
-    <div class="metric ${feriasAtivas > 0 ? 'amber-m' : ''}" style="${feriasAtivas === 0 ? 'display:none' : ''}"><div class="ml">Férias em até 7 dias</div><div class="mv">${feriasAtivas}</div><div class="ms">${feriasProximas.map(a => `${a[1].split(' ')[0]} (${a[4]})`).join(', ')}</div></div>
-    <div class="metric" style="display:flex;align-items:center;justify-content:center;text-align:center;padding:12px 14px">
-      <div style="width:100%">
-        <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px">
-          <svg class="pulse-heart-anim" width="22" height="22" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/><rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/><path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/><polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span style="font-size:9px;font-weight:700;color:#e53e3e;letter-spacing:.06em;text-transform:uppercase">Frase do dia</span>
-        </div>
-        <div style="font-size:12px;font-weight:600;font-style:italic;color:#22c55e;line-height:1.5;text-shadow:0 0 12px rgba(34,197,94,.3)">"${fraseDoDia}"</div>
-      </div>
+    <div class="metric blue-m"><div class="ml">Trabalhando amanhã</div><div class="mv blue-v">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
+    <div class="metric ${folgHoje > 2 ? 'amber-m' : ''}"><div class="ml">Folgas hoje</div><div class="mv ${folgHoje > 2 ? 'amber-v' : ''}">${folgHoje}</div><div class="ms">${ausencias.filter(a => a[0] !== 'CANCELADO' && dentroAusencia(a, hojeStr)).length} via Pulse</div></div>
+    <div class="metric ${folgAmanha > 2 ? 'amber-m' : ''}"><div class="ml">Folgas amanhã</div><div class="mv ${folgAmanha > 2 ? 'amber-v' : ''}">${folgAmanha}</div><div class="ms">${ausencias.filter(a => a[4] === d1Str).length} via Pulse</div></div>
+    <div class="metric ${semCob > 0 ? 'red-m' : ''}" title="Eventos cujo intervalo início→fim não é coberto por nenhum turno escalado."><div class="ml">Sem cobertura</div><div class="mv ${semCob > 0 ? 'red-v' : ''}">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanhã</div></div>
+    ${feriasAtivas > 0 ? `<div class="metric amber-m"><div class="ml">Férias em até 7 dias</div><div class="mv amber-v">${feriasAtivas}</div><div class="ms">${feriasProximas.map(a => `${a[1].split(' ')[0]} (${a[4]})`).join(', ')}</div></div>` : ''}
+  </div>
+
+  <div class="frase-banner">
+    <div class="frase-ic">
+      <svg class="pulse-heart-anim" width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/><rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/><path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/><polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div>
+      <div class="frase-label">Frase do dia</div>
+      <div class="frase-txt">"${fraseDoDia}"</div>
     </div>
   </div>
 
