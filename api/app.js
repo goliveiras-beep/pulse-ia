@@ -1197,11 +1197,18 @@ function atualizarMes() {
 
 function toMin(h){if(!h)return null;var p=h.split(':');return parseInt(p[0])*60+(parseInt(p[1])||0);}
 
-function statusEvento(hora, agora) {
+function statusEvento(hora, agora, horaFim) {
   var m = toMin(hora);
   if (m === null) return 'neutro';
-  if (m < agora - 30) return 'encerrado';
-  if (m <= agora + 5 && m >= agora - 30) return 'aovivo';
+  var f = toMin(horaFim);
+  if (f !== null) {
+    if (f < m) f += 1440; // evento atravessa a meia-noite
+    if (agora >= m && agora <= f) return 'aovivo'; // está dentro da janela real do evento
+    if (agora > f) return (agora > f + 30) ? 'encerrado' : 'aovivo'; // pequena folga pós-término (atraso/overtime)
+  } else {
+    if (m < agora - 30) return 'encerrado';
+    if (m <= agora + 5 && m >= agora - 30) return 'aovivo';
+  }
   if (m <= agora + 30) return 'proximo30';
   if (m <= agora + 60) return 'proximo60';
   return 'futuro';
@@ -1235,7 +1242,7 @@ function renderEventos(eventos, containerId, agora, isHoje) {
   var primeiroAtivo = false;
 
   eventos.forEach(function(ev) {
-    var s = isHoje ? statusEvento(ev.hora, agora) : 'futuro';
+    var s = isHoje ? statusEvento(ev.hora, agora, ev.horaFim) : 'futuro';
     var encerrado = s === 'encerrado';
 
     if (encerrado) {
@@ -1270,7 +1277,7 @@ function renderEventos(eventos, containerId, agora, isHoje) {
   // Altura dinâmica: reduz conforme encerrados (480 → 200px)
   if (isHoje) {
     var total = eventos.length;
-    var nEnc = eventos.filter(function(ev){ return statusEvento(ev.hora, agora) === 'encerrado'; }).length;
+    var nEnc = eventos.filter(function(ev){ return statusEvento(ev.hora, agora, ev.horaFim) === 'encerrado'; }).length;
     var pct = total > 0 ? nEnc / total : 0;
     c.style.maxHeight = Math.round(480 - pct * 280) + 'px';
   }
@@ -1425,7 +1432,9 @@ setInterval(atualizarEventos, 60000);
     let primeiroAtivo = true;
     return eventosCruzados.map(ev => {
       const evMin = toMin(ev.hora);
-      const encerrado = comOpacidade && evMin !== null && evMin < horaAtualMin - 30;
+      const fimMin = toMin(ev.horaFim);
+      const fimMinAjustado = (fimMin !== null && fimMin < evMin) ? fimMin + 1440 : fimMin;
+      const encerrado = comOpacidade && evMin !== null && (fimMinAjustado !== null ? horaAtualMin > fimMinAjustado + 30 : evMin < horaAtualMin - 30);
       const idAtivo = (!encerrado && primeiroAtivo && comOpacidade) ? 'id="primeiro-ativo-hoje"' : '';
       if (!encerrado && primeiroAtivo && comOpacidade) primeiroAtivo = false;
       const fraseEnc = encerrado ? gerarFraseEncerrado(ev.nome) : '';
