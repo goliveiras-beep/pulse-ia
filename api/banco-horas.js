@@ -5,12 +5,15 @@ import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
 const COOKIE_MAX = 60 * 60 * 24 * 7;
+const AIRTABLE_BASE = 'appwE9LmmTxynTGFY';
+const AIRTABLE_TABLE = 'tblpibvwAIGBQXr0H';
 
 function getBRT() {
   const a = new Date();
   return new Date(a.getTime() + ((-3*60) - a.getTimezoneOffset()) * 60000);
 }
 function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; }
+function fmtAirtable(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
 function iniciais(n) { return (n||'?').split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -43,6 +46,16 @@ function getSession(req) {
 async function getSheet(range) {
   try { const d = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(range)}`); return d.values||[]; }
   catch { return []; }
+}
+
+async function getEventosPeriodo(dataInicio, dataFim) {
+  const filter = `AND(DATESTR({fldRnfbwPVzFiHMqs})>='${dataInicio}',DATESTR({fldRnfbwPVzFiHMqs})<='${dataFim}')`;
+  try {
+    const r = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=500&sort[0][field]=fldRnfbwPVzFiHMqs&sort[0][direction]=asc`,
+      { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
+    const d = await r.json();
+    return (d.records||[]).map(rec => ({ data: rec.fields['fldRnfbwPVzFiHMqs']?.split('T')[0]||'' }));
+  } catch { return []; }
 }
 
 function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); return hh*60+(mm||0); }
@@ -127,6 +140,41 @@ export default async function handler(req, res) {
   const totalGeralExtra = resultado.reduce((s,p)=>s+p.extraTotal,0);
   const totalSemTipo = ativos.length - equipe.length;
 
+  // ── Análise por dia da semana: carga operacional x gente escalada ─────────
+  const primeiroDiaMes = new Date(ano, mes, 1);
+  const ultimoDiaMes = new Date(ano, mes, ultimoDia);
+  const eventosMes = await getEventosPeriodo(fmtAirtable(primeiroDiaMes), fmtAirtable(ultimoDiaMes));
+
+  const DIAS_PT_FULL = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  const weekdayStats = DIAS_PT_FULL.map(nome => ({ nome, diasNoMes: 0, eventos: 0, pessoasDia: 0, horasTotais: 0 }));
+
+  for (let d = 1; d <= ultimoDia; d++) {
+    const data = new Date(ano, mes, d);
+    const wd = data.getDay();
+    const df = fmtData(data);
+    const dataAT = fmtAirtable(data);
+    weekdayStats[wd].diasNoMes++;
+    weekdayStats[wd].eventos += eventosMes.filter(e => e.data === dataAT).length;
+    const escaladosDoDia = escalaRaw.filter(r => r[0] === df && r[3] && r[4] && r[5] !== 'Folga' && equipe.some(p => p.nome === r[2]));
+    weekdayStats[wd].pessoasDia += escaladosDoDia.length;
+    weekdayStats[wd].horasTotais += escaladosDoDia.reduce((s,r) => s + duracaoHoras(r[3], r[4]), 0);
+  }
+
+  const weekdayAnalise = weekdayStats.map(w => {
+    const mediaEventos = w.diasNoMes ? w.eventos / w.diasNoMes : 0;
+    const mediaPessoas = w.diasNoMes ? w.pessoasDia / w.diasNoMes : 0;
+    const mediaHoras = w.diasNoMes ? w.horasTotais / w.diasNoMes : 0;
+    const folgaScore = mediaPessoas / Math.max(mediaEventos, 0.25); // alto = sobra de gente p/ pouco evento = bom p/ folga
+    return { ...w, mediaEventos, mediaPessoas, mediaHoras, folgaScore };
+  });
+
+  const diasComDados = weekdayAnalise.filter(w => w.diasNoMes > 0);
+  const melhoresParaFolga = [...diasComDados].sort((a,b) => b.folgaScore - a.folgaScore).slice(0, 2);
+  const diasSobrecarregados = [...diasComDados].sort((a,b) => a.folgaScore - b.folgaScore).slice(0, 2);
+  const fluxoMaisFraco = [...diasComDados].sort((a,b) => a.mediaEventos - b.mediaEventos).slice(0, 2);
+  const maiorEventos = Math.max(1, ...weekdayAnalise.map(w => w.mediaEventos));
+  const maiorPessoas = Math.max(1, ...weekdayAnalise.map(w => w.mediaPessoas));
+
   function fmtH(h) {
     if (h === 0) return '0h';
     const inteiro = Math.floor(h);
@@ -152,7 +200,7 @@ export default async function handler(req, res) {
         </div>`).join('')}
       </div>` : '';
     return `
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px">
+    <div class="colab-card" data-tipo="${esc(p.tipoContrato)}" data-banco="${p.bancoTotal}" data-extra="${p.extraTotal}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
         <div style="width:38px;height:38px;border-radius:50%;background:${tbg};color:${tc};font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(p.nome)}</div>
         <div style="flex:1;min-width:0">
@@ -182,6 +230,59 @@ export default async function handler(req, res) {
       ${diasDetalheHtml}
     </div>`;
   }).join('') : '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Nenhum colaborador com tipo de contrato definido (CLT, PJ ou Temporário). Defina o tipo de contrato em cada colaborador na aba Equipe.</div>';
+
+  const diaBarHtml = weekdayAnalise.map(w => {
+    const pctEventos = Math.round((w.mediaEventos / maiorEventos) * 100);
+    const pctPessoas = Math.round((w.mediaPessoas / maiorPessoas) * 100);
+    const ehMelhorFolga = melhoresParaFolga.some(m => m.nome === w.nome);
+    const ehSobrecarregado = diasSobrecarregados.some(m => m.nome === w.nome);
+    const corDestaque = ehMelhorFolga ? '#166534' : ehSobrecarregado ? '#991b1b' : 'var(--border)';
+    return `
+    <div style="background:var(--bg2);border:1px solid ${corDestaque};border-radius:8px;padding:10px 12px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:700;color:var(--text)">${w.nome}</span>
+        ${ehMelhorFolga?'<span style="background:#0d2010;color:#68d391;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700">🟢 fácil p/ folga</span>':''}
+        ${ehSobrecarregado?'<span style="background:#1f1010;color:#fc8181;border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700">🔴 evitar folga</span>':''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="font-size:9px;color:var(--text3);width:74px;flex-shrink:0">Eventos/dia</span>
+        <div style="flex:1;background:var(--bg3);border-radius:4px;height:7px;overflow:hidden"><div style="background:#7c3aed;height:100%;width:${pctEventos}%"></div></div>
+        <span style="font-size:10px;color:var(--text2);width:32px;text-align:right;flex-shrink:0">${w.mediaEventos.toFixed(1)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:9px;color:var(--text3);width:74px;flex-shrink:0">Gente escalada</span>
+        <div style="flex:1;background:var(--bg3);border-radius:4px;height:7px;overflow:hidden"><div style="background:#1d4ed8;height:100%;width:${pctPessoas}%"></div></div>
+        <span style="font-size:10px;color:var(--text2);width:32px;text-align:right;flex-shrink:0">${w.mediaPessoas.toFixed(1)}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const insightsHtml = diasComDados.length ? `
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:4px">📈 Fluxo de trabalho por dia da semana</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:12px">Compara eventos médios (roxo) com a quantidade média de gente escalada (azul) por dia da semana, neste mês. Dias com mais gente escalada do que evento têm sobra de equipe — bons candidatos pra folga. Dias com pouca gente pra muito evento são os pontos mais sensíveis da operação.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:14px">${diaBarHtml}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="background:#0d2010;border:1px solid #166534;border-radius:8px;padding:10px 12px">
+        <div style="font-size:11px;font-weight:700;color:#68d391;margin-bottom:4px">🟢 Melhores dias para conceder folga</div>
+        <div style="font-size:12px;color:#a7f3d0">${melhoresParaFolga.map(d=>d.nome).join(' e ')} — mais gente escalada do que demanda de eventos nesses dias.</div>
+      </div>
+      <div style="background:#1f1010;border:1px solid #991b1b;border-radius:8px;padding:10px 12px">
+        <div style="font-size:11px;font-weight:700;color:#fc8181;margin-bottom:4px">🔴 Dias mais sensíveis (evitar conceder folga)</div>
+        <div style="font-size:12px;color:#fca5a5">${diasSobrecarregados.map(d=>d.nome).join(' e ')} — pouca margem entre gente escalada e eventos.</div>
+      </div>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--text3)">🔻 Fluxo de trabalho mais fraco (menor volume de eventos no geral): <b style="color:var(--text2)">${fluxoMaisFraco.map(d=>d.nome).join(' e ')}</b></div>
+  </div>` : '';
+
+  const filtrosHtml = `
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <span style="font-size:11px;color:var(--text3);font-weight:600">Filtrar por tipo:</span>
+    <button class="filtro-btn ativo" data-filtro="todos" data-cor="var(--text)" onclick="filtrarTipo('todos',this)" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:var(--card);color:var(--text);cursor:pointer">Todos</button>
+    <button class="filtro-btn" data-filtro="CLT" data-cor="#166534" onclick="filtrarTipo('CLT',this)" style="border:1px solid #166534;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#166534;cursor:pointer">CLT</button>
+    <button class="filtro-btn" data-filtro="PJ" data-cor="#7c3aed" onclick="filtrarTipo('PJ',this)" style="border:1px solid #7c3aed;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#7c3aed;cursor:pointer">PJ</button>
+    <button class="filtro-btn" data-filtro="Temporário" data-cor="#92400e" onclick="filtrarTipo('Temporário',this)" style="border:1px solid #92400e;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#92400e;cursor:pointer">Temporário</button>
+  </div>`;
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -217,12 +318,44 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     ${totalSemTipo>0?`<div style="margin-top:4px;color:#d97706">⚠ ${totalSemTipo} colaborador${totalSemTipo>1?'es':''} ativo${totalSemTipo>1?'s':''} sem tipo de contrato definido — não entra neste relatório até ser configurado na aba Equipe.</div>`:''}
   </div>
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Colaboradores no relatório</div><div style="font-size:24px;font-weight:700">${resultado.length}</div></div>
-    <div style="background:var(--card);border:1px solid #2a4080;border-radius:8px;padding:14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Banco de horas total</div><div style="font-size:24px;font-weight:700;color:#1d4ed8">${fmtH(totalGeralBanco)}</div></div>
-    <div style="background:var(--card);border:1px solid #3d3010;border-radius:8px;padding:14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Hora extra 100% total</div><div style="font-size:24px;font-weight:700;color:#d97706">${fmtH(totalGeralExtra)}</div></div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Colaboradores no relatório</div><div style="font-size:24px;font-weight:700" id="tot-colab">${resultado.length}</div></div>
+    <div style="background:var(--card);border:1px solid #2a4080;border-radius:8px;padding:14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Banco de horas total</div><div style="font-size:24px;font-weight:700;color:#1d4ed8" id="tot-banco">${fmtH(totalGeralBanco)}</div></div>
+    <div style="background:var(--card);border:1px solid #3d3010;border-radius:8px;padding:14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Hora extra 100% total</div><div style="font-size:24px;font-weight:700;color:#d97706" id="tot-extra">${fmtH(totalGeralExtra)}</div></div>
   </div>
-  <div class="grid">${cardsHtml}</div>
+  ${insightsHtml}
+  ${filtrosHtml}
+  <div class="grid" id="grid-colabs">${cardsHtml}</div>
 </div>
+<script>
+function fmtHJs(h){
+  if (h===0) return '0h';
+  var inteiro=Math.floor(h), min=Math.round((h-inteiro)*60);
+  return min>0 ? inteiro+'h'+String(min).padStart(2,'0') : inteiro+'h';
+}
+function filtrarTipo(tipo, btn){
+  document.querySelectorAll('.filtro-btn').forEach(function(b){
+    b.classList.remove('ativo');
+    b.style.background = 'none';
+  });
+  btn.classList.add('ativo');
+  btn.style.background = tipo==='todos' ? 'var(--card)' : (btn.getAttribute('data-cor')+'22');
+
+  var cards = document.querySelectorAll('.colab-card');
+  var nColab=0, somaBanco=0, somaExtra=0;
+  cards.forEach(function(c){
+    var match = tipo==='todos' || c.getAttribute('data-tipo')===tipo;
+    c.style.display = match ? '' : 'none';
+    if (match){
+      nColab++;
+      somaBanco += parseFloat(c.getAttribute('data-banco'))||0;
+      somaExtra += parseFloat(c.getAttribute('data-extra'))||0;
+    }
+  });
+  document.getElementById('tot-colab').textContent = nColab;
+  document.getElementById('tot-banco').textContent = fmtHJs(somaBanco);
+  document.getElementById('tot-extra').textContent = fmtHJs(somaExtra);
+}
+</script>
 </body></html>`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
