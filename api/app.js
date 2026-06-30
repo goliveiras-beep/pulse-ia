@@ -1175,7 +1175,13 @@ function atualizarSemana() {
   var ini = new Date(_hojeBase); ini.setDate(_hojeBase.getDate() + _semanaOffset);
   var fim = new Date(ini); fim.setDate(ini.getDate() + 6);
   var lbl = document.getElementById('semana-label');
-  if (lbl) lbl.textContent = (_semanaOffset === 0 ? 'Próximos 7 dias · ' : '') + fmtDataJs(ini) + ' — ' + fmtDataJs(fim);
+  var nav = '';
+  if (_semanaOffset === 0) nav = 'Semana atual';
+  else if (_semanaOffset === -7) nav = '← Semana passada';
+  else if (_semanaOffset === 7) nav = 'Próxima semana →';
+  else if (_semanaOffset < 0) nav = Math.abs(_semanaOffset/7) + ' sem. atrás';
+  else nav = (_semanaOffset/7) + ' sem. à frente';
+  if (lbl) lbl.innerHTML = '<span style="color:var(--text3);font-size:10px">' + nav + '</span><br>' + fmtDataJs(ini) + ' — ' + fmtDataJs(fim);
   var grid = document.getElementById('semana-grid');
   if (grid) grid.innerHTML = renderSemanaGrid(_semanaOffset);
 }
@@ -1221,7 +1227,10 @@ function atualizarMes() {
   var base = new Date(_hojeBase.getFullYear(), _hojeBase.getMonth() + _mesOffset, 1);
   var nomeMes = base.toLocaleString('pt-BR', { month: 'long' });
   var lbl = document.getElementById('mes-label');
-  if (lbl) lbl.textContent = nomeMes + ' ' + base.getFullYear();
+  var sufixo = _mesOffset === 0 ? ' <span style="font-size:10px;color:var(--text3);font-weight:400">(mês atual)</span>'
+    : _mesOffset < 0 ? ' <span style="font-size:10px;color:var(--text3);font-weight:400">(histórico)</span>'
+    : ' <span style="font-size:10px;color:var(--text3);font-weight:400">(futuro)</span>';
+  if (lbl) lbl.innerHTML = nomeMes + ' ' + base.getFullYear() + sufixo;
   var grid = document.getElementById('mes-grid');
   if (grid) grid.innerHTML = renderMesGrid(_mesOffset);
 }
