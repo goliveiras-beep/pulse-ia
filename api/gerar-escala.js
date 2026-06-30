@@ -15,12 +15,26 @@ function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.
 function fmtAirtable(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
 function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); return hh*60+(mm||0); }
+function toHoraBRT(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  d.setHours(d.getHours() - 3);
+  return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || '';
+}
 
-function estaDeServico(ent, sai, horaEv) {
+function estaDeServico(ent, sai, horaEv, horaFimEv) {
   if(!ent||!sai||!horaEv) return false;
   const i=toMin(ent), f=toMin(sai), e=toMin(horaEv);
-  if(f > i) return e >= i-60 && e <= f;
-  return e >= i-60 || e <= f;
+  if (i===null||f===null||e===null) return false;
+  const durTurno = f>i ? f-i : (1440-i)+f;
+  let offsetInicio = e - i; if (offsetInicio < -60) offsetInicio += 1440;
+  let offsetFim = offsetInicio;
+  const fimEv = horaFimEv ? toMin(horaFimEv) : null;
+  if (fimEv !== null) {
+    let durEvento = fimEv - e; if (durEvento < 0) durEvento += 1440;
+    offsetFim = offsetInicio + durEvento;
+  }
+  return offsetInicio >= -60 && offsetFim <= durTurno + 15;
 }
 
 function getSession(req) {
@@ -57,6 +71,7 @@ async function getEventosPeriodo(dataInicio, dataFim) {
     return (d.records||[]).map(r=>({
       data: r.fields['fldRnfbwPVzFiHMqs']?.split('T')[0]||'',
       hora: r.fields['Horário KO']||r.fields['PGM (horário)']||'',
+      horaFim: toHoraBRT(r.fields['Data c/ Pós']||''),
       nome: r.fields['Match ID']||'Evento',
       tipo: r.fields['Tipo de Conteúdo']||'',
     }));
@@ -66,15 +81,15 @@ async function getEventosPeriodo(dataInicio, dataFim) {
 async function ajustarDia(data, eventosDia, escalaCompleta, editaveis) {
   const lacunas = eventosDia.filter(ev => {
     if(!ev.hora) return false;
-    return !escalaCompleta.some(p => estaDeServico(p.ent, p.sai, ev.hora));
+    return !escalaCompleta.some(p => estaDeServico(p.ent, p.sai, ev.hora, ev.horaFim));
   });
 
   if(lacunas.length === 0 || editaveis.length === 0) return { escala: escalaCompleta, ajustes: [], lacunasResolvidas: 0 };
 
   const escalaStr = escalaCompleta.map(p=>`${p.nome}: ${p.ent}–${p.sai}${p.existente?' (já confirmado, NÃO pode mudar)':''}`).join('\n');
   const editaveisStr = editaveis.map(p=>p.nome).join(', ');
-  const lacunasStr = lacunas.map(e=>`${e.hora} — ${e.nome} (${e.tipo})`).join('\n');
-  const todosStr = eventosDia.map(e=>`${e.hora} — ${e.nome}`).join('\n');
+  const lacunasStr = lacunas.map(e=>`${e.hora}${e.horaFim?'–'+e.horaFim:''} — ${e.nome} (${e.tipo})`).join('\n');
+  const todosStr = eventosDia.map(e=>`${e.hora}${e.horaFim?'–'+e.horaFim:''} — ${e.nome}`).join('\n');
 
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -221,7 +236,7 @@ export default async function handler(req, res) {
 
     const escalaCompleta = [...escalaExistente, ...escalaPendente];
 
-    const lacunasAntes = evsDia.filter(ev=>ev.hora&&!escalaCompleta.some(p=>p.ent&&p.sai&&estaDeServico(p.ent,p.sai,ev.hora)));
+    const lacunasAntes = evsDia.filter(ev=>ev.hora&&!escalaCompleta.some(p=>p.ent&&p.sai&&estaDeServico(p.ent,p.sai,ev.hora,ev.horaFim)));
     totalLacunas += lacunasAntes.length;
     totalJaPreenchidos += escalaExistente.length;
 

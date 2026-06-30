@@ -16,11 +16,26 @@ function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.
 function fmtAirtable(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function iniciais(n) { return (n||'?').split(' ').slice(0,2).map(p=>p[0]||'').join('').toUpperCase() || '?'; }
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
+function toHoraBRT(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  d.setHours(d.getHours() - 3);
+  return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || '';
+}
 function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); return hh*60+(mm||0); }
-function estaDeServico(ent,sai,horaEv) {
+function estaDeServico(ent, sai, horaEv, horaFimEv) {
   if(!ent||!sai||!horaEv) return false;
-  const i=toMin(ent),f=toMin(sai),e=toMin(horaEv);
-  return f>i?e>=i&&e<=f:e>=i||e<=f;
+  const i=toMin(ent), f=toMin(sai), e=toMin(horaEv);
+  if (i===null||f===null||e===null) return false;
+  const durTurno = f>i ? f-i : (1440-i)+f;
+  let offsetInicio = e - i; if (offsetInicio < -60) offsetInicio += 1440;
+  let offsetFim = offsetInicio;
+  const fimEv = horaFimEv ? toMin(horaFimEv) : null;
+  if (fimEv !== null) {
+    let durEvento = fimEv - e; if (durEvento < 0) durEvento += 1440;
+    offsetFim = offsetInicio + durEvento;
+  }
+  return offsetInicio >= -60 && offsetFim <= durTurno + 15;
 }
 function statusTurno(ent,sai,horaEv) {
   if(!ent||!sai||!horaEv) return null;
@@ -50,6 +65,7 @@ async function getEventos(dataStr) {
     return (d.records||[]).map(r=>({
       nome:r.fields['Match ID']||'Evento',
       hora:r.fields['Horário KO']||r.fields['PGM (horário)']||'',
+      horaFim:toHoraBRT(r.fields['Data c/ Pós']||''),
       tipo:r.fields['Tipo de Conteúdo']||'',
       local:(r.fields['Padrão de Produção aux']||r.fields['Name (from Padrão de Produção)']||(Array.isArray(r.fields['Padrão de Produção'])?r.fields['Padrão de Produção'][0]:''))||'',
     })).sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
@@ -397,7 +413,7 @@ function dentroAusencia(aus, df) {
 }
 function cruzarEventos(eventos, escHoje, dataStr) {
   return eventos.map(ev => {
-    const disp = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && estaDeServico(r[3], r[4], ev.hora));
+    const disp = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && estaDeServico(r[3], r[4], ev.hora, ev.horaFim));
     const atenc = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && statusTurno(r[3], r[4], ev.hora) !== null && !disp.find(d => d[2] === r[2]));
     const aus = escHoje.filter(r => !disp.find(d => d[2] === r[2]) && !atenc.find(a => a[2] === r[2]));
     const semCob = disp.length === 0;
@@ -880,9 +896,9 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
       {label: fmtData(d5), sub: DIAS_PT[d5.getDay()], evs: eventosD5c},
       {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: eventosD6c},
     ];
-    const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,tipo:e.tipo,local:e.local}))})));
-    const eventosHojeJson = JSON.stringify(eventosHoje.map(e => ({nome:e.nome,hora:e.hora,tipo:e.tipo,local:e.local})));
-    const eventosAmanhaJson = JSON.stringify(eventosAmanha.map(e => ({nome:e.nome,hora:e.hora,tipo:e.tipo,local:e.local})));
+    const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local}))})));
+    const eventosHojeJson = JSON.stringify(eventosHoje.map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local})));
+    const eventosAmanhaJson = JSON.stringify(eventosAmanha.map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local})));
     const hojeAno = hoje.getFullYear();
     const hojeNumMes = hoje.getMonth();
 
@@ -1226,7 +1242,7 @@ function renderEventos(eventos, containerId, agora, isHoje) {
       // Encerrado: compacto, apagado, hora riscada
       html += '<div style="border:1px solid var(--border2);border-radius:6px;margin-bottom:3px;opacity:0.45;transition:opacity .2s" onmouseenter="this.style.opacity=0.85" onmouseleave="this.style.opacity=0.45">';
       html += '<div style="padding:5px 10px;display:flex;align-items:center;gap:10px">';
-      html += '<div style="font-size:12px;font-weight:700;min-width:44px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">' + (ev.hora||'--') + '</div>';
+      html += '<div style="font-size:12px;font-weight:700;min-width:44px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">' + (ev.hora||'--') + (ev.horaFim?'–'+ev.horaFim:'') + '</div>';
       html += '<div style="flex:1"><div style="font-size:11px;color:var(--text3)">' + ev.nome + '</div>';
       html += '<div style="font-size:9px;color:var(--text4)">' + ev.tipo + (ev.local ? ' · ' + ev.local : '') + '</div></div>';
       html += '<div style="font-size:9px;color:var(--text4)">Encerrado</div>';
@@ -1241,7 +1257,7 @@ function renderEventos(eventos, containerId, agora, isHoje) {
       if (isAoVivo && !primeiroAtivo) primeiroAtivo = true;
       html += '<div' + idAttr + ' class="' + bc + '" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s' + bgExtra + '">';
       html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
-      html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">' + (ev.hora||'--') + '</div>';
+      html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">' + (ev.hora||'--') + (ev.horaFim?'<br><span style="font-size:9px;font-weight:600;opacity:.6">–'+ev.horaFim+'</span>':'') + '</div>';
       html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">' + ev.nome + '</div>';
       html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">' + ev.tipo + (ev.local ? ' · <span style="font-weight:600">' + ev.local + '</span>' : '') + '</div></div>';
       if (lbl) html += '<div>' + lbl + '</div>';
@@ -1416,7 +1432,7 @@ setInterval(atualizarEventos, 60000);
       const [bc, bb, itc] = ev.semCob ? ['var(--badge-red-bg)', 'var(--badge-red-c)', 'var(--badge-red-c)'] : ['var(--badge-green-bg)', 'var(--badge-green-c)', 'var(--badge-green-c)'];
       return `<div ${idAtivo} style="border:1px solid ${encerrado ? 'var(--border)' : bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado ? ';opacity:.35' : ''}">
         <div style="background:${encerrado ? 'var(--card)' : bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
-          <div style="font-size:13px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--today-c)'};min-width:50px">${ev.hora || '--'}</div>
+          <div style="font-size:13px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--today-c)'};min-width:50px">${ev.hora || '--'}${ev.horaFim?'<br><span style="font-size:9px;font-weight:600;opacity:.6">–'+ev.horaFim+'</span>':''}</div>
           <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--text)'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}${ev.local ? ' · <span style="font-weight:600;color:var(--text3)">' + ev.local + '</span>' : ''}</div></div>
           ${encerrado
           ? `<div style="font-size:10px;font-weight:600;color:#9ca3af;font-style:italic">${fraseEnc}</div>`
