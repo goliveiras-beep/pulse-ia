@@ -274,7 +274,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn-sm{border:1px solid #3d4660;border-radius:5px;padding:4px 10px;font-size:11px;color:#a0aec0;background:none;cursor:pointer;text-decoration:none}
 .wrap{max-width:960px;margin:0 auto;padding:20px}
 .section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:20px 0 10px;display:flex;align-items:center;gap:8px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;transition:all .2s}
+.grid.list-view{grid-template-columns:1fr!important}
+.eq-card{display:contents}
+.list-view .eq-card>div{border-radius:8px!important}
+@media(max-width:600px){.grid{grid-template-columns:1fr!important}}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
 .modal-bg.open{display:flex}
 .modal{background:var(--card);border-radius:14px;padding:24px;width:460px;max-width:calc(100vw - 32px);max-height:90vh;overflow-y:auto}
@@ -314,6 +318,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
   ${renderSolicitacoes()}
 
+  <!-- Barra de filtros e busca -->
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+    <input id="eq-busca" oninput="filtrarEquipe()" placeholder="🔍 Buscar por nome, cargo ou e-mail..." style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+    <select id="eq-ord" onchange="filtrarEquipe()" style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;background:var(--bg2);color:var(--text);outline:none;cursor:pointer">
+      <option value="nome">A → Z</option>
+      <option value="cargo">Por cargo</option>
+      <option value="tipo">Por contrato</option>
+    </select>
+    <div style="display:flex;gap:4px">
+      <button id="btn-grid-view" onclick="setView('grid')" title="Grade" style="border:1px solid var(--border);border-radius:6px;padding:7px 9px;background:var(--text);color:var(--bg);cursor:pointer;font-size:13px;line-height:1">⊞</button>
+      <button id="btn-list-view" onclick="setView('list')" title="Lista" style="border:1px solid var(--border);border-radius:6px;padding:7px 9px;background:none;color:var(--text2);cursor:pointer;font-size:13px;line-height:1">☰</button>
+    </div>
+  </div>
+
   ${pendentes.length ? `
   <div class="section-title">
     <span style="background:#d97706;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">${pendentes.length}</span>
@@ -321,9 +339,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
   <div class="grid">${pendentes.map(cardPendente).join('')}</div>` : ''}
 
-  ${gestores.length ? `<div class="section-title">Gestores (${gestores.length})</div><div class="grid">${gestores.map(cardAtivo).join('')}</div>` : ''}
-  <div class="section-title">Colaboradores (${colaboradores.length})</div>
-  <div class="grid">${colaboradores.length ? colaboradores.map(cardAtivo).join('') : '<div style="color:var(--text3);font-size:13px;padding:10px">Nenhum colaborador ativo.</div>'}</div>
+  <div class="section-title" id="sec-gestores" style="${gestores.length ? '' : 'display:none'}">Gestores (<span id="cnt-gestores">${gestores.length}</span>)</div>
+  <div class="grid" id="grid-gestores">
+    ${gestores.map(m => `<div class="eq-card" data-nome="${esc(m.nome.toLowerCase())}" data-cargo="${esc((m.cargo||'').toLowerCase())}" data-email="${esc((m.email||'').toLowerCase())}" data-tipo="${esc(m.tipoContrato||'')}" data-perfil="gestor">${cardAtivo(m)}</div>`).join('')}
+  </div>
+
+  <div class="section-title" id="sec-colab">Colaboradores (<span id="cnt-colab">${colaboradores.length}</span>)</div>
+  <div class="grid" id="grid-colab">
+    ${colaboradores.length ? colaboradores.map(m => `<div class="eq-card" data-nome="${esc(m.nome.toLowerCase())}" data-cargo="${esc((m.cargo||'').toLowerCase())}" data-email="${esc((m.email||'').toLowerCase())}" data-tipo="${esc(m.tipoContrato||'')}" data-perfil="colaborador">${cardAtivo(m)}</div>`).join('') : '<div style="color:var(--text3);font-size:13px;padding:10px">Nenhum colaborador ativo.</div>'}
+  </div>
 </div>
 
 <div class="modal-bg" id="modal">
@@ -439,6 +463,57 @@ function toast(msg,bg='#166534'){
   const t=document.getElementById('toast');t.textContent=msg;t.style.background=bg;t.style.display='block';
   setTimeout(()=>t.style.display='none',2500);
 }
+
+// ── Filtro, ordenação e toggle de visualização ───────────────────────────────
+var _viewMode = localStorage.getItem('eq-view') || 'grid';
+function setView(mode) {
+  _viewMode = mode;
+  localStorage.setItem('eq-view', mode);
+  ['grid-gestores','grid-colab'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    el.classList.toggle('list-view', mode === 'list');
+  });
+  var bg = document.getElementById('btn-grid-view'), bl = document.getElementById('btn-list-view');
+  if(bg) { bg.style.background = mode==='grid' ? 'var(--text)' : 'none'; bg.style.color = mode==='grid' ? 'var(--bg)' : 'var(--text2)'; }
+  if(bl) { bl.style.background = mode==='list' ? 'var(--text)' : 'none'; bl.style.color = mode==='list' ? 'var(--bg)' : 'var(--text2)'; }
+}
+function filtrarEquipe() {
+  var q = (document.getElementById('eq-busca').value||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  var ord = document.getElementById('eq-ord').value;
+  ['grid-gestores','grid-colab'].forEach(function(gridId) {
+    var grid = document.getElementById(gridId);
+    if(!grid) return;
+    var cards = Array.from(grid.querySelectorAll('.eq-card'));
+    var visivel = 0;
+    cards.forEach(function(c) {
+      var nome = c.getAttribute('data-nome')||'';
+      var cargo = c.getAttribute('data-cargo')||'';
+      var email = c.getAttribute('data-email')||'';
+      var norm = function(s){ return s.normalize('NFD').replace(/[\u0300-\u036f]/g,''); };
+      var match = !q || norm(nome).includes(q) || norm(cargo).includes(q) || norm(email).includes(q);
+      c.style.display = match ? '' : 'none';
+      if(match) visivel++;
+    });
+    // Ordenação
+    var sortedCards = cards.filter(function(c){ return c.style.display !== 'none'; });
+    sortedCards.sort(function(a,b){
+      var va = a.getAttribute('data-'+ord)||'';
+      var vb = b.getAttribute('data-'+ord)||'';
+      return va.localeCompare(vb, 'pt-BR');
+    });
+    sortedCards.forEach(function(c){ grid.appendChild(c); });
+    // Atualizar contador
+    var cntId = gridId === 'grid-gestores' ? 'cnt-gestores' : 'cnt-colab';
+    var secId = gridId === 'grid-gestores' ? 'sec-gestores' : 'sec-colab';
+    var cnt = document.getElementById(cntId);
+    var sec = document.getElementById(secId);
+    if(cnt) cnt.textContent = visivel;
+    if(sec) sec.style.display = visivel === 0 ? 'none' : '';
+  });
+}
+// Inicializa estado
+(function(){ setView(_viewMode); })();
 </script>
 </body>
 </html>`;
