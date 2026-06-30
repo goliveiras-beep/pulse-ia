@@ -596,11 +596,17 @@ export default async function handler(req, res) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
           <div>
             <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Data início</label>
-            <input type="date" id="sol-inicio" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+            <div style="display:flex;gap:6px">
+              <input type="date" id="sol-inicio" style="flex:1;min-width:0;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+              <select id="sol-inicio-ano" onchange="ajustarAnoData('sol-inicio',this.value)" title="Pular direto para o ano" style="width:64px;border:1px solid var(--border);border-radius:6px;padding:8px 4px;font-size:12px;background:var(--bg2);color:var(--text);outline:none"></select>
+            </div>
           </div>
           <div>
             <label style="display:block;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;margin-bottom:4px">Data fim</label>
-            <input type="date" id="sol-fim" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+            <div style="display:flex;gap:6px">
+              <input type="date" id="sol-fim" style="flex:1;min-width:0;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;background:var(--bg2);color:var(--text);outline:none">
+              <select id="sol-fim-ano" onchange="ajustarAnoData('sol-fim',this.value)" title="Pular direto para o ano" style="width:64px;border:1px solid var(--border);border-radius:6px;padding:8px 4px;font-size:12px;background:var(--bg2);color:var(--text);outline:none"></select>
+            </div>
           </div>
         </div>
       </div>
@@ -655,14 +661,35 @@ export default async function handler(req, res) {
 var solAberto=false;
 var solColegas=${colegasJson};
 var solPeriodos=1;
+function gerarOpcoesAno(selectId, anosAtras, anosFrente){
+  var sel=document.getElementById(selectId);
+  if(!sel) return;
+  var anoAtual=new Date().getFullYear();
+  var html='';
+  for(var y=anoAtual-(anosAtras||0); y<=anoAtual+(anosFrente===undefined?2:anosFrente); y++){
+    html+='<option value="'+y+'"'+(y===anoAtual?' selected':'')+'>'+y+'</option>';
+  }
+  sel.innerHTML=html;
+}
+function ajustarAnoData(inputId, ano){
+  var el=document.getElementById(inputId);
+  if(!el) return;
+  var base=el.value?new Date(el.value+'T00:00:00'):new Date();
+  var mm=String(base.getMonth()+1).padStart(2,'0');
+  var dd=String(base.getDate()).padStart(2,'0');
+  el.value=ano+'-'+mm+'-'+dd;
+  el.dispatchEvent(new Event('change'));
+}
 (function(){
   var sel=document.getElementById('sol-colega');
   if (sel) solColegas.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
   adicionarPeriodoInicial();
+  gerarOpcoesAno('sol-inicio-ano');
+  gerarOpcoesAno('sol-fim-ano');
 })();
-function adicionarPeriodoInicial(){var c=document.getElementById('sol-periodos');if(!c)return;c.innerHTML='';solPeriodos=1;c.innerHTML=criarPeriodoHTML(1);atualizarBotaoAddPeriodo();}
-function criarPeriodoHTML(n){var label=n===1?'1º período (mín. 14 dias)':n===2?'2º período (mín. 5 dias)':'3º período (mín. 5 dias)';return '<div id="periodo-'+n+'" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:600;color:var(--text3)">'+label+'</span>'+(n>1?'<button onclick="removerPeriodo('+n+')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">✕</button>':'')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Início</label><input type="date" id="p'+n+'-inicio" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:12px;background:var(--bg);color:var(--text);outline:none"></div><div><label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Fim</label><input type="date" id="p'+n+'-fim" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:12px;background:var(--bg);color:var(--text);outline:none"></div></div><div id="p'+n+'-dias" style="font-size:10px;color:var(--text3);margin-top:5px;text-align:right"></div></div>';}
-function adicionarPeriodo(){if(solPeriodos>=3)return;solPeriodos++;var c=document.getElementById('sol-periodos');var div=document.createElement('div');div.innerHTML=criarPeriodoHTML(solPeriodos);c.appendChild(div.firstChild);['inicio','fim'].forEach(function(t){var el=document.getElementById('p'+solPeriodos+'-'+t);if(el)el.addEventListener('change',function(){calcDias(solPeriodos);});});atualizarBotaoAddPeriodo();}
+function adicionarPeriodoInicial(){var c=document.getElementById('sol-periodos');if(!c)return;c.innerHTML='';solPeriodos=1;c.innerHTML=criarPeriodoHTML(1);atualizarBotaoAddPeriodo();gerarOpcoesAno('p1-inicio-ano');gerarOpcoesAno('p1-fim-ano');}
+function criarPeriodoHTML(n){var label=n===1?'1º período (mín. 14 dias)':n===2?'2º período (mín. 5 dias)':'3º período (mín. 5 dias)';return '<div id="periodo-'+n+'" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:600;color:var(--text3)">'+label+'</span>'+(n>1?'<button onclick="removerPeriodo('+n+')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:14px">✕</button>':'')+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Início</label><div style="display:flex;gap:4px"><input type="date" id="p'+n+'-inicio" style="flex:1;min-width:0;border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:12px;background:var(--bg);color:var(--text);outline:none"><select id="p'+n+'-inicio-ano" onchange="ajustarAnoData(\'p'+n+'-inicio\',this.value)" title="Pular direto para o ano" style="width:58px;border:1px solid var(--border);border-radius:5px;padding:6px 2px;font-size:11px;background:var(--bg);color:var(--text);outline:none"></select></div></div><div><label style="display:block;font-size:10px;color:var(--text3);margin-bottom:3px">Fim</label><div style="display:flex;gap:4px"><input type="date" id="p'+n+'-fim" style="flex:1;min-width:0;border:1px solid var(--border);border-radius:5px;padding:6px 8px;font-size:12px;background:var(--bg);color:var(--text);outline:none"><select id="p'+n+'-fim-ano" onchange="ajustarAnoData(\'p'+n+'-fim\',this.value)" title="Pular direto para o ano" style="width:58px;border:1px solid var(--border);border-radius:5px;padding:6px 2px;font-size:11px;background:var(--bg);color:var(--text);outline:none"></select></div></div></div><div id="p'+n+'-dias" style="font-size:10px;color:var(--text3);margin-top:5px;text-align:right"></div></div>';}
+function adicionarPeriodo(){if(solPeriodos>=3)return;solPeriodos++;var c=document.getElementById('sol-periodos');var div=document.createElement('div');div.innerHTML=criarPeriodoHTML(solPeriodos);c.appendChild(div.firstChild);['inicio','fim'].forEach(function(t){var el=document.getElementById('p'+solPeriodos+'-'+t);if(el)el.addEventListener('change',function(){calcDias(solPeriodos);});});atualizarBotaoAddPeriodo();gerarOpcoesAno('p'+solPeriodos+'-inicio-ano');gerarOpcoesAno('p'+solPeriodos+'-fim-ano');}
 function removerPeriodo(n){var el=document.getElementById('periodo-'+n);if(el)el.remove();solPeriodos=Math.max(1,solPeriodos-1);atualizarBotaoAddPeriodo();}
 function atualizarBotaoAddPeriodo(){var btn=document.getElementById('sol-add-periodo');if(btn)btn.style.display=solPeriodos>=3?'none':'block';}
 function calcDias(n){var ini=document.getElementById('p'+n+'-inicio');var fim=document.getElementById('p'+n+'-fim');var info=document.getElementById('p'+n+'-dias');if(!ini||!fim||!info)return;if(ini.value&&fim.value){var d=Math.round((new Date(fim.value)-new Date(ini.value))/(1000*60*60*24))+1;var min=n===1?14:5;info.textContent=d+' dia'+(d!==1?'s':'')+(d<min?' ⚠ mín. '+min+' dias':'');info.style.color=d<min?'#dc2626':'#16a34a';}}
