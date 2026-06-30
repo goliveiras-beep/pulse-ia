@@ -299,22 +299,32 @@ a{text-decoration:none;color:inherit}
 @keyframes pulse-heart{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
 .pulse-heart-anim{animation:pulse-heart 1.5s ease-in-out infinite}
 @media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:600px){
+@media(max-width:640px){
+  .metrics{grid-template-columns:repeat(2,1fr);gap:8px}
+  .mv{font-size:20px}
+  .wrap{padding:10px}
+  /* Header compacto */
+  .header{padding:8px 10px;gap:6px;flex-wrap:nowrap}
+  .ht{font-size:11px!important}
+  .hs{font-size:9px!important}
+  .hr{gap:3px;flex-wrap:nowrap}
+  .btn-sm{display:none}
+  /* Mostrar só essenciais no mobile */
+  .hr .btn-sm-keep{display:flex!important}
+  #grelogio-gmt{display:none!important}
+  #gtempo-cidade{display:none!important}
+  #gtempo-widget{padding:3px 7px!important}
+  #grelogio-brt,#relogio-brt{font-size:13px!important}
+  /* Tabela scroll */
+  .wrap table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* Grid de eventos: abas em vez de colunas */
+  .eventos-grid{grid-template-columns:1fr!important}
+  .eventos-tab{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;white-space:nowrap;padding-bottom:4px}
+  .eventos-tab-btn{flex-shrink:0;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;background:none;color:var(--text3);cursor:pointer}
+  .eventos-tab-btn.ativo{background:var(--blue-m-bg);border-color:var(--blue-m-border);color:var(--blue-m-v)}
+}
+@media(max-width:400px){
   .metrics{grid-template-columns:1fr}
-  .wrap{padding:12px}
-  .header{padding:8px 12px;gap:6px}
-  .ht{font-size:12px}
-  .hr{gap:4px}
-  .btn-sm{padding:3px 7px;font-size:10px}
-  /* Gestor: tabela de escala scroll horizontal */
-  .wrap table{display:block;overflow-x:auto;white-space:nowrap}
-  /* Gestor: 3 colunas de eventos empilha */
-  .wrap > div > div[style*="grid-template-columns:1fr 1fr 1fr"]{grid-template-columns:1fr!important}
-  /* Gestor: 2 colunas empilha */
-  .wrap > div > div[style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
-  /* Esconde relógio GMT no mobile do gestor */
-  #grelogio-gmt{display:none}
-  #gtempo-cidade{display:none}
 }
 </style>
 </head>
@@ -1361,8 +1371,8 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
     <a href="/api/repositorio" class="btn-sm">Repositorio</a>
     <a href="/api/gerar-escala" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">&#10024; IA</a>
     <button class="btn-sm" onclick="location.reload()">&#8635;</button>
-    <button id="tt" class="btn-sm" onclick="(function(){var h=document.documentElement;var dk=h.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;';})()" style="font-size:14px;padding:3px 8px">&#127769;</button>
-    <form method="POST" action="/api/app?action=logout" style="display:inline"><button type="submit" class="btn-sm">Sair</button></form>
+    <button id="tt" class="btn-sm btn-sm-keep" onclick="(function(){var h=document.documentElement;var dk=h.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;';})()" style="font-size:14px;padding:3px 8px;display:flex">&#127769;</button>
+    <form method="POST" action="/api/app?action=logout" style="display:inline"><button type="submit" class="btn-sm btn-sm-keep" style="display:inline-block">Sair</button></form>
   </div>
 </div>
 <div class="wrap">
@@ -1381,8 +1391,15 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
-    <div class="card">
+  <!-- Abas de navegação (só mobile) -->
+  <div class="eventos-tab" id="eventos-tab-mobile" style="display:none">
+    <button class="eventos-tab-btn ativo" onclick="tabGestor(0)" id="gtab-0">🟢 Hoje <span style="opacity:.7">${eventosHoje.length}</span></button>
+    <button class="eventos-tab-btn" onclick="tabGestor(1)" id="gtab-1">📅 Amanhã <span style="opacity:.7">${eventosAmanha.length}</span></button>
+    ${diasNav.slice(2).map((d, i) => `<button class="eventos-tab-btn" onclick="tabGestor(${i+2})" id="gtab-${i+2}">${d.sublabel} · ${d.label} <span style="opacity:.7">${d.total}</span></button>`).join('')}
+  </div>
+
+  <div class="eventos-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+    <div class="card" id="gpainel-0">
       <div class="card-header">
         <span class="card-title" style="color:#22c55e">#NossoDia</span>
         <span class="badge blue">${eventosHoje.length} eventos</span>
@@ -1390,7 +1407,7 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
       </div>
       <div id="cb-hoje" class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosHoje, true)}</div>
     </div>
-    <div class="card">
+    <div class="card" id="gpainel-1">
       <div class="card-header">
         <span class="card-title" style="color:#3b82f6">#NossoDiaAmanhã</span>
         <span class="badge ${semCob > 0 ? 'red' : comAtenc > 0 ? 'amber' : 'green'}">${eventosAmanha.length} eventos</span>
@@ -1398,7 +1415,7 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
       </div>
       <div class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosAmanha, false)}</div>
     </div>
-    <div class="card">
+    <div class="card" id="gpainel-2-wrap">
       <div class="card-header" style="display:flex;align-items:center;gap:6px">
         <button onclick="navDia(-1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8249;</button>
         <div style="flex:1;text-align:center">
@@ -1479,6 +1496,41 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
 window.addEventListener('load',function(){var b=document.getElementById('cb-hoje');var a=document.getElementById('primeiro-ativo-hoje');if(b&&a){var pos=0,el=a.previousElementSibling;while(el){pos+=el.offsetHeight+10;el=el.previousElementSibling;}b.scrollTop=Math.max(0,pos-280);}});
 var diaAtual3=0;
 function navDia(dir){var total=5;diaAtual3=(diaAtual3+dir+total)%total;for(var i=0;i<total;i++){var p=document.getElementById('painel3-'+i);var l=document.getElementById('tab3-label-'+i);if(p)p.style.display=i===diaAtual3?'block':'none';if(l)l.style.display=i===diaAtual3?'block':'none';}}
+
+// Mobile: abas de eventos
+var _gTabAtual = 0;
+var _gTotalTabs = 7; // hoje + amanha + 5 dias
+function tabGestor(idx) {
+  _gTabAtual = idx;
+  for (var i = 0; i < _gTotalTabs; i++) {
+    var p = document.getElementById('gpainel-'+i) || document.getElementById('gpainel-2-wrap');
+    var b = document.getElementById('gtab-'+i);
+    if (i === 0 || i === 1) {
+      var panel = document.getElementById('gpainel-'+i);
+      if (panel) panel.style.display = i === idx ? 'block' : 'none';
+    }
+    if (b) b.className = 'eventos-tab-btn' + (i === idx ? ' ativo' : '');
+  }
+  // Painel 3 (dias extras)
+  var wrap = document.getElementById('gpainel-2-wrap');
+  if (wrap) wrap.style.display = idx >= 2 ? 'block' : 'none';
+  if (idx >= 2) navDia(idx - 2 - diaAtual3);
+}
+function initMobileGestor() {
+  if (window.innerWidth <= 640) {
+    var tab = document.getElementById('eventos-tab-mobile');
+    if (tab) tab.style.display = 'flex';
+    var grid = document.querySelector('.eventos-grid');
+    if (grid) grid.style.gridTemplateColumns = '1fr';
+    // Esconder painel 1 e 2 inicialmente
+    var p1 = document.getElementById('gpainel-1');
+    var p2 = document.getElementById('gpainel-2-wrap');
+    if (p1) p1.style.display = 'none';
+    if (p2) p2.style.display = 'none';
+  }
+}
+window.addEventListener('load', initMobileGestor);
+window.addEventListener('resize', initMobileGestor);
 </script>`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
