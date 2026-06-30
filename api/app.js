@@ -1505,7 +1505,6 @@ setInterval(atualizarEventos, 60000);
     <a href="/api/escalas?v=semana" class="btn-sm">Escala</a>
     <a href="/api/equipe-view" class="btn-sm" style="display:inline-flex;align-items:center;gap:4px">Equipe${badgeEquipeGestor}</a>
     <a href="/api/repositorio" class="btn-sm">Repositorio</a>
-    <a href="/api/gerar-escala" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">&#10024; IA</a>
     <button class="btn-sm" onclick="location.reload()">&#8635;</button>
     <button id="tt" class="btn-sm btn-sm-keep" onclick="(function(){var h=document.documentElement;var dk=h.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;';})()" style="font-size:14px;padding:3px 8px;display:flex">&#127769;</button>
     <form method="POST" action="/api/app?action=logout" style="display:inline"><button type="submit" class="btn-sm btn-sm-keep" style="display:inline-block">Sair</button></form>
