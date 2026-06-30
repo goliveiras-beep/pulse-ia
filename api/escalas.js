@@ -300,6 +300,7 @@ a{text-decoration:none}
   <div><div style="font-size:14px;font-weight:600;color:#fff">Pulse - Escala</div><div style="font-size:11px;color:#666">${titulo} &middot; ${subtitulo}</div></div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
     <span style="font-size:11px;color:#555">${atualizado}</span>
+    <a href="/api/gerar-escala" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;text-decoration:none">&#10024; Gerar escala IA</a>
     <button id="tt" onclick="toggleTheme()" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">&#127769;</button>
     <a href="/api/app" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--btn-c)">Home</a>
   </div>

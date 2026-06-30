@@ -49,7 +49,7 @@ export default async function handler(req, res) {
   if (!session) return res.redirect(302, '/api/app');
 
   const [equipeRaw, ausenciasRaw] = await Promise.all([
-    getSheet('Equipe!A2:L200'),
+    getSheet('Equipe!A2:M200'),
     getSheet('Ausências!A2:F500'),
   ]);
   const usuario = equipeRaw.find(r=>r[0]===session.nome);
@@ -57,16 +57,16 @@ export default async function handler(req, res) {
 
   // ── POST: ações ───────────────────────────────────────────────────────────
   if (req.method === 'POST') {
-    const { acao, linha, nome, cargo, nucleo, perfil, email, cpf, rg, nascimento, endereco, telefone } = req.body || {};
+    const { acao, linha, nome, cargo, nucleo, perfil, email, cpf, rg, nascimento, endereco, telefone, tipoContrato } = req.body || {};
     const idx = parseInt(linha);
 
     if (acao === 'aprovar' && idx) {
       const row = equipeRaw[idx-2] || [];
-      await setSheet(`Equipe!A${idx}:L${idx}`, [[
+      await setSheet(`Equipe!A${idx}:M${idx}`, [[
         row[0]||'', row[1]||'', row[2]||'', row[3]||'', row[4]||'',
         row[5]||'', row[6]||'', row[7]||'',
         perfil||'colaborador',
-        row[9]||'', 'ativo', row[11]||''
+        row[9]||'', 'ativo', row[11]||'', row[12]||''
       ]]);
       return res.status(200).json({ ok: true });
     }
@@ -99,7 +99,7 @@ export default async function handler(req, res) {
 
     if (acao === 'editar' && idx) {
       const row = equipeRaw[idx-2] || [];
-      await setSheet(`Equipe!A${idx}:L${idx}`, [[
+      await setSheet(`Equipe!A${idx}:M${idx}`, [[
         nome||row[0]||'',
         cargo||row[1]||'',
         nucleo||row[2]||'',
@@ -112,12 +112,13 @@ export default async function handler(req, res) {
         email||row[9]||'',
         row[10]||'ativo',
         telefone||row[11]||'',
+        tipoContrato!==undefined ? tipoContrato : (row[12]||''),
       ]]);
       return res.status(200).json({ ok: true });
     }
 
     if (acao === 'remover' && idx) {
-      await setSheet(`Equipe!A${idx}:L${idx}`, [['','','','','','','','','','','','']]);
+      await setSheet(`Equipe!A${idx}:M${idx}`, [['','','','','','','','','','','','','']]);
       return res.status(200).json({ ok: true });
     }
 
@@ -148,6 +149,7 @@ export default async function handler(req, res) {
     email:      r[9]||'',
     status:     (r[10]||'ativo').toLowerCase(),
     telefone:   r[11]||'',
+    tipoContrato: r[12]||'',
   })).filter(m => m.nome);
 
   const pendentes    = todos.filter(m => m.status === 'pendente');
@@ -191,6 +193,9 @@ export default async function handler(req, res) {
     const badge = isGestor
       ? `<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">Gestor</span>`
       : `<span style="background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600">Colaborador</span>`;
+    const tipoCores = { 'CLT':['#dcfce7','#166534'], 'PJ':['#f3e8ff','#7c3aed'], 'Temporário':['#fef3c7','#92400e'] };
+    const [tbg,tc] = tipoCores[m.tipoContrato] || ['#f3f4f6','#6b7280'];
+    const badgeTipoContrato = `<span style="background:${tbg};color:${tc};border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600">${m.tipoContrato || 'Sem tipo definido'}</span>`;
     return `
     <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px">
       <div style="width:44px;height:44px;border-radius:50%;background:${cor};color:${corT};font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(m.nome)}</div>
@@ -202,6 +207,7 @@ export default async function handler(req, res) {
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
         ${badge}
+        ${badgeTipoContrato}
         <button onclick="abrirEditorById(${m.linha})" style="background:none;border:1px solid var(--border);border-radius:5px;padding:3px 10px;font-size:11px;color:var(--text2);cursor:pointer">Editar</button>
       </div>
     </div>`;
@@ -289,7 +295,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div style="width:32px;height:32px;border-radius:8px;background:#e53e3e;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0">P</div>
   <div><div class="ht">Pulse <span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px">Equipe</span></div><div class="hs">${ativos.length} ativos${pendentes.length ? ` · ${pendentes.length} pendente${pendentes.length>1?'s':''}` : ''}</div></div>
   <div class="hr">
-    <a href="/api/gerar-escala" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">&#10024; Gerar escala IA</a>
+    <a href="/api/banco-horas" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">📊 Banco de horas</a>
     <a href="/api/app" class="btn-sm">← Voltar</a>
     <button id="tt" class="btn-sm" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" style="font-size:14px;padding:3px 8px">🌙</button>
   </div>
@@ -334,7 +340,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="field"><label>RG</label><input type="text" id="ed-rg"></div>
       <div class="field"><label>Data de nascimento</label><input type="text" id="ed-nascimento" placeholder="DD/MM/AAAA"></div>
       <div class="field" style="grid-column:1/-1"><label>Endereço</label><input type="text" id="ed-endereco"></div>
-      <div class="field" style="grid-column:1/-1"><label>Perfil de acesso</label>
+      <div class="field"><label>Tipo de contrato</label>
+        <select id="ed-tipo-contrato">
+          <option value="">Não definido</option>
+          <option value="CLT">CLT</option>
+          <option value="PJ">PJ</option>
+          <option value="Temporário">Temporário (LET · 6x1)</option>
+        </select>
+      </div>
+      <div class="field"><label>Perfil de acesso</label>
         <select id="ed-perfil"><option value="colaborador">Colaborador</option><option value="gestor">Gestor</option></select>
       </div>
     </div>
@@ -363,6 +377,7 @@ function abrirEditorById(linha){
   document.getElementById('ed-nascimento').value=m.nascimento||'';
   document.getElementById('ed-endereco').value=m.endereco||'';
   document.getElementById('ed-telefone').value=m.telefone||'';
+  document.getElementById('ed-tipo-contrato').value=m.tipoContrato||'';
   document.getElementById('modal').classList.add('open');
 }
 function fecharModal(){document.getElementById('modal').classList.remove('open');}
@@ -398,6 +413,7 @@ async function salvarEdicao(){
     nascimento:document.getElementById('ed-nascimento').value,
     endereco:document.getElementById('ed-endereco').value,
     telefone:document.getElementById('ed-telefone').value,
+    tipoContrato:document.getElementById('ed-tipo-contrato').value,
   });
   if(d.ok){fecharModal();toast('Salvo!');setTimeout(()=>location.reload(),1000);}
   else toast('Erro: '+d.error,'#dc2626');

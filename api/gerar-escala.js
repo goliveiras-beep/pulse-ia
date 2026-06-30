@@ -300,12 +300,12 @@ export default async function handler(req, res) {
 <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1c1f26;color:#e2e8f0}</style>
 </head><body>
 <div style="background:#161920;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;border-bottom:1px solid #2d3748">
-  <a href="/api/equipe-view" style="width:28px;height:28px;background:#2d3748;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#e2e8f0;font-size:12px;font-weight:700;text-decoration:none">P</a>
+  <a href="/api/escalas?v=semana" style="width:28px;height:28px;background:#2d3748;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#e2e8f0;font-size:12px;font-weight:700;text-decoration:none">P</a>
   <div>
     <div style="font-size:14px;font-weight:600;color:#fff">Pulse — Escala IA ✨</div>
     <div style="font-size:11px;color:#718096">${fmtData(inicio)} a ${fmtData(fim)} · ${totalAjustes} ajustes automáticos · ${totalJaPreenchidos} já preenchidos (preservados) · ${totalLacunas - totalAjustes > 0 ? (totalLacunas - totalAjustes)+' lacunas restantes' : 'cobertura completa ✓'}</div>
   </div>
-  <div style="margin-left:auto"><a href="/api/equipe-view" style="background:none;border:1px solid #3d4660;border-radius:5px;padding:4px 10px;font-size:11px;color:#a0aec0;text-decoration:none">← Equipe</a></div>
+  <div style="margin-left:auto"><a href="/api/escalas?v=semana" style="background:none;border:1px solid #3d4660;border-radius:5px;padding:4px 10px;font-size:11px;color:#a0aec0;text-decoration:none">← Escala</a></div>
 </div>
 <div style="max-width:1400px;margin:0 auto;padding:16px 20px">
   <div style="background:#1a2744;border:1px solid #2a4080;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:#93c5fd">
