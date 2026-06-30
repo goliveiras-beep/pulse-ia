@@ -1274,14 +1274,6 @@ function renderEventos(eventos, containerId, agora, isHoje) {
 
   c.innerHTML = html;
 
-  // Altura dinâmica: reduz conforme encerrados (480 → 200px)
-  if (isHoje) {
-    var total = eventos.length;
-    var nEnc = eventos.filter(function(ev){ return statusEvento(ev.hora, agora, ev.horaFim) === 'encerrado'; }).length;
-    var pct = total > 0 ? nEnc / total : 0;
-    c.style.maxHeight = Math.round(480 - pct * 280) + 'px';
-  }
-
   // Scroll automático para o primeiro evento ativo
   if (isHoje) {
     setTimeout(function() {
