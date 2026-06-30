@@ -284,18 +284,109 @@ const LINHAS = [
 
 export default async function handler(req, res) {
   const auth = (req.headers.authorization||'').replace('Bearer ','');
-  if (auth !== TOKEN) return res.status(401).json({ error: 'Token inválido' });
-  if (req.method !== 'POST') return res.status(405).end();
+  const tokenOk = auth === TOKEN;
+
+  // Página HTML para facilitar o uso (GET sem token mostra botão)
+  if (req.method === 'GET') {
+    // Verificar se é gestor pela sessão
+    let isGestor = false;
+    try {
+      const COOKIE_NAME = 'pulse_session';
+      const cookies = {};
+      (req.headers.cookie||'').split(';').forEach(c=>{const p=c.trim().split('=');cookies[p.shift()]=p.join('=');});
+      const token = cookies[COOKIE_NAME];
+      if (token) {
+        const { createHash } = await import('crypto');
+        const hash = s => createHash('sha256').update(s+'pulse2026').digest('hex').slice(0,32);
+        const d = Buffer.from(token,'base64').toString('utf8');
+        const last=d.lastIndexOf('|'), sec=d.lastIndexOf('|',last-1);
+        const data=d.slice(0,sec), h=d.slice(sec+1,last), ts=d.slice(last+1);
+        if(Date.now()-parseInt(ts,10)<7*24*3600*1000 && h===hash(data+ts) && !data.startsWith('~~OAUTH~~')) {
+          const nome = data.split('~~')[0];
+          const eq = await sheetsRequest(SHEET_ID,'/values/Equipe!A2:I200').then(d=>d.values||[]);
+          const u = eq.find(r=>r[0]===nome);
+          isGestor = u?.[8]==='gestor';
+        }
+      }
+    } catch {}
+
+    if (!isGestor) return res.redirect(302, '/api/app');
+
+    return res.status(200).send(`<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse — Importar Escala</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,sans-serif;background:#1c1f26;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}</style>
+</head><body>
+<div style="background:#242836;border:1px solid #2d3748;border-radius:16px;padding:32px;max-width:500px;width:100%;text-align:center">
+  <div style="font-size:48px;margin-bottom:16px">📅</div>
+  <h1 style="font-size:20px;font-weight:700;margin-bottom:8px">Importar Escala de Junho/2026</h1>
+  <p style="font-size:13px;color:#718096;margin-bottom:8px">Importa <strong style="color:#e2e8f0">~204 linhas</strong> de escala histórica (01–28/jun) de 10 colaboradores para a planilha.</p>
+  <p style="font-size:12px;color:#4a5568;margin-bottom:24px">Duplicatas são ignoradas automaticamente — pode clicar mais de uma vez com segurança.</p>
+  <button id="btn" onclick="importar()" style="background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:14px 32px;font-size:15px;font-weight:600;cursor:pointer;width:100%">▶ Importar agora</button>
+  <div id="msg" style="margin-top:16px;font-size:13px;display:none"></div>
+  <div style="margin-top:20px"><a href="/api/app" style="font-size:12px;color:#4a5568">← Voltar para o Pulse</a></div>
+</div>
+<script>
+async function importar(){
+  var btn=document.getElementById('btn'),msg=document.getElementById('msg');
+  btn.textContent='Importando...';btn.disabled=true;btn.style.background='#374151';
+  msg.style.display='none';
+  try{
+    var r=await fetch('/api/import-escala',{method:'POST',headers:{'Authorization':'Bearer ${TOKEN}'}});
+    var d=await r.json();
+    if(d.ok){
+      msg.style.display='block';msg.style.color='#68d391';
+      msg.textContent='✓ Concluído! '+d.gravadas+' linhas gravadas'+(d.ignoradas?' · '+d.ignoradas+' já existiam':'')+'.';
+      btn.textContent='✓ Importado';btn.style.background='#166534';
+    }else{
+      msg.style.display='block';msg.style.color='#fc8181';msg.textContent='Erro: '+(d.error||'?');
+      btn.textContent='▶ Tentar novamente';btn.disabled=false;btn.style.background='#1d4ed8';
+    }
+  }catch(e){
+    msg.style.display='block';msg.style.color='#fc8181';msg.textContent='Erro de conexão: '+e.message;
+    btn.textContent='▶ Tentar novamente';btn.disabled=false;btn.style.background='#1d4ed8';
+  }
+}
+</script>
+</body></html>`);
+  }
+
+  // POST: executa a importação (token ou cookie de gestor)
+  if (req.method === 'POST') {
+    if (!tokenOk) {
+      // Verificar cookie de gestor como alternativa
+      let ok = false;
+      try {
+        const COOKIE_NAME = 'pulse_session';
+        const cookies = {};
+        (req.headers.cookie||'').split(';').forEach(c=>{const p=c.trim().split('=');cookies[p.shift()]=p.join('=');});
+        const sessionToken = cookies[COOKIE_NAME];
+        if (sessionToken) {
+          const { createHash } = await import('crypto');
+          const hash = s => createHash('sha256').update(s+'pulse2026').digest('hex').slice(0,32);
+          const d = Buffer.from(sessionToken,'base64').toString('utf8');
+          const last=d.lastIndexOf('|'), sec=d.lastIndexOf('|',last-1);
+          const data=d.slice(0,sec), h=d.slice(sec+1,last), ts=d.slice(last+1);
+          if(Date.now()-parseInt(ts,10)<7*24*3600*1000 && h===hash(data+ts) && !data.startsWith('~~OAUTH~~')) {
+            const nome = data.split('~~')[0];
+            const eq = await sheetsRequest(SHEET_ID,'/values/Equipe!A2:I200').then(d=>d.values||[]);
+            const u = eq.find(r=>r[0]===nome);
+            ok = u?.[8]==='gestor';
+          }
+        }
+      } catch {}
+      if (!ok) return res.status(401).json({ error: 'Acesso negado' });
+    }
 
   try {
-    // Busca o que já existe para evitar duplicatas
     const existing = await sheetsRequest(SHEET_ID, '/values/Escala!A2:F5000').then(d => d.values||[]);
     const existingKeys = new Set(existing.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
 
     const novas = LINHAS.filter(r => !existingKeys.has(`${r[0]}|${r[2]}`));
 
     if (novas.length === 0) {
-      return res.status(200).json({ ok: true, gravadas: 0, msg: 'Todas as linhas já existiam na planilha.' });
+      return res.status(200).json({ ok: true, gravadas: 0, ignoradas: LINHAS.length, msg: 'Todas as linhas já existiam na planilha.' });
     }
 
     await sheetsRequest(SHEET_ID, `/values/Escala!A:F:append?valueInputOption=USER_ENTERED`, 'POST', { values: novas });
@@ -305,4 +396,5 @@ export default async function handler(req, res) {
     console.error('import-escala ERRO:', err.message);
     return res.status(500).json({ error: err.message });
   }
+  } // fecha o bloco POST
 }
