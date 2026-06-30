@@ -927,8 +927,11 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
       {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: eventosD6c},
     ];
     const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local}))})));
-    const eventosHojeJson = JSON.stringify(eventosHoje.map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local})));
-    const eventosAmanhaJson = JSON.stringify(eventosAmanha.map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local})));
+    // Cruzar com escala para mostrar quem está no turno (igual à visão do gestor)
+    const escHoje2  = escala.filter(r => r[0] === hojeStr);
+    const escAmanha2 = escala.filter(r => r[0] === d1Str);
+    const eventosHojeJson   = JSON.stringify(cruzarEventos(eventosHoje,  escHoje2,  hojeStr).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,disp:e.disp,semCob:e.semCob})));
+    const eventosAmanhaJson = JSON.stringify(cruzarEventos(eventosAmanha, escAmanha2, d1Str).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,disp:e.disp,semCob:e.semCob})));
     const hojeAno = hoje.getFullYear();
     const hojeNumMes = hoje.getMonth();
 
@@ -1296,7 +1299,16 @@ function renderEventos(eventos, containerId, agora, isHoje) {
       html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
       html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">' + (ev.hora||'--') + (ev.horaFim?'<br><span style="font-size:9px;font-weight:600;opacity:.6">–'+ev.horaFim+'</span>':'') + '</div>';
       html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">' + ev.nome + '</div>';
-      html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">' + ev.tipo + (ev.local ? ' · <span style="font-weight:600">' + ev.local + '</span>' : '') + '</div></div>';
+      html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">' + ev.tipo + (ev.local ? ' · <span style="font-weight:600">' + ev.local + '</span>' : '') + '</div>';
+      // Nomes de quem está de turno
+      if (ev.disp && ev.disp.length) {
+        var nomesStr = ev.disp.map(function(p){return p.nome.split(' ')[0];}).join(' · ');
+        var labelCor = ev.semCob === false ? '#68d391' : '#a0aec0';
+        html += '<div style="font-size:9px;color:'+labelCor+';margin-top:3px;opacity:.85">👥 ' + nomesStr + '</div>';
+      } else if (ev.semCob) {
+        html += '<div style="font-size:9px;color:#fc8181;margin-top:3px;font-weight:600">⚠ Sem cobertura</div>';
+      }
+      html += '</div>';
       if (lbl) html += '<div>' + lbl + '</div>';
       html += '</div></div>';
     }
@@ -1575,7 +1587,7 @@ setInterval(atualizarEventos, 60000);
     <div class="metric blue-m"><div class="ml">Trabalhando amanha</div><div class="mv">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
     <div class="metric ${folgHoje > 2 ? 'amber-m' : ''}"><div class="ml">Folgas hoje</div><div class="mv">${folgHoje}</div><div class="ms">${ausencias.filter(a => a[0] !== 'CANCELADO' && dentroAusencia(a, hojeStr)).length} via Pulse</div></div>
     <div class="metric ${folgAmanha > 2 ? 'amber-m' : ''}"><div class="ml">Folgas amanha</div><div class="mv">${folgAmanha}</div><div class="ms">${ausencias.filter(a => a[4] === d1Str).length} via Pulse</div></div>
-    <div class="metric ${feriasAtivas > 0 ? 'amber-m' : ''}"><div class="ml">Férias em até 7 dias</div><div class="mv">${feriasAtivas}</div><div class="ms">${feriasAtivas > 0 ? feriasProximas.map(a => `${a[1].split(' ')[0]} (${a[4]})`).join(', ') : 'nenhuma prevista'}</div></div>
+    <div class="metric ${feriasAtivas > 0 ? 'amber-m' : ''}" style="${feriasAtivas === 0 ? 'display:none' : ''}"><div class="ml">Férias em até 7 dias</div><div class="mv">${feriasAtivas}</div><div class="ms">${feriasProximas.map(a => `${a[1].split(' ')[0]} (${a[4]})`).join(', ')}</div></div>
     <div class="metric ${semCob > 0 ? 'red-m' : ''}" title="Considera sem cobertura quando, no horário do evento (entre início e término), nenhum colaborador da escala está de turno ativo cobrindo aquele intervalo."><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">eventos amanhã sem ninguém de turno cobrindo do início ao fim (de ${eventosAmanha.length})</div></div>
     <div class="metric" style="display:flex;align-items:center;justify-content:center;text-align:center">
       <div style="width:100%">
