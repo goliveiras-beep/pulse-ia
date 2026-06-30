@@ -281,7 +281,7 @@ a{text-decoration:none;color:inherit}
 .btn-sm{border:1px solid #3d4660;border-radius:5px;padding:4px 10px;font-size:11px;color:#a0aec0;background:none;cursor:pointer;text-decoration:none}
 .btn-sm:hover{border-color:#6b7280;color:#e2e8f0}
 .wrap{max-width:1200px;margin:0 auto;padding:16px 20px}
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.metrics{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}
 .metric{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
 .metric.blue-m{background:var(--blue-m-bg);border-color:var(--blue-m-border)}
 .metric.red-m{background:var(--red-m-bg);border-color:var(--red-m-border)}
@@ -314,7 +314,7 @@ a{text-decoration:none;color:inherit}
 @keyframes pulsar{0%,100%{opacity:1}50%{opacity:.3}}
 @keyframes pulse-heart{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
 .pulse-heart-anim{animation:pulse-heart 1.5s ease-in-out infinite}
-@media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.metrics{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:640px){
   .metrics{grid-template-columns:repeat(2,1fr);gap:8px}
   .mv{font-size:20px}
@@ -1412,6 +1412,8 @@ setInterval(atualizarEventos, 60000);
   const comAtenc = eventosCruzadosAmanha.filter(e => e.atenc.length > 0).length;
   const trabAmanha = escD1.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente').length;
   const folgAmanha = escD1.filter(r => !r[3] || r[5] === 'Folga' || r[5] === 'Folga/Ausente').length;
+  const folgHoje = escHoje.filter(r => !r[3] || r[5] === 'Folga' || r[5] === 'Folga/Ausente').length;
+  const feriasAtivas = ausencias.filter(a => a[0] !== 'CANCELADO' && a[2] === 'Férias' && (dentroAusencia(a, hojeStr) || dentroAusencia(a, d1Str))).length;
   const cobPct = equipeRaw.length > 0 ? Math.round(trabAmanha / equipeRaw.length * 100) : 0;
   const atualizado = hoje.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
@@ -1530,8 +1532,10 @@ setInterval(atualizarEventos, 60000);
 <div class="wrap">
   <div class="metrics">
     <div class="metric blue-m"><div class="ml">Trabalhando amanha</div><div class="mv">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
+    <div class="metric ${folgHoje > 2 ? 'amber-m' : ''}"><div class="ml">Folgas hoje</div><div class="mv">${folgHoje}</div><div class="ms">${ausencias.filter(a => a[0] !== 'CANCELADO' && dentroAusencia(a, hojeStr)).length} via Pulse</div></div>
     <div class="metric ${folgAmanha > 2 ? 'amber-m' : ''}"><div class="ml">Folgas amanha</div><div class="mv">${folgAmanha}</div><div class="ms">${ausencias.filter(a => a[4] === d1Str).length} via Pulse</div></div>
-    <div class="metric ${semCob > 0 ? 'red-m' : ''}"><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanha</div></div>
+    <div class="metric ${feriasAtivas > 0 ? 'blue-m' : ''}"><div class="ml">Ferias (hoje/amanhã)</div><div class="mv">${feriasAtivas}</div><div class="ms">colaborador(es) de férias</div></div>
+    <div class="metric ${semCob > 0 ? 'red-m' : ''}" title="Considera sem cobertura quando, no horário do evento (entre início e término), nenhum colaborador da escala está de turno ativo cobrindo aquele intervalo."><div class="ml">Sem cobertura</div><div class="mv">${semCob}</div><div class="ms">eventos amanhã sem ninguém de turno cobrindo do início ao fim (de ${eventosAmanha.length})</div></div>
     <div class="metric" style="display:flex;align-items:center;justify-content:center;text-align:center">
       <div style="width:100%">
         <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px">
