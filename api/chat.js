@@ -544,6 +544,69 @@ export default async function handler(req, res) {
       return res.status(200).json({ resposta: montarPreviewConfirmacao(action), acaoRealizada: { action: comando.action, status: 'awaiting_confirmation', preview: action } });
     }
 
+    // query — busca contexto real e responde em linguagem natural
+    if (comando.action === 'query' || !ACTIONS.includes(comando.action)) {
+      const [escalaRows, ausRows] = await Promise.all([
+        sheetsGet(token, 'Escala!A2:F2000'),
+        sheetsGet(token, 'Ausências!A2:F500'),
+      ]);
+
+      // Buscar eventos do Airtable (hoje + próximos 3 dias)
+      let eventosCtx = '';
+      try {
+        const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+        const [d, m, a] = hoje.split('/');
+        const hojeIso = `${a}-${m}-${d}`;
+        const r = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID || 'appwE9LmmTxynTGFY'}/${process.env.AIRTABLE_TABLE_ID || 'tblpibvwAIGBQXr0H'}?filterByFormula=DATESTR({fldRnfbwPVzFiHMqs})>='${hojeIso}'&maxRecords=20&sort[0][field]=Hor%C3%A1rio%20KO&sort[0][direction]=asc`, {
+          headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
+        });
+        const d2 = await r.json();
+        if (d2.records) {
+          eventosCtx = d2.records.map(ev => `${ev.fields['Horário KO']||''} - ${ev.fields['Match ID']||'Evento'} (${ev.fields['Tipo de Conteúdo']||''})`).join('
+');
+        }
+      } catch {}
+
+      const escalaCtx = escalaRows.slice(0, 100).map(r => r.join(' | ')).join('
+');
+      const ausCtx = ausRows.slice(0, 50).map(r => r.join(' | ')).join('
+');
+      const equipeCtx = equipeAtivaTexto(equipeRows);
+
+      const sysQuery = `Você é o assistente operacional do Pulse IA da Livemode, empresa de TV.
+Hoje é ${hojeBrasil()} — ${agoraBrasil()}.
+
+Equipe ativa: ${equipeCtx}
+
+Escala recente (Data | Dia | Colaborador | Entrada | Saída | Obs):
+${escalaCtx || 'Sem registros'}
+
+Ausências registradas (ID | Colaborador | Tipo | Motivo | Início | Fim):
+${ausCtx || 'Nenhuma'}
+
+Próximos eventos (Horário - Nome - Tipo):
+${eventosCtx || 'Sem eventos encontrados'}
+
+Responda de forma direta, clara e útil. Use emojis com moderação. Se não souber algo, diga honestamente.`;
+
+      const groqQuery = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [
+            { role: 'system', content: sysQuery },
+            ...messages,
+          ],
+          temperature: 0.4,
+          max_tokens: 800,
+        }),
+      });
+      const groqData = await groqQuery.json();
+      const resposta = groqData.choices?.[0]?.message?.content?.trim() || 'Não consegui responder agora.';
+      return res.status(200).json({ resposta, acaoRealizada: { action: 'query', status: 'answered' } });
+    }
+
     const resultado = comando.action === 'ask_info'
       ? { action: 'ask_info', status: 'missing_info', missing: comando.missing || ['informações'], comando }
       : { action: 'query', status: 'consulta', comando };
