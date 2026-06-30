@@ -627,12 +627,8 @@ export default async function handler(req, res) {
         const isD1 = df === d1Str;
         let bg = 'var(--card)', bc = 'var(--border)', tc = 'var(--text3)', label = '--';
         if (aus) {
-          const tipo = aus[2] || '';
           const icones = {'Férias':'🏖️','Folga programada':'☀️','Atestado médico':'🏥','Troca de horário':'🔄','Folga direcionada':'📌'};
-          if (tipo === 'Férias') { bg = '#1a2744'; bc = '#2a4080'; tc = '#63b3ed'; }
-          else if (tipo === 'Atestado médico') { bg = '#1f1010'; bc = '#991b1b'; tc = '#fc8181'; }
-          else { bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; }
-          label = icones[tipo] || '📋';
+          bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; label = icones[aus[2]] || '📋';
         }
         else if (t?.[5] === 'Folga') { bg = '#1f1a0d'; bc = '#3d3010'; tc = '#f6ad55'; label = '☀️'; }
         else if (t?.[3] && t?.[4]) { bg = isHoje ? '#0d2010' : isD1 ? '#1a2744' : 'var(--card)'; bc = isHoje ? '#166534' : isD1 ? '#2a4080' : 'var(--border)'; tc = isHoje ? '#68d391' : isD1 ? '#63b3ed' : 'var(--text)'; label = `${t[3]}<br><span style="opacity:.5;font-size:8px">→</span><br>${t[4]}`; }
@@ -679,12 +675,8 @@ export default async function handler(req, res) {
 
         let bg = 'var(--bg2)', bc = 'transparent', tc = 'var(--text3)', label = '', ic = '';
         if (aus) {
-          const tipo = aus[2] || '';
           const icones = {'Férias':'🏖️','Folga programada':'☀️','Atestado médico':'🏥','Troca de horário':'🔄','Folga direcionada':'📌'};
-          if (tipo === 'Férias') { bg = '#1a2744'; bc = '#2a4080'; tc = '#63b3ed'; }
-          else if (tipo === 'Atestado médico') { bg = '#1f1010'; bc = '#991b1b'; tc = '#fc8181'; }
-          else { bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; }
-          ic = icones[tipo] || '📋';
+          bg = '#1a0d2e'; bc = '#6b21a8'; tc = '#c084fc'; ic = icones[aus[2]] || '📋';
         } else if (t?.[5] === 'Folga') {
           bg = '#1f1a0d'; bc = '#3d3010'; tc = '#f6ad55'; ic = '☀️';
         } else if (t?.[3] && t?.[4]) {
@@ -755,6 +747,7 @@ export default async function handler(req, res) {
 .ev-ao-vivo{border-color:#22c55e!important;animation:border-pulse-green 2s ease-in-out infinite}
 .ev-proximo-30{border-color:#f59e0b!important}
 .ev-proximo-60{border-color:#f97316!important}
+.ev-encerrado{opacity:.35!important}
 @keyframes border-pulse-green{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 4px rgba(34,197,94,0)}}
 .tab-nav-colab{display:flex;gap:6px;margin-bottom:14px}
 .tab-btn-colab{flex:1;border:1px solid var(--border);border-radius:8px;padding:7px;font-size:12px;font-weight:600;background:none;color:var(--text3);cursor:pointer;transition:all .15s}
@@ -829,27 +822,17 @@ export default async function handler(req, res) {
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px">
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:10px">Próximos 7 dias</div>
       <div class="grid7">${renderSemanaColab()}</div>
-      <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--border);padding-top:10px;align-items:center">
-        <span style="font-size:10px;color:var(--text3);font-weight:600">Legenda:</span>
-        <span style="font-size:10px;background:#0d1a10;border:1px solid #166534;color:#68d391;border-radius:4px;padding:2px 8px">🟢 Trabalhando</span>
-        <span style="font-size:10px;background:#1f1a0d;border:1px solid #3d3010;color:#f6ad55;border-radius:4px;padding:2px 8px">☀️ Folga</span>
-        <span style="font-size:10px;background:#1a2744;border:1px solid #2a4080;color:#63b3ed;border-radius:4px;padding:2px 8px">🏖️ Férias</span>
-        <span style="font-size:10px;background:#1f1010;border:1px solid #991b1b;color:#fc8181;border-radius:4px;padding:2px 8px">🏥 Atestado</span>
-        <span style="font-size:10px;background:#1a0d2e;border:1px solid #6b21a8;color:#c084fc;border-radius:4px;padding:2px 8px">📋 Outras ausências</span>
-      </div>
     </div>
   </div>
 
   <div id="painel-mes" style="display:none">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px">
       ${renderMesColab()}
-      <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--border);padding-top:10px;align-items:center">
-        <span style="font-size:10px;color:var(--text3);font-weight:600">Legenda:</span>
-        <span style="font-size:10px;background:#0d1a10;border:1px solid #166534;color:#68d391;border-radius:4px;padding:2px 8px">🟢 Trabalhando</span>
-        <span style="font-size:10px;background:#1f1a0d;border:1px solid #3d3010;color:#f6ad55;border-radius:4px;padding:2px 8px">☀️ Folga</span>
-        <span style="font-size:10px;background:#1a2744;border:1px solid #2a4080;color:#63b3ed;border-radius:4px;padding:2px 8px">🏖️ Férias</span>
-        <span style="font-size:10px;background:#1f1010;border:1px solid #991b1b;color:#fc8181;border-radius:4px;padding:2px 8px">🏥 Atestado</span>
-        <span style="font-size:10px;background:#1a0d2e;border:1px solid #6b21a8;color:#c084fc;border-radius:4px;padding:2px 8px">📋 Outras ausências</span>
+      <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border);padding-top:10px">
+        <span style="font-size:10px;color:var(--text3)">Legenda:</span>
+        <span style="font-size:10px;background:#0d1a10;border:1px solid #166534;color:#68d391;border-radius:4px;padding:1px 7px">🟢 Trabalhando</span>
+        <span style="font-size:10px;background:#1f1a0d;border:1px solid #3d3010;color:#f6ad55;border-radius:4px;padding:1px 7px">☀️ Folga</span>
+        <span style="font-size:10px;background:#1a0d2e;border:1px solid #6b21a8;color:#c084fc;border-radius:4px;padding:1px 7px">🏖️ Ausência</span>
       </div>
     </div>
   </div>
@@ -892,63 +875,23 @@ function borderClass(s) {
 function renderEventos(eventos, containerId, agora, isHoje) {
   var c = document.getElementById(containerId);
   if (!c) return;
-  if (!eventos.length) {
-    c.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>';
-    return;
-  }
-
+  if (!eventos.length) { c.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>'; return; }
   var html = '';
-  var primeiroAtivo = false;
-
   eventos.forEach(function(ev) {
     var s = isHoje ? statusEvento(ev.hora, agora) : 'futuro';
-    var encerrado = s === 'encerrado';
-
-    if (encerrado) {
-      // Encerrado: compacto, apagado, hora riscada
-      html += '<div style="border:1px solid var(--border2);border-radius:6px;margin-bottom:3px;opacity:0.45;transition:opacity .2s" onmouseenter="this.style.opacity=0.85" onmouseleave="this.style.opacity=0.45">';
-      html += '<div style="padding:5px 10px;display:flex;align-items:center;gap:10px">';
-      html += '<div style="font-size:12px;font-weight:700;min-width:44px;color:var(--text3);font-variant-numeric:tabular-nums;text-decoration:line-through">' + (ev.hora||'--') + '</div>';
-      html += '<div style="flex:1"><div style="font-size:11px;color:var(--text3)">' + ev.nome + '</div>';
-      html += '<div style="font-size:9px;color:var(--text4)">' + ev.tipo + (ev.local ? ' · ' + ev.local : '') + '</div></div>';
-      html += '<div style="font-size:9px;color:var(--text4)">Encerrado</div>';
-      html += '</div></div>';
-    } else {
-      // Ativo/futuro: destaque normal com status
-      var bc = borderClass(s);
-      var lbl = statusLabel(s);
-      var isAoVivo = s === 'aovivo';
-      var bgExtra = isAoVivo ? ';background:rgba(34,197,94,.07)' : s === 'proximo30' ? ';background:rgba(245,158,11,.04)' : s === 'proximo60' ? ';background:rgba(249,115,22,.03)' : '';
-      var idAttr = (isAoVivo && !primeiroAtivo) ? ' id="ev-ativo-colab"' : '';
-      if (isAoVivo && !primeiroAtivo) primeiroAtivo = true;
-      html += '<div' + idAttr + ' class="' + bc + '" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s' + bgExtra + '">';
-      html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
-      html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">' + (ev.hora||'--') + '</div>';
-      html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">' + ev.nome + '</div>';
-      html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">' + ev.tipo + (ev.local ? ' · <span style="font-weight:600">' + ev.local + '</span>' : '') + '</div></div>';
-      if (lbl) html += '<div>' + lbl + '</div>';
-      html += '</div></div>';
-    }
+    var bc = borderClass(s);
+    var lbl = statusLabel(s);
+    html += '<div class="'+bc+'" style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .3s,box-shadow .3s">';
+    html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
+    html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">'+(ev.hora||'--')+'</div>';
+    html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">'+ev.nome+'</div>';
+    html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+ev.tipo+(ev.local?' · <span style="font-weight:600">'+ev.local+'</span>':'')+'</div></div>';
+    if (lbl) html += '<div>'+lbl+'</div>';
+    html += '</div></div>';
   });
-
   c.innerHTML = html;
-
-  // Altura dinâmica: reduz conforme encerrados (480 → 200px)
-  if (isHoje) {
-    var total = eventos.length;
-    var nEnc = eventos.filter(function(ev){ return statusEvento(ev.hora, agora) === 'encerrado'; }).length;
-    var pct = total > 0 ? nEnc / total : 0;
-    c.style.maxHeight = Math.round(480 - pct * 280) + 'px';
-  }
-
-  // Scroll automático para o primeiro evento ativo
-  if (isHoje) {
-    setTimeout(function() {
-      var el = c.querySelector('#ev-ativo-colab');
-      if (el) c.scrollTop = Math.max(0, el.offsetTop - 40);
-    }, 80);
-  }
 }
+
 function atualizarEventos() {
   var now = new Date();
   var brtParts = new Intl.DateTimeFormat('pt-BR', {timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(now);
@@ -957,6 +900,7 @@ function atualizarEventos() {
   var minAtual = bh*60 + bm;
   renderEventos(_evHoje, 'lista-eventos-hoje', minAtual, true);
   renderEventos(_evAmanha, 'lista-eventos-amanha', minAtual, false);
+  // Inicializa coluna extra com D+2
   if (_diasExtras.length) {
     var d = _diasExtras[_diaExtraAtual];
     renderEventos(d.evs, 'lista-eventos-extra', 0, false);
@@ -1021,17 +965,9 @@ function navDiaColab(dir) {
   renderEventos(d.evs, 'lista-eventos-extra', 0, false);
 }
 
-// Garantir execução após DOM pronto
-function iniciar() {
-  try { atualizarEventos(); } catch(e) { console.error('atualizarEventos erro:', e); }
-  try { atualizarRelogio(); } catch(e) {}
-  try { carregarTempo(); } catch(e) {}
-}
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', iniciar);
-} else {
-  iniciar();
-}
+atualizarEventos();
+atualizarRelogio();
+carregarTempo();
 setInterval(atualizarRelogio, 1000);
 setInterval(atualizarEventos, 60000);
 </script>`;
@@ -1290,35 +1226,17 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
     tabelaHTML += `</tr>`;
   });
 
-  const pulseSpeedGestor = eventosHoje.length >= 15 ? '0.6s' : eventosHoje.length >= 10 ? '1s' : eventosHoje.length >= 5 ? '1.5s' : '2.5s';
-
   const conteudo = `
 <div class="header">
-  <div class="logo" style="background:none;padding:0;overflow:visible">
-    <svg style="animation:pulse-heart ${pulseSpeedGestor} ease-in-out infinite" width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/>
-      <rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/>
-      <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
-      <polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  </div>
+  <div class="logo" style="background:none;padding:0;overflow:visible"><svg width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+  <defs><radialGradient id="hg" cx="38%" cy="35%" r="62%"><stop offset="0%" stop-color="#ff6b6b"/><stop offset="45%" stop-color="#e53e3e"/><stop offset="100%" stop-color="#7f1d1d"/></radialGradient></defs>
+  <rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/>
+  <rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/>
+  <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
+  <polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg></div>
   <div><div class="ht">Pulse <span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:4px">Gestor</span></div><div class="hs">${DIAS_FULL[d1.getDay()]} ${d1Str} · ${atualizado}</div></div>
   <div class="hr">
-    <div id="gtempo-widget" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 10px;font-size:12px;color:#e2e8f0">
-      <span id="gtempo-icone">⏳</span>
-      <span id="gtempo-temp" style="font-weight:700">--°C</span>
-      <span id="gtempo-cidade" style="color:#718096;font-size:10px"></span>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
-      <div style="display:flex;align-items:center;gap:5px">
-        <span style="font-size:9px;font-weight:600;color:#718096;letter-spacing:.04em">Brasil</span>
-        <span id="grelogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
-      </div>
-      <div style="display:flex;align-items:center;gap:5px">
-        <span style="font-size:9px;font-weight:600;color:#4a5568;letter-spacing:.04em">GMT</span>
-        <span id="grelogio-gmt" style="font-size:11px;font-weight:600;color:#718096;font-variant-numeric:tabular-nums"></span>
-      </div>
-    </div>
     <span style="font-size:12px;color:#666">Ola, ${nome.split(' ')[0]}</span>
     <a href="/api/escalas?v=semana" class="btn-sm">Escala</a>
     <a href="/api/equipe-view" class="btn-sm">Equipe</a>
@@ -1407,33 +1325,6 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
 <div class="toast" id="toast"></div>`;
 
   const script = `<script>
-// Relógio Brasil/GMT
-function grelogio() {
-  var now = new Date();
-  var p = new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(now);
-  var bh=p.find(function(x){return x.type==='hour';}).value;
-  var bm=p.find(function(x){return x.type==='minute';}).value;
-  var bs=p.find(function(x){return x.type==='second';}).value;
-  var eb=document.getElementById('grelogio-brt');
-  if(eb) eb.textContent=bh+':'+bm+':'+bs;
-  var eg=document.getElementById('grelogio-gmt');
-  if(eg) eg.textContent=String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0')+':'+String(now.getUTCSeconds()).padStart(2,'0');
-}
-async function gtempo() {
-  try {
-    var loc=null;
-    try{var r1=await fetch('https://ipapi.co/json/');var j1=await r1.json();if(j1.latitude)loc={lat:j1.latitude,lon:j1.longitude,city:j1.city};}catch(e){}
-    if(!loc)loc={lat:-22.9068,lon:-43.1729,city:'Rio de Janeiro'};
-    var wd=await(await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America%2FSao_Paulo')).json();
-    var temp=wd.current&&wd.current.temperature_2m!==undefined?Math.round(wd.current.temperature_2m):'--';
-    var icons={0:'☀️',1:'🌤️',2:'⛅',3:'☁️',51:'🌦️',61:'🌧️',80:'🌦️',95:'⛈️'};
-    document.getElementById('gtempo-icone').textContent=icons[wd.current&&wd.current.weathercode||0]||'🌡️';
-    document.getElementById('gtempo-temp').textContent=temp+'°C';
-    document.getElementById('gtempo-cidade').textContent=loc.city||'';
-  }catch(e){document.getElementById('gtempo-temp').textContent='--°C';}
-}
-grelogio();gtempo();setInterval(grelogio,1000);
-
 function abrirAjuste(data,nome,ent,sai,obs){document.getElementById('aj-data').value=data;document.getElementById('aj-nome').value=nome;document.getElementById('aj-colab').value=nome;document.getElementById('aj-data-show').value=data;document.getElementById('aj-entrada').value=ent||'';document.getElementById('aj-saida').value=sai||'';document.getElementById('aj-obs').value=obs||'';document.getElementById('aj-acao').value='horario';toggleAcao();document.getElementById('modal').classList.add('open');}
 function fecharModal(){document.getElementById('modal').classList.remove('open');}
 function toggleAcao(){document.getElementById('aj-horarios').style.display=document.getElementById('aj-acao').value==='horario'?'block':'none';}
