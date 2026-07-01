@@ -238,27 +238,42 @@ Responda SOMENTE JSON (sem texto):
     }
   }
 
-  // Conjunto de combinações (data|nome) que JÁ existem na planilha — nunca serão sobrescritas
-  const existingKeys = new Set(escalaRaw.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
-  function jaPreenchido(df, nome) { return existingKeys.has(`${df}|${nome}`); }
 
-  // Histórico ampliado: 60 dias — usar comparação correta para DD/MM
-  const h60dias = new Date(hoje); h60dias.setDate(hoje.getDate()-60);
-  function dfParaNum(df) { // DD/MM → MMDD como número para comparação
-    const [d,m] = df.split('/'); return parseInt(m)*100+parseInt(d);
+  // Normaliza qualquer formato de data para DD/MM (trata "01/06", "01/06/2026", "2026-06-01")
+  function normalizarDf(raw) {
+    if(!raw) return '';
+    const s = String(raw).trim();
+    // Formato YYYY-MM-DD
+    if(/^\d{4}-\d{2}-\d{2}/.test(s)) { const [,m,d] = s.split('-'); return d.padStart(2,'0')+'/'+m.padStart(2,'0'); }
+    // Formato DD/MM/YYYY ou DD/MM
+    if(/^\d{1,2}\/\d{1,2}/.test(s)) { const [d,m] = s.split('/'); return d.padStart(2,'0')+'/'+m.padStart(2,'0'); }
+    return s;
   }
-  function dfParaData(df) { const [d,m] = df.split('/'); return new Date(hoje.getFullYear(), parseInt(m)-1, parseInt(d)); }
+
+  // Normaliza o escalaRaw de uma vez — garante que todos os r[0] são DD/MM
+  const escalaNorm = escalaRaw.map(r => r.length ? [normalizarDf(r[0]), r[1]||'', r[2]||'', r[3]||'', r[4]||'', r[5]||''] : r);
+
+  // Histórico 60 dias baseado em DD/MM normalizado
+  const h60dias = new Date(hoje); h60dias.setDate(hoje.getDate()-60);
+  function dfParaData(df) {
+    const parts = df.split('/');
+    return new Date(hoje.getFullYear(), parseInt(parts[1])-1, parseInt(parts[0]));
+  }
   function dentroJanela(df) {
     try { const dt = dfParaData(df); return dt >= h60dias && dt <= hoje; } catch { return false; }
   }
-  const escalaHist = escalaRaw.filter(r=>r[0]&&dentroJanela(r[0])&&r[3]&&r[4]&&r[5]!=='Folga');
-  const escalaTudo = escalaRaw.filter(r=>r[0]&&dentroJanela(r[0]));
+
+  const escalaHist = escalaNorm.filter(r=>r[0]&&dentroJanela(r[0])&&r[3]&&r[4]&&r[5]!=='Folga');
+  const escalaTudo = escalaNorm.filter(r=>r[0]&&dentroJanela(r[0]));
+
+  // Também normaliza o existingKeys
+  const existingKeysNorm = new Set(escalaNorm.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
+  function jaPreenchido(df, nome) { return existingKeysNorm.has(`${df}|${nome}`); }
 
   const turnos = {};
   ativos.forEach(p => {
     const h3semanas = new Date(hoje); h3semanas.setDate(hoje.getDate()-21);
-    function dentro3sem(df) { try { const dt=dfParaData(df); return dt>=h3semanas&&dt<=hoje; } catch { return false; } }
-    const regsRecentes = escalaHist.filter(r=>r[2]===p[0]&&dentro3sem(r[0]));
+    const regsRecentes = escalaHist.filter(r=>r[2]===p[0]&&dentroJanela(r[0])&&dfParaData(r[0])>=h3semanas);
     const regs = regsRecentes.length ? regsRecentes : escalaHist.filter(r=>r[2]===p[0]);
     if(!regs.length) { turnos[p[0]]=null; return; }
     const freq={};
@@ -267,19 +282,17 @@ Responda SOMENTE JSON (sem texto):
     turnos[p[0]] = { ent, sai };
   });
 
-  // ── Análise de fadiga: dias trabalhados consecutivos até hoje ─────────────
+  // Fadiga baseada em datas normalizadas
   function calcularFadiga(nomePessoa) {
     let consecutivos = 0, totalDias60 = 0, folgas60 = 0;
     for(let i=0; i<=60; i++) {
       const d = new Date(hoje); d.setDate(hoje.getDate()-i);
       const df = fmtData(d);
       const reg = escalaTudo.find(r=>r[0]===df&&r[2]===nomePessoa);
-      if(!reg) continue; // sem registro = não contamos
+      if(!reg) continue;
       totalDias60++;
-      if(reg[5]==='Folga'||(!reg[3]&&!reg[4])) { folgas60++; if(i===0||consecutivos>0){if(i===0)consecutivos=0;} break; }
-      else if(i===0||consecutivos>=0) consecutivos++;
+      if(reg[5]==='Folga'||(!reg[3]&&!reg[4])) { folgas60++; break; }
     }
-    // Recalcular consecutivos de forma mais precisa
     consecutivos = 0;
     for(let i=0; i<=60; i++) {
       const d = new Date(hoje); d.setDate(hoje.getDate()-i);
@@ -289,8 +302,7 @@ Responda SOMENTE JSON (sem texto):
       if(reg[5]==='Folga'||(!reg[3]&&!reg[4])) break;
       consecutivos++;
     }
-    const ratio = totalDias60>0 ? (totalDias60-folgas60)/totalDias60 : 0;
-    return { consecutivos, totalDias60, folgas60, diasTrabalho: totalDias60-folgas60, ratio };
+    return { consecutivos, totalDias60, folgas60, diasTrabalho: totalDias60-folgas60 };
   }
 
   const fadiga = {};
@@ -348,8 +360,8 @@ Responda SOMENTE JSON (sem texto):
     const evsDia = eventos.filter(e=>e.data===dataAT);
     const isFds = d.getDay()===0||d.getDay()===6;
 
-    // Escala existente (já preenchida manualmente ou por uma geração anterior) — entra na conta de cobertura, mas nunca é tocada
-    const escalaExistente = escalaRaw
+    // Escala existente — usa escalaNorm para garantir formato consistente
+    const escalaExistente = escalaNorm
       .filter(r => r[0]===df && r[2] && ativos.some(p=>p[0]===r[2]))
       .map(r => ({ nome:r[2], ent:r[3]||'', sai:r[4]||'', obs:r[5]||'', existente:true }));
 
