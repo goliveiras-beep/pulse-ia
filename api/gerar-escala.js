@@ -384,51 +384,9 @@ Responda SOMENTE JSON (sem texto):
     });
   });
 
-  // ── Sugestão de folgas via IA ────────────────────────────────────────────
-  const cargaPorDia = diasProcessados.map(dia => ({
-    df: dia.df, diaSem: dia.diaSem, eventos: dia.evsDia.length, isFds: dia.isFds
-  }));
-  const fadigaResumo = ativos.filter(p=>turnos[p[0]]).map(p=>{
-    const f = fadiga[p[0]]||{};
-    return `${p[0].split(' ')[0]}: ${f.consecutivos||0} dias seguidos, ${f.diasTrabalho||0}/${f.totalDias60||0} dias trabalhados nos últimos 60 dias`;
-  }).join('\n');
-  const cargaResumo = cargaPorDia.map(d=>`${d.df}(${d.diaSem}): ${d.eventos} eventos${d.isFds?' [FDS]':''}`).join(', ');
-
-  let sugestoesTexto = '', sugestoesJSON = {};
-  try {
-    const rFolga = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 800,
-        messages: [{
-          role: 'user',
-          content: `Você é o gestor de operações de uma emissora de TV durante a Copa do Mundo 2026. A equipe está em período de alta carga desde o início do torneio.
-
-FADIGA ATUAL DA EQUIPE (dias trabalhados consecutivos e carga dos últimos 60 dias):
-${fadigaResumo}
-
-CARGA DE EVENTOS NOS PRÓXIMOS 14 DIAS (do Airtable):
-${cargaResumo}
-
-REGRA: cada colaborador deve receber pelo menos 1 folga nos próximos 14 dias. Priorizando quem tem mais dias seguidos. Nos dias com mais eventos (acima de 8), evitar folgar quem cobre horários noturnos.
-
-Sugira 1 ou 2 folgas por pessoa nos próximos 14 dias, distribuídas para manter cobertura mínima em cada dia. Não dê folgas no mesmo dia para mais de 30% da equipe.
-
-Responda SOMENTE em JSON (sem texto extra):
-{"folgas":[{"nome":"Nome Completo","data":"DD/MM","motivo":"razão curta (ex: 8 dias seguidos)"}]}`
-        }]
-      })
-    });
-    const dFolga = await rFolga.json();
-    const txtFolga = dFolga.content?.[0]?.text?.trim()||'{"folgas":[]}';
-    const parsedFolga = JSON.parse(txtFolga.replace(/```json|```/g,'').trim());
-    const nomesValidos = new Set(ativos.filter(p=>turnos[p[0]]).map(p=>p[0]));
-    const folgasFiltradas = (parsedFolga.folgas||[]).filter(f=>nomesValidos.has(f.nome)&&!jaPreenchido(f.data,f.nome));
-    folgasFiltradas.forEach(f=>{ sugestoesJSON[`${f.data}|${f.nome}`]={folga:true,motivo:f.motivo}; });
-    sugestoesTexto = JSON.stringify(folgasFiltradas);
-  } catch(e) { sugestoesTexto = '[]'; }
+  // sugestoesJSON vazio — folgas sugeridas carregam assincronamente via ?action=analisar
+  const sugestoesJSON = {};
+  const sugestoesTexto = '[]';
 
   const totalAGravar = diasProcessados.reduce((s,dia) => s + dia.escala.filter(p=>!p.existente).length, 0);
 

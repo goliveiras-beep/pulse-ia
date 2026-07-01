@@ -452,12 +452,19 @@ async function excluirTurno(){
 }
 document.addEventListener('keydown',function(e){
   var popupAberto=document.getElementById('editor-popup').style.display!=='none';
-  if(!popupAberto)return;
-  if((e.ctrlKey||e.metaKey)&&e.key==='c'){e.preventDefault();copiarTurno();}
-  else if((e.ctrlKey||e.metaKey)&&e.key==='v'&&clipboard){setTipo(clipboard.tipo||'turno');document.getElementById('editor-ent').value=clipboard.ent||'';document.getElementById('editor-sai').value=clipboard.sai||'';toast('Turno colado!','#166634');}
-  else if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement.tagName!=='INPUT'){e.preventDefault();excluirTurno();}
+  var emInput=document.activeElement.tagName==='INPUT'||document.activeElement.tagName==='SELECT'||document.activeElement.tagName==='TEXTAREA';
+  if((e.ctrlKey||e.metaKey)&&e.key==='c'&&popupAberto&&!emInput){e.preventDefault();copiarTurno();}
+  if((e.ctrlKey||e.metaKey)&&e.key==='v'&&popupAberto&&clipboard&&!emInput){
+    e.preventDefault();
+    setTipo(clipboard.tipo||'turno');
+    document.getElementById('editor-ent').value=clipboard.ent||'';
+    document.getElementById('editor-sai').value=clipboard.sai||'';
+    toast('Turno colado!','#166634');
+  }
+  if(!popupAberto) return;
+  if((e.key==='Delete'||e.key==='Backspace')&&!emInput){e.preventDefault();excluirTurno();}
   else if(e.key==='Escape'){fecharEditor();}
-  else if(e.key==='Enter'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();salvarEdicao();}
+  else if(e.key==='Enter'&&!emInput){e.preventDefault();salvarEdicao();}
 });
 </script>
 </body></html>`;
