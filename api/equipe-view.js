@@ -194,7 +194,7 @@ export default async function handler(req, res) {
       ? `<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">Gestor</span>`
       : `<span style="background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600">Colaborador</span>`;
     const tipoCores = { 'CLT':['#dcfce7','#166534'], 'PJ':['#f3e8ff','#7c3aed'], 'Temporário':['#fef3c7','#92400e'] };
-    const tipoLabels = { 'CLT':'LIVE MODE', 'Temporário':'LET', 'PJ':'PJ' };
+    const tipoLabels = { 'CLT':'LIVE MODE', 'Temporário':'LET 6x1', 'PJ':'PJ' };
     const [tbg,tc] = tipoCores[m.tipoContrato] || ['#f3f4f6','#6b7280'];
     const badgeTipoContrato = `<span style="background:${tbg};color:${tc};border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600">${tipoLabels[m.tipoContrato] || m.tipoContrato || '—'}</span>`;
     return `
@@ -370,7 +370,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <option value="">Não definido</option>
           <option value="CLT">LIVE MODE (CLT)</option>
           <option value="PJ">PJ</option>
-          <option value="Temporário">LET (Temporário)</option>
+          <option value="Temporário">LET (6x1)</option>
         </select>
       </div>
       <div class="field"><label>Perfil de acesso</label>
