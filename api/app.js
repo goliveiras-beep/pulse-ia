@@ -1393,13 +1393,21 @@ function renderEventos(eventos, containerId, agora, isHoje) {
       html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">' + (ev.hora||'--') + (ev.horaFim?'<br><span style="font-size:9px;font-weight:600;opacity:.6">–'+ev.horaFim+'</span>':'') + '</div>';
       html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">' + ev.nome + '</div>';
       html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">' + ev.tipo + (ev.local ? ' · <span style="font-weight:600">' + ev.local + '</span>' : '') + '</div>';
-      // Nomes de quem está de turno
+      // Nomes de quem está de turno — com horário completo (igual gestor)
       if (ev.disp && ev.disp.length) {
-        var nomesStr = ev.disp.map(function(p){return p.nome.split(' ')[0];}).join(' · ');
-        var labelCor = ev.semCob === false ? '#68d391' : '#a0aec0';
-        html += '<div style="font-size:9px;color:'+labelCor+';margin-top:3px;opacity:.85">👥 ' + nomesStr + '</div>';
+        html += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.07);padding-top:5px">';
+        ev.disp.forEach(function(p){
+          var ini = p.nome.split(' ');
+          var abrev = ini.map(function(w,i){return i===0?w[0].toUpperCase()+(w[1]||'').toUpperCase():''}).filter(Boolean).join('').slice(0,2);
+          html += '<div style="display:flex;align-items:center;gap:6px;padding:2px 0">'
+            + '<div style="width:22px;height:22px;border-radius:50%;background:#2d3748;color:#a0aec0;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">' + abrev + '</div>'
+            + '<span style="flex:1;font-size:11px;font-weight:600;color:var(--text)">' + p.nome + '</span>'
+            + '<span style="font-size:11px;color:#7dd3fc;font-weight:700;font-variant-numeric:tabular-nums">' + (p.ent||'') + (p.sai?'–'+p.sai:'') + '</span>'
+            + '</div>';
+        });
+        html += '</div>';
       } else if (ev.semCob) {
-        html += '<div style="font-size:9px;color:#fc8181;margin-top:3px;font-weight:600">⚠ Sem cobertura</div>';
+        html += '<div style="font-size:9px;color:#fc8181;margin-top:3px;font-weight:600">⚠ Sem cobertura neste horário</div>';
       }
       html += '</div>';
       if (lbl) html += '<div>' + lbl + '</div>';
@@ -1579,13 +1587,14 @@ setInterval(atualizarEventos, 60000);
       if (!encerrado && primeiroAtivo && comOpacidade) primeiroAtivo = false;
       const fraseEnc = encerrado ? gerarFraseEncerrado(ev.nome) : '';
       const [bc, bb, itc] = ev.semCob ? ['var(--badge-red-bg)', 'var(--badge-red-c)', 'var(--badge-red-c)'] : ['var(--badge-green-bg)', 'var(--badge-green-c)', 'var(--badge-green-c)'];
-      return `<div ${idAtivo} style="border:1px solid ${encerrado ? 'var(--border)' : bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado ? ';opacity:.35' : ''}">
+      return `<div ${idAtivo} data-hora="${ev.hora||''}" data-horafim="${ev.horaFim||''}" style="border:1px solid ${encerrado ? 'var(--border)' : bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado ? ';opacity:.35' : ''}">
         <div style="background:${encerrado ? 'var(--card)' : bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
           <div style="font-size:13px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--today-c)'};min-width:50px">${ev.hora || '--'}${ev.horaFim?'<br><span style="font-size:9px;font-weight:600;opacity:.6">–'+ev.horaFim+'</span>':''}</div>
           <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--text)'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}${ev.local ? ' · <span style="font-weight:600;color:var(--text3)">' + ev.local + '</span>' : ''}</div></div>
           ${encerrado
           ? `<div style="font-size:10px;font-weight:600;color:#9ca3af;font-style:italic">${fraseEnc}</div>`
           : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+              <span class="badge-realtime"></span>
               <div style="font-size:10px;font-weight:700;color:${itc}">${ev.semCob ? 'Sem cobertura' : 'OK'}</div>
               ${ev.semAntecedencia ? `<span style="font-size:14px;animation:pulsar 1s infinite">&#9888;</span>` : ''}
             </div>`
@@ -1812,6 +1821,31 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
 window.addEventListener('load',function(){var b=document.getElementById('cb-hoje');var a=document.getElementById('primeiro-ativo-hoje');if(b&&a){var pos=0,el=a.previousElementSibling;while(el){pos+=el.offsetHeight+10;el=el.previousElementSibling;}b.scrollTop=Math.max(0,pos-280);}});
 var diaAtual3=0;
 function navDia(dir){var total=5;diaAtual3=(diaAtual3+dir+total)%total;for(var i=0;i<total;i++){var p=document.getElementById('painel3-'+i);var l=document.getElementById('tab3-label-'+i);if(p)p.style.display=i===diaAtual3?'block':'none';if(l)l.style.display=i===diaAtual3?'block':'none';}}
+
+// Badges em tempo real para o gestor (AO VIVO / <30min / <60min)
+function toMinG(h){if(!h)return null;var p=h.split(':').map(Number);return p[0]*60+(p[1]||0);}
+function atualizarBadgesGestor(){
+  var now=new Date();
+  var brt=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(now);
+  var bh=parseInt(brt.find(function(p){return p.type==='hour';}).value);
+  var bm=parseInt(brt.find(function(p){return p.type==='minute';}).value);
+  var min=bh*60+bm;
+  document.querySelectorAll('[data-hora]').forEach(function(el){
+    var m=toMinG(el.dataset.hora); if(m===null) return;
+    var f=toMinG(el.dataset.horafim);
+    if(f!==null&&f<m) f+=1440;
+    var badge=el.querySelector('.badge-realtime'); if(!badge) return;
+    var s;
+    if(f!==null){if(min>=m&&min<=f)s='aovivo';else if(min>f)s=min>f+30?'enc':'aovivo';else if(m-min<=30)s='p30';else if(m-min<=60)s='p60';else s='';}
+    else{if(m<min-30)s='enc';else if(m<=min+5&&m>=min-30)s='aovivo';else if(m-min<=30)s='p30';else if(m-min<=60)s='p60';else s='';}
+    if(s==='aovivo') badge.innerHTML='<span style="background:#166534;color:#86efac;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">● AO VIVO</span>';
+    else if(s==='p30') badge.innerHTML='<span style="background:#451a03;color:#fcd34d;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">⚡ &lt;30min</span>';
+    else if(s==='p60') badge.innerHTML='<span style="background:#431407;color:#fb923c;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">🔜 &lt;60min</span>';
+    else badge.innerHTML='';
+  });
+}
+atualizarBadgesGestor();
+setInterval(atualizarBadgesGestor, 30000);
 
 async function publicarHorizonte(opcao) {
   var hoje = new Date();
