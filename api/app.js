@@ -26,16 +26,23 @@ function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); 
 function estaDeServico(ent, sai, horaEv, horaFimEv) {
   if(!ent||!sai||!horaEv) return false;
   const i=toMin(ent), f=toMin(sai), e=toMin(horaEv);
-  if (i===null||f===null||e===null) return false;
-  const durTurno = f>i ? f-i : (1440-i)+f;
-  let offsetInicio = e - i; if (offsetInicio < -60) offsetInicio += 1440;
-  let offsetFim = offsetInicio;
-  const fimEv = horaFimEv ? toMin(horaFimEv) : null;
-  if (fimEv !== null) {
-    let durEvento = fimEv - e; if (durEvento < 0) durEvento += 1440;
-    offsetFim = offsetInicio + durEvento;
+  if(i===null||f===null||e===null) return false;
+  const isOvernight = f < i; // turno vira meia-noite (ex: 23:00→07:00)
+  const durTurno = isOvernight ? (1440-i)+f : f-i;
+
+  // Verifica se a pessoa está de plantão na hora do evento
+  let posNoTurno;
+  if(isOvernight) {
+    // Turno noturno: cobre das ent até 24:00 + 00:00 até sai
+    if(e >= i) posNoTurno = e - i;           // evento na primeira metade (ex: 23:30 dentro de 23:00-07:00)
+    else posNoTurno = (1440 - i) + e;         // evento na segunda metade (ex: 04:00 dentro de 23:00-07:00)
+  } else {
+    // Turno diurno: só cobre entre ent e sai
+    if(e < i - 60 || e > f + 15) return false;
+    posNoTurno = e - i;
   }
-  return offsetInicio >= -60 && offsetFim <= durTurno + 15;
+  // Pessoa está de plantão se a hora do evento está dentro do turno (com 60min de tolerância no início)
+  return posNoTurno >= -60 && posNoTurno < durTurno + 15;
 }
 function statusTurno(ent,sai,horaEv) {
   if(!ent||!sai||!horaEv) return null;
