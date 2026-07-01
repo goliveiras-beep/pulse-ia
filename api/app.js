@@ -430,11 +430,19 @@ function cruzarEventos(eventos, escHoje, dataStr) {
     const aus = escHoje.filter(r => !disp.find(d => d[2] === r[2]) && !atenc.find(a => a[2] === r[2]));
     const semCob = disp.length === 0;
     const semAntecedencia = atenc.length > 0 && disp.length === 0;
+
+    // Deduplica por nome — prefere a entrada com horário mais relevante (turno do dia atual)
+    function dedup(arr) {
+      const seen = new Map();
+      arr.forEach(r => { if(!seen.has(r[2])) seen.set(r[2], r); });
+      return Array.from(seen.values());
+    }
+
     return {
       ...ev,
-      disp: disp.map(r => ({ nome: r[2], ent: r[3], sai: r[4] })),
-      atenc: atenc.map(r => ({ nome: r[2], ent: r[3], sai: r[4] })),
-      aus: aus.map(r => ({ nome: r[2] })),
+      disp: dedup(disp).map(r => ({ nome: r[2], ent: r[3], sai: r[4] })),
+      atenc: dedup(atenc).map(r => ({ nome: r[2], ent: r[3], sai: r[4] })),
+      aus: dedup(aus).map(r => ({ nome: r[2] })),
       semCob,
       semAntecedencia,
     };
