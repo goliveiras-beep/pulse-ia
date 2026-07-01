@@ -1587,7 +1587,7 @@ setInterval(atualizarEventos, 60000);
       if (!encerrado && primeiroAtivo && comOpacidade) primeiroAtivo = false;
       const fraseEnc = encerrado ? gerarFraseEncerrado(ev.nome) : '';
       const [bc, bb, itc] = ev.semCob ? ['var(--badge-red-bg)', 'var(--badge-red-c)', 'var(--badge-red-c)'] : ['var(--badge-green-bg)', 'var(--badge-green-c)', 'var(--badge-green-c)'];
-      return `<div ${idAtivo} data-hora="${ev.hora||''}" data-horafim="${ev.horaFim||''}" style="border:1px solid ${encerrado ? 'var(--border)' : bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado ? ';opacity:.35' : ''}">
+      return `<div ${idAtivo} data-hora="${ev.hora||''}" data-horafim="${ev.horaFim||''}" data-isoje="${comOpacidade?1:0}" style="border:1px solid ${encerrado ? 'var(--border)' : bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado ? ';opacity:.35' : ''}">
         <div style="background:${encerrado ? 'var(--card)' : bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
           <div style="font-size:13px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--today-c)'};min-width:50px">${ev.hora || '--'}${ev.horaFim?'<br><span style="font-size:9px;font-weight:600;opacity:.6">–'+ev.horaFim+'</span>':''}</div>
           <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--text)'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}${ev.local ? ' · <span style="font-weight:600;color:var(--text3)">' + ev.local + '</span>' : ''}</div></div>
@@ -1825,10 +1825,10 @@ function atualizarBadgesGestor(){
   var bm=parseInt(brt.find(function(p){return p.type==='minute';}).value);
   var min=bh*60+bm;
   document.querySelectorAll('[data-hora]').forEach(function(el){
-    var m=toMinG(el.dataset.hora); if(m===null) return;
-    var f=toMinG(el.dataset.horafim);
-    if(f!==null&&f<m) f+=1440;
     var badge=el.querySelector('.badge-realtime'); if(!badge) return;
+    // Só mostra badge em tempo real para eventos de HOJE
+    if(el.dataset.isoje!=='1'){badge.innerHTML='';return;}
+    var m=toMinG(el.dataset.hora); if(m===null) return;
     var s;
     if(f!==null){if(min>=m&&min<=f)s='aovivo';else if(min>f)s=min>f+30?'enc':'aovivo';else if(m-min<=30)s='p30';else if(m-min<=60)s='p60';else s='';}
     else{if(m<min-30)s='enc';else if(m<=min+5&&m>=min-30)s='aovivo';else if(m-min<=30)s='p30';else if(m-min<=60)s='p60';else s='';}
