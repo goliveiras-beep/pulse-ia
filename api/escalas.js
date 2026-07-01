@@ -362,7 +362,7 @@ a{text-decoration:none}
   </div>
 </div>
 <script>
-var viewAtual='grid',sortAtual='default',visaoAtual='${visao}';
+var viewAtual=localStorage.getItem('esc-view')||'grid',sortAtual=localStorage.getItem('esc-sort')||'default',visaoAtual='${visao}';
 function getItens(){if(visaoAtual==='semana')return Array.from(document.querySelectorAll('#tbody-semana tr[data-nome-busca]'));return Array.from(document.querySelectorAll('#grid-principal [data-nome-busca]'));}
 function aplicarFiltros(){
   var busca=document.getElementById('busca').value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
@@ -382,13 +382,24 @@ function aplicarFiltros(){
   if(visaoAtual!=='semana'){var grid=document.getElementById('grid-principal');if(grid){if(viewAtual==='grid'){grid.style.display='grid';grid.style.gridTemplateColumns=visaoAtual==='mes'?'repeat(auto-fit,minmax(280px,1fr))':'repeat(auto-fit,minmax(220px,1fr))';grid.style.gap='12px';}else{grid.style.display='flex';grid.style.flexDirection='column';grid.style.gap='6px';}}}
 }
 function setBtn(id){['sort-default','sort-alpha','sort-alerta','view-grid','view-list'].forEach(function(bid){var b=document.getElementById(bid);if(!b)return;if(bid===id){b.style.background='var(--text)';b.style.color='var(--bg)';}else if(bid.startsWith(id.split('-')[0])){b.style.background='none';b.style.color='var(--text3)';}});}
-document.getElementById('view-grid').addEventListener('click',function(){viewAtual='grid';setBtn('view-grid');aplicarFiltros();});
-document.getElementById('view-list').addEventListener('click',function(){viewAtual='list';setBtn('view-list');aplicarFiltros();});
-document.getElementById('sort-default').addEventListener('click',function(){sortAtual='default';setBtn('sort-default');aplicarFiltros();});
-document.getElementById('sort-alpha').addEventListener('click',function(){sortAtual='alpha';setBtn('sort-alpha');aplicarFiltros();});
-document.getElementById('sort-alerta').addEventListener('click',function(){sortAtual='alerta';setBtn('sort-alerta');aplicarFiltros();});
-document.getElementById('busca').addEventListener('input',aplicarFiltros);
-document.getElementById('filtro-cargo').addEventListener('change',aplicarFiltros);
+document.getElementById('view-grid').addEventListener('click',function(){viewAtual='grid';localStorage.setItem('esc-view','grid');setBtn('view-grid');aplicarFiltros();});
+document.getElementById('view-list').addEventListener('click',function(){viewAtual='list';localStorage.setItem('esc-view','list');setBtn('view-list');aplicarFiltros();});
+document.getElementById('sort-default').addEventListener('click',function(){sortAtual='default';localStorage.setItem('esc-sort','default');setBtn('sort-default');aplicarFiltros();});
+document.getElementById('sort-alpha').addEventListener('click',function(){sortAtual='alpha';localStorage.setItem('esc-sort','alpha');setBtn('sort-alpha');aplicarFiltros();});
+document.getElementById('sort-alerta').addEventListener('click',function(){sortAtual='alerta';localStorage.setItem('esc-sort','alerta');setBtn('sort-alerta');aplicarFiltros();});
+document.getElementById('busca').addEventListener('input',function(){localStorage.setItem('esc-busca',this.value);aplicarFiltros();});
+document.getElementById('filtro-cargo').addEventListener('change',function(){localStorage.setItem('esc-cargo',this.value);aplicarFiltros();});
+// Restaurar filtros ao carregar a página
+(function(){
+  var b=localStorage.getItem('esc-busca')||'';
+  var c=localStorage.getItem('esc-cargo')||'';
+  if(b){document.getElementById('busca').value=b;}
+  if(c){var sel=document.getElementById('filtro-cargo');if(sel)sel.value=c;}
+  // Restaurar visual dos botões sort/view
+  setBtn('sort-'+sortAtual);
+  setBtn('view-'+viewAtual);
+  aplicarFiltros();
+})();
 function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');var btn=document.getElementById('tt');if(btn)btn.textContent=dk?'\u2600\uFE0F':'\uD83C\uDF19';}
 </script>
 <div id="editor-popup" style="display:none;position:fixed;z-index:500;background:#242836;border:1px solid #3d4660;border-radius:10px;padding:16px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
