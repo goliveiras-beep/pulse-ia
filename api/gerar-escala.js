@@ -238,66 +238,68 @@ Responda SOMENTE JSON (sem texto):
     }
   }
 
-
-  // Normaliza qualquer formato de data para DD/MM (trata "01/06", "01/06/2026", "2026-06-01")
+  // Normaliza data para DD/MM independente do formato
   function normalizarDf(raw) {
     if(!raw) return '';
     const s = String(raw).trim();
-    // Formato YYYY-MM-DD
-    if(/^\d{4}-\d{2}-\d{2}/.test(s)) { const [,m,d] = s.split('-'); return d.padStart(2,'0')+'/'+m.padStart(2,'0'); }
-    // Formato DD/MM/YYYY ou DD/MM
-    if(/^\d{1,2}\/\d{1,2}/.test(s)) { const [d,m] = s.split('/'); return d.padStart(2,'0')+'/'+m.padStart(2,'0'); }
+    if(/^\d{4}-\d{2}-\d{2}/.test(s)) { const p=s.split('-'); return p[2].slice(0,2).padStart(2,'0')+'/'+p[1].padStart(2,'0'); }
+    if(/^\d{1,2}\/\d{1,2}/.test(s)) { const p=s.split('/'); return p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0'); }
     return s;
   }
 
-  // Normaliza o escalaRaw de uma vez — garante que todos os r[0] são DD/MM
-  const escalaNorm = escalaRaw.map(r => r.length ? [normalizarDf(r[0]), r[1]||'', r[2]||'', r[3]||'', r[4]||'', r[5]||''] : r);
+  // Normaliza todo escalaRaw de uma vez
+  const escalaNorm = escalaRaw.map(r => [normalizarDf(r[0]||''), r[1]||'', r[2]||'', r[3]||'', r[4]||'', r[5]||'']);
 
-  // Histórico 60 dias baseado em DD/MM normalizado
-  const h60dias = new Date(hoje); h60dias.setDate(hoje.getDate()-60);
-  function dfParaData(df) {
-    const parts = df.split('/');
-    return new Date(hoje.getFullYear(), parseInt(parts[1])-1, parseInt(parts[0]));
-  }
-  function dentroJanela(df) {
-    try { const dt = dfParaData(df); return dt >= h60dias && dt <= hoje; } catch { return false; }
-  }
-
-  const escalaHist = escalaNorm.filter(r=>r[0]&&dentroJanela(r[0])&&r[3]&&r[4]&&r[5]!=='Folga');
-  const escalaTudo = escalaNorm.filter(r=>r[0]&&dentroJanela(r[0]));
-
-  // Também normaliza o existingKeys
+  // ExistingKeys com datas normalizadas
   const existingKeysNorm = new Set(escalaNorm.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
-  function jaPreenchido(df, nome) { return existingKeysNorm.has(`${df}|${nome}`); }
+  function jaPreenchido(df, nome) { return existingKeysNorm.has(`${normalizarDf(df)}|${nome}`); }
 
+  // Detectar turno de cada pessoa: pega o ÚLTIMO turno registrado (sem filtro de data)
+  // Itera de trás pra frente para pegar o mais recente
   const turnos = {};
+  const escalaNormRev = [...escalaNorm].reverse();
   ativos.forEach(p => {
-    const h3semanas = new Date(hoje); h3semanas.setDate(hoje.getDate()-21);
-    const regsRecentes = escalaHist.filter(r=>r[2]===p[0]&&dentroJanela(r[0])&&dfParaData(r[0])>=h3semanas);
-    const regs = regsRecentes.length ? regsRecentes : escalaHist.filter(r=>r[2]===p[0]);
-    if(!regs.length) { turnos[p[0]]=null; return; }
-    const freq={};
-    regs.forEach(r=>{const k=`${r[3]}|${r[4]}`;freq[k]=(freq[k]||0)+1;});
-    const [ent,sai] = Object.entries(freq).sort((a,b)=>b[1]-a[1])[0][0].split('|');
-    turnos[p[0]] = { ent, sai };
+    // Busca última entrada com horários definidos e não folga
+    const reg = escalaNormRev.find(r => r[2]===p[0] && r[3] && r[4] && r[5]!=='Folga' && r[5]!=='Férias' && r[5]!=='Dispensa Médica');
+    if(!reg) { turnos[p[0]] = null; return; }
+    // Para copa do mundo, verificar se tem padrão mais frequente nos últimos 30 registros
+    const regsRecentes = escalaNorm.filter(r=>r[2]===p[0]&&r[3]&&r[4]&&r[5]!=='Folga').slice(-30);
+    if(regsRecentes.length >= 3) {
+      const freq={};
+      regsRecentes.forEach(r=>{const k=`${r[3]}|${r[4]}`;freq[k]=(freq[k]||0)+1;});
+      const [ent,sai] = Object.entries(freq).sort((a,b)=>b[1]-a[1])[0][0].split('|');
+      turnos[p[0]] = { ent, sai };
+    } else {
+      turnos[p[0]] = { ent: reg[3], sai: reg[4] };
+    }
   });
 
-  // Fadiga baseada em datas normalizadas
+  // Fadiga: contar dias trabalhados nos últimos 60 dias usando datas normalizadas
+  const h60dias = new Date(hoje); h60dias.setDate(hoje.getDate()-60);
+  function dfParaData(df) {
+    const p = df.split('/');
+    return new Date(hoje.getFullYear(), parseInt(p[1])-1, parseInt(p[0]));
+  }
+  function dentroJanela(df) {
+    try { const dt=dfParaData(df); return dt>=h60dias&&dt<=hoje; } catch { return false; }
+  }
+  const escalaTudo = escalaNorm.filter(r=>r[0]&&dentroJanela(r[0]));
+
   function calcularFadiga(nomePessoa) {
-    let consecutivos = 0, totalDias60 = 0, folgas60 = 0;
-    for(let i=0; i<=60; i++) {
-      const d = new Date(hoje); d.setDate(hoje.getDate()-i);
-      const df = fmtData(d);
-      const reg = escalaTudo.find(r=>r[0]===df&&r[2]===nomePessoa);
+    let consecutivos=0, totalDias60=0, folgas60=0;
+    for(let i=0;i<=60;i++) {
+      const d=new Date(hoje); d.setDate(hoje.getDate()-i);
+      const df=fmtData(d);
+      const reg=escalaTudo.find(r=>r[0]===df&&r[2]===nomePessoa);
       if(!reg) continue;
       totalDias60++;
       if(reg[5]==='Folga'||(!reg[3]&&!reg[4])) { folgas60++; break; }
     }
-    consecutivos = 0;
-    for(let i=0; i<=60; i++) {
-      const d = new Date(hoje); d.setDate(hoje.getDate()-i);
-      const df = fmtData(d);
-      const reg = escalaTudo.find(r=>r[0]===df&&r[2]===nomePessoa);
+    consecutivos=0;
+    for(let i=0;i<=60;i++) {
+      const d=new Date(hoje); d.setDate(hoje.getDate()-i);
+      const df=fmtData(d);
+      const reg=escalaTudo.find(r=>r[0]===df&&r[2]===nomePessoa);
       if(!reg) break;
       if(reg[5]==='Folga'||(!reg[3]&&!reg[4])) break;
       consecutivos++;
@@ -483,10 +485,10 @@ Responda SOMENTE JSON (sem texto):
   ${totalAGravar === 0 ? `<div style="background:#1f1010;border:1px solid #991b1b;border-radius:8px;padding:12px 16px;margin-bottom:14px">
     <div style="font-weight:700;color:#fc8181;margin-bottom:6px">⚠️ Nenhum turno para gerar</div>
     <div style="font-size:12px;color:#fc8181">
-      Histórico detectado: <strong>${escalaHist.length} linhas</strong> nos últimos 60 dias.
+      Histórico detectado: <strong>${escalaNorm.filter(r=>r[2]&&r[3]&&r[4]).length} linhas</strong> no total.
       Colaboradores com turno identificado: <strong>${Object.values(turnos).filter(Boolean).length}/${ativos.length}</strong>.<br>
-      ${escalaHist.length === 0 ? '👉 Execute o <a href="/api/import-escala" style="color:#fca5a5">import da escala</a> de junho primeiro.' : ''}
-      ${Object.values(turnos).filter(Boolean).length === 0 && escalaHist.length > 0 ? '👉 Dados encontrados mas padrão de turno não detectado. Primeiras datas: '+escalaRaw.slice(0,3).map(r=>r[0]).join(', ') : ''}
+      ${escalaNorm.filter(r=>r[2]&&r[3]&&r[4]).length === 0 ? '👉 Execute o <a href="/api/import-escala" style="color:#fca5a5">import da escala</a> de junho primeiro.' : ''}
+      ${Object.values(turnos).filter(Boolean).length === 0 && escalaNorm.length > 0 ? '👉 Dados encontrados mas turno não identificado. Primeiras datas: '+escalaNorm.slice(0,3).map(r=>r[0]).join(', ') : ''}
     </div>
   </div>` : ''}
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
