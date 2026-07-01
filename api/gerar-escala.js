@@ -466,8 +466,17 @@ Responda SOMENTE JSON (sem texto):
 </div>
 <div style="max-width:1400px;margin:0 auto;padding:16px 20px">
   <div style="background:#1a2744;border:1px solid #2a4080;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:#93c5fd">
-    ℹ️ A geração nunca sobrescreve o que já está preenchido na escala. Dias/colaboradores marcados como <span style="color:#a0aec0;font-weight:600">"já preenchido"</span> são preservados como estão — a IA só propõe turnos para o que ainda está em branco.
+    ℹ️ A geração nunca sobrescreve o que já está preenchido. Dias marcados como <span style="color:#a0aec0;font-weight:600">"já preenchido"</span> são preservados.
   </div>
+  ${totalAGravar === 0 ? `<div style="background:#1f1010;border:1px solid #991b1b;border-radius:8px;padding:12px 16px;margin-bottom:14px">
+    <div style="font-weight:700;color:#fc8181;margin-bottom:6px">⚠️ Nenhum turno para gerar</div>
+    <div style="font-size:12px;color:#fc8181">
+      Histórico detectado: <strong>${escalaHist.length} linhas</strong> nos últimos 60 dias.
+      Colaboradores com turno identificado: <strong>${Object.values(turnos).filter(Boolean).length}/${ativos.length}</strong>.<br>
+      ${escalaHist.length === 0 ? '👉 Execute o <a href="/api/import-escala" style="color:#fca5a5">import da escala</a> de junho primeiro.' : ''}
+      ${Object.values(turnos).filter(Boolean).length === 0 && escalaHist.length > 0 ? '👉 Dados encontrados mas padrão de turno não detectado. Primeiras datas: '+escalaRaw.slice(0,3).map(r=>r[0]).join(', ') : ''}
+    </div>
+  </div>` : ''}
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
     <div style="background:#242836;border:1px solid #2d3748;border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:#718096;font-weight:600;text-transform:uppercase;margin-bottom:4px">Dias gerados</div><div style="font-size:24px;font-weight:700">14</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${fmtData(inicio)} → ${fmtData(fim)}</div></div>
     <div style="background:#242836;border:1px solid #2d3748;border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:#718096;font-weight:600;text-transform:uppercase;margin-bottom:4px">Linhas novas</div><div style="font-size:24px;font-weight:700">${totalAGravar}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${totalJaPreenchidos} já existentes, preservadas</div></div>
