@@ -421,7 +421,7 @@ async function importar(){
       return res.status(200).json({ ok: true, gravadas: 0, ignoradas: LINHAS.length, msg: 'Todas as linhas já existiam na planilha.' });
     }
 
-    await sheetsRequest(SHEET_ID, `/values/Escala!A:F:append?valueInputOption=USER_ENTERED`, 'POST', { values: novas });
+    await sheetsRequest(SHEET_ID, `/values/Escala!A:F:append?valueInputOption=RAW`, 'POST', { values: novas });
 
     return res.status(200).json({ ok: true, gravadas: novas.length, total: LINHAS.length, ignoradas: LINHAS.length - novas.length });
   } catch (err) {

@@ -50,7 +50,8 @@ async function setSheet(range, values) {
   await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,'PUT',{values});
 }
 async function appendSheet(range, values) {
-  await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,'POST',{values});
+  // RAW = datas ficam como texto (ex: "02/07"), não são convertidas para serial pelo Sheets
+  await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}:append?valueInputOption=RAW`,'POST',{values});
 }
 
 const NIVEL_COR = {
@@ -127,8 +128,9 @@ export default async function handler(req, res) {
       });
       const hoje2=new Date(new Date().toLocaleString('en',{timeZone:'America/Sao_Paulo'}));
       const fmtD=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+      const diasGerar = Math.min(30, Math.max(1, parseInt(req.body?.dias)||14));
       const linhas=[];
-      for(let i=1;i<=14;i++){
+      for(let i=1;i<=diasGerar;i++){
         const d=new Date(hoje2); d.setDate(hoje2.getDate()+i);
         const df=fmtD(d);
         ativos.forEach(p=>{
@@ -363,7 +365,10 @@ a{text-decoration:none}
     <span style="font-size:11px;color:#555">${atualizado}</span>
     <button id="btn-gerar-ia" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;cursor:pointer" onclick="
       var b=this;b.textContent='⏳ Gerando...';b.disabled=true;
-      fetch('/api/escalas',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'quick-generate'})})
+      var dias=prompt('Gerar escala para quantos dias? (máx 30)','14');
+      if(!dias||isNaN(parseInt(dias))){b.textContent='✨ Gerar escala IA';b.disabled=false;return;}
+      dias=Math.min(30,Math.max(1,parseInt(dias)));
+      fetch('/api/escalas',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'quick-generate',dias:dias})})
         .then(function(r){return r.json();})
         .then(function(d){
           if(d.ok){
