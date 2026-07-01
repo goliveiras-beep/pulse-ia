@@ -105,6 +105,15 @@ export default async function handler(req, res) {
     if (!data || !colaborador) return res.status(400).json({error:'Dados inválidos'});
     const escalaRaw2 = await getSheet('Escala!A2:F2000');
     const idx = escalaRaw2.findIndex(r=>r[0]===data&&r[2]===colaborador);
+
+    // Excluir: limpa os campos D, E, F deixando a linha em branco
+    if (tipo === 'excluir') {
+      if (idx >= 0) {
+        await setSheet(`Escala!A${idx+2}:F${idx+2}`, [['','','','','','']]);
+      }
+      return res.status(200).json({ok:true});
+    }
+
     const obs = tipo==='folga'?'Folga':tipo==='dispensa'?'Dispensa Médica':tipo==='ferias'?'Férias':'';
     const entVal = (tipo==='folga'||tipo==='ausencia')?'':( ent||'');
     const saiVal = (tipo==='folga'||tipo==='ausencia')?'':( sai||'');
@@ -359,7 +368,10 @@ document.getElementById('busca').addEventListener('input',aplicarFiltros);
 function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');var btn=document.getElementById('tt');if(btn)btn.textContent=dk?'\u2600\uFE0F':'\uD83C\uDF19';}
 </script>
 <div id="editor-popup" style="display:none;position:fixed;z-index:500;background:#242836;border:1px solid #3d4660;border-radius:10px;padding:16px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
-  <div style="font-size:11px;font-weight:600;color:#a0aec0;margin-bottom:10px" id="editor-titulo">Editar turno</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="font-size:11px;font-weight:600;color:#a0aec0" id="editor-titulo">Editar turno</div>
+    <span style="font-size:9px;color:#4a5568;background:#1e2230;border-radius:4px;padding:2px 6px">Del = excluir rápido</span>
+  </div>
   <div id="editor-tipo-btns" style="display:flex;gap:4px;margin-bottom:12px">
     <button onclick="setTipo('turno')" id="btn-tipo-turno" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:#1a2744;color:#63b3ed">Turno</button>
     <button onclick="setTipo('folga')" id="btn-tipo-folga" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:none;color:#a0aec0">Folga</button>
@@ -373,8 +385,9 @@ function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');
     </div>
   </div>
   <div style="display:flex;gap:6px;margin-top:4px">
+    <button onclick="excluirTurno()" id="btn-excluir" style="background:#1f1010;border:1px solid #dc2626;border-radius:5px;padding:6px 10px;font-size:11px;color:#fc8181;cursor:pointer" title="Excluir (Del)">🗑 Excluir</button>
     <button onclick="copiarTurno()" style="background:#1e2230;border:1px solid #3d4660;border-radius:5px;padding:6px 10px;font-size:11px;color:#a0aec0;cursor:pointer">Copiar</button>
-    <button onclick="fecharEditor()" style="background:none;border:1px solid #3d4660;border-radius:5px;padding:6px 12px;font-size:11px;color:#a0aec0;cursor:pointer">Cancelar</button>
+    <button onclick="fecharEditor()" style="background:none;border:1px solid #3d4660;border-radius:5px;padding:6px 10px;font-size:11px;color:#a0aec0;cursor:pointer">✕</button>
     <button onclick="salvarEdicao()" style="flex:1;background:#1d4ed8;color:#fff;border:none;border-radius:5px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">Salvar</button>
   </div>
 </div>
@@ -388,7 +401,29 @@ function fecharEditor(){document.getElementById('editor-popup').style.display='n
 function copiarTurno(){clipboard={ent:document.getElementById('editor-ent').value,sai:document.getElementById('editor-sai').value,tipo:editorData.tipo};toast('Turno copiado!','#166634');fecharEditor();}
 async function salvarEdicao(){var ent=document.getElementById('editor-ent').value,sai=document.getElementById('editor-sai').value,tipo=editorData.tipo||'turno';if(tipo==='turno'&&(!ent||!sai)){toast('Informe entrada e saida','#dc2626');return;}var btn=document.querySelector('#editor-popup button:last-child');btn.textContent='Salvando...';btn.disabled=true;try{var r=await fetch('/api/escalas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:editorData.data,colaborador:editorData.nome,ent,sai,tipo})});var d=await r.json();if(d.ok){fecharEditor();toast('Salvo!','#166634');setTimeout(function(){location.reload();},800);}else{toast('Erro: '+d.error,'#dc2626');btn.textContent='Salvar';btn.disabled=false;}}catch(e){toast('Erro de conexao','#dc2626');btn.textContent='Salvar';btn.disabled=false;}}
 function toast(msg,bg){var t=document.getElementById('toast-esc');t.textContent=msg;t.style.background=bg||'#1a1a1a';t.style.display='block';setTimeout(function(){t.style.display='none';},2500);}
-document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='c'&&document.getElementById('editor-popup').style.display!=='none'){e.preventDefault();copiarTurno();}if((e.ctrlKey||e.metaKey)&&e.key==='v'&&clipboard&&document.getElementById('editor-popup').style.display!=='none'){setTipo(clipboard.tipo||'turno');document.getElementById('editor-ent').value=clipboard.ent||'';document.getElementById('editor-sai').value=clipboard.sai||'';toast('Turno colado!','#166634');}if(e.key==='Escape')fecharEditor();if(e.key==='Enter'&&document.getElementById('editor-popup').style.display!=='none'){e.preventDefault();salvarEdicao();}});
+async function excluirTurno(){
+  var d=editorData;
+  if(!d.data||!d.nome){fecharEditor();return;}
+  // Se a célula está vazia (sem turno), só fechar
+  if(!d.ent&&!d.sai&&!d.obs){toast('Célula já está vazia','#718096');fecharEditor();return;}
+  var btn=document.getElementById('btn-excluir');
+  btn.textContent='Excluindo...';btn.disabled=true;
+  try{
+    var r=await fetch('/api/escalas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:d.data,colaborador:d.nome,ent:'',sai:'',tipo:'excluir'})});
+    var res=await r.json();
+    if(res.ok){fecharEditor();toast('🗑 Turno excluído','#dc2626');setTimeout(function(){location.reload();},600);}
+    else{toast('Erro: '+res.error,'#dc2626');btn.textContent='🗑 Excluir';btn.disabled=false;}
+  }catch(e){toast('Erro de conexão','#dc2626');btn.textContent='🗑 Excluir';btn.disabled=false;}
+}
+document.addEventListener('keydown',function(e){
+  var popupAberto=document.getElementById('editor-popup').style.display!=='none';
+  if(!popupAberto)return;
+  if((e.ctrlKey||e.metaKey)&&e.key==='c'){e.preventDefault();copiarTurno();}
+  else if((e.ctrlKey||e.metaKey)&&e.key==='v'&&clipboard){setTipo(clipboard.tipo||'turno');document.getElementById('editor-ent').value=clipboard.ent||'';document.getElementById('editor-sai').value=clipboard.sai||'';toast('Turno colado!','#166634');}
+  else if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement.tagName!=='INPUT'){e.preventDefault();excluirTurno();}
+  else if(e.key==='Escape'){fecharEditor();}
+  else if(e.key==='Enter'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();salvarEdicao();}
+});
 </script>
 </body></html>`;
 
