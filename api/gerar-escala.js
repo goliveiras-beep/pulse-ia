@@ -169,17 +169,52 @@ export default async function handler(req, res) {
   const existingKeys = new Set(escalaRaw.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
   function jaPreenchido(df, nome) { return existingKeys.has(`${df}|${nome}`); }
 
-  const h3semanas = new Date(hoje); h3semanas.setDate(hoje.getDate()-21);
-  const escalaHist = escalaRaw.filter(r=>r[0]>=fmtData(h3semanas)&&r[0]<=fmtData(hoje)&&r[3]&&r[4]&&r[5]!=='Folga');
+  // Histórico ampliado: 60 dias para cobrir todo o período Copa do Mundo
+  const h60dias = new Date(hoje); h60dias.setDate(hoje.getDate()-60);
+  const escalaHist = escalaRaw.filter(r=>r[0]>=fmtData(h60dias)&&r[0]<=fmtData(hoje)&&r[3]&&r[4]&&r[5]!=='Folga');
+  const escalaTudo = escalaRaw.filter(r=>r[0]>=fmtData(h60dias)&&r[0]<=fmtData(hoje));
+
   const turnos = {};
   ativos.forEach(p => {
-    const regs = escalaHist.filter(r=>r[2]===p[0]);
+    // Turno base: moda dos últimos 21 dias (padrão recente)
+    const h3semanas = new Date(hoje); h3semanas.setDate(hoje.getDate()-21);
+    const regsRecentes = escalaHist.filter(r=>r[2]===p[0]&&r[0]>=fmtData(h3semanas));
+    const regs = regsRecentes.length ? regsRecentes : escalaHist.filter(r=>r[2]===p[0]);
     if(!regs.length) { turnos[p[0]]=null; return; }
     const freq={};
     regs.forEach(r=>{const k=`${r[3]}|${r[4]}`;freq[k]=(freq[k]||0)+1;});
     const [ent,sai] = Object.entries(freq).sort((a,b)=>b[1]-a[1])[0][0].split('|');
     turnos[p[0]] = { ent, sai };
   });
+
+  // ── Análise de fadiga: dias trabalhados consecutivos até hoje ─────────────
+  function calcularFadiga(nomePessoa) {
+    let consecutivos = 0, totalDias60 = 0, folgas60 = 0;
+    for(let i=0; i<=60; i++) {
+      const d = new Date(hoje); d.setDate(hoje.getDate()-i);
+      const df = fmtData(d);
+      const reg = escalaTudo.find(r=>r[0]===df&&r[2]===nomePessoa);
+      if(!reg) continue; // sem registro = não contamos
+      totalDias60++;
+      if(reg[5]==='Folga'||(!reg[3]&&!reg[4])) { folgas60++; if(i===0||consecutivos>0){if(i===0)consecutivos=0;} break; }
+      else if(i===0||consecutivos>=0) consecutivos++;
+    }
+    // Recalcular consecutivos de forma mais precisa
+    consecutivos = 0;
+    for(let i=0; i<=60; i++) {
+      const d = new Date(hoje); d.setDate(hoje.getDate()-i);
+      const df = fmtData(d);
+      const reg = escalaTudo.find(r=>r[0]===df&&r[2]===nomePessoa);
+      if(!reg) break;
+      if(reg[5]==='Folga'||(!reg[3]&&!reg[4])) break;
+      consecutivos++;
+    }
+    const ratio = totalDias60>0 ? (totalDias60-folgas60)/totalDias60 : 0;
+    return { consecutivos, totalDias60, folgas60, diasTrabalho: totalDias60-folgas60, ratio };
+  }
+
+  const fadiga = {};
+  ativos.filter(p=>turnos[p[0]]).forEach(p=>{ fadiga[p[0]] = calcularFadiga(p[0]); });
 
   if (req.method === 'POST') {
     try {
@@ -194,10 +229,16 @@ export default async function handler(req, res) {
         ativos.forEach(p=>{
           const t=turnos[p[0]];
           if(!t) return;
-          if (existingKeysAgora.has(`${df}|${p[0]}`)) return; // já preenchido — nunca sobrescrever
+          if (existingKeysAgora.has(`${df}|${p[0]}`)) return;
           const key = `${df}|${p[0]}`;
           const aj = body.ajustes?.[key];
-          linhasNovas.push([df,'',p[0], aj?aj.ent:t.ent, aj?aj.sai:t.sai, aj?'Ajustado IA':'Gerado IA']);
+          // Verificar se é uma folga sugerida pela IA
+          const folgaSugerida = (body.folgas||[]).find(f=>f.nome===p[0]&&f.data===df);
+          if(folgaSugerida) {
+            linhasNovas.push([df,'',p[0],'','','Folga']);
+          } else {
+            linhasNovas.push([df,'',p[0], aj?aj.ent:t.ent, aj?aj.sai:t.sai, aj?'Ajustado IA':'Gerado IA']);
+          }
         });
       }
       if (linhasNovas.length === 0) {
@@ -263,16 +304,80 @@ export default async function handler(req, res) {
     });
   });
 
+  // ── Sugestão de folgas via IA ────────────────────────────────────────────
+  const cargaPorDia = diasProcessados.map(dia => ({
+    df: dia.df, diaSem: dia.diaSem, eventos: dia.evsDia.length, isFds: dia.isFds
+  }));
+  const fadigaResumo = ativos.filter(p=>turnos[p[0]]).map(p=>{
+    const f = fadiga[p[0]]||{};
+    return `${p[0].split(' ')[0]}: ${f.consecutivos||0} dias seguidos, ${f.diasTrabalho||0}/${f.totalDias60||0} dias trabalhados nos últimos 60 dias`;
+  }).join('\n');
+  const cargaResumo = cargaPorDia.map(d=>`${d.df}(${d.diaSem}): ${d.eventos} eventos${d.isFds?' [FDS]':''}`).join(', ');
+
+  let sugestoesTexto = '', sugestoesJSON = {};
+  try {
+    const rFolga = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 800,
+        messages: [{
+          role: 'user',
+          content: `Você é o gestor de operações de uma emissora de TV durante a Copa do Mundo 2026. A equipe está em período de alta carga desde o início do torneio.
+
+FADIGA ATUAL DA EQUIPE (dias trabalhados consecutivos e carga dos últimos 60 dias):
+${fadigaResumo}
+
+CARGA DE EVENTOS NOS PRÓXIMOS 14 DIAS (do Airtable):
+${cargaResumo}
+
+REGRA: cada colaborador deve receber pelo menos 1 folga nos próximos 14 dias. Priorizando quem tem mais dias seguidos. Nos dias com mais eventos (acima de 8), evitar folgar quem cobre horários noturnos.
+
+Sugira 1 ou 2 folgas por pessoa nos próximos 14 dias, distribuídas para manter cobertura mínima em cada dia. Não dê folgas no mesmo dia para mais de 30% da equipe.
+
+Responda SOMENTE em JSON (sem texto extra):
+{"folgas":[{"nome":"Nome Completo","data":"DD/MM","motivo":"razão curta (ex: 8 dias seguidos)"}]}`
+        }]
+      })
+    });
+    const dFolga = await rFolga.json();
+    const txtFolga = dFolga.content?.[0]?.text?.trim()||'{"folgas":[]}';
+    const parsedFolga = JSON.parse(txtFolga.replace(/```json|```/g,'').trim());
+    const nomesValidos = new Set(ativos.filter(p=>turnos[p[0]]).map(p=>p[0]));
+    const folgasFiltradas = (parsedFolga.folgas||[]).filter(f=>nomesValidos.has(f.nome)&&!jaPreenchido(f.data,f.nome));
+    folgasFiltradas.forEach(f=>{ sugestoesJSON[`${f.data}|${f.nome}`]={folga:true,motivo:f.motivo}; });
+    sugestoesTexto = JSON.stringify(folgasFiltradas);
+  } catch(e) { sugestoesTexto = '[]'; }
+
   const totalAGravar = diasProcessados.reduce((s,dia) => s + dia.escala.filter(p=>!p.existente).length, 0);
 
-  const cabecalho = ativos.filter(p=>turnos[p[0]]).map(p=>{
-    const t=turnos[p[0]];
-    return `<th style="padding:6px 8px;font-size:9px;font-weight:600;color:#a0aec0;text-transform:uppercase;white-space:nowrap;background:#1e2230;border-bottom:1px solid #2d3748;min-width:90px">${p[0].split(' ')[0]}<br><span style="color:#7dd3fc;font-weight:700;font-size:8px">${t.ent}–${t.sai}</span></th>`;
+  // Painel de fadiga por pessoa
+  const fadigaCards = ativos.filter(p=>turnos[p[0]]).map(p=>{
+    const f = fadiga[p[0]]||{};
+    const nivel = f.consecutivos>=7?'red':f.consecutivos>=5?'amber':'green';
+    const cores = {red:['#1f1010','#991b1b','#fc8181'],amber:['#1f1a0d','#3d3010','#f6ad55'],green:['#0d2010','#166534','#68d391']};
+    const [bg,border,cor] = cores[nivel];
+    const folgas14 = diasProcessados.filter(dia => sugestoesJSON[`${dia.df}|${p[0]}`]).map(dia=>dia.df);
+    return `<div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px">
+      <div style="font-size:18px">${nivel==='red'?'🔴':nivel==='amber'?'🟡':'🟢'}</div>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;color:#e2e8f0">${p[0].split(' ')[0]}</div>
+        <div style="font-size:10px;color:${cor}">${f.consecutivos||0} dias seguidos · ${f.diasTrabalho||0} trabalhados/60d</div>
+        ${folgas14.length?`<div style="font-size:9px;color:#68d391;margin-top:2px">💤 Folgas sugeridas: ${folgas14.join(', ')}</div>`:''}
+      </div>
+    </div>`;
   }).join('');
 
-  const linhasTabela = diasProcessados.map(dia => {
+  // Integrar folgas sugeridas na tabela (marcadas em roxo)
+  const linhasTabelaComFolgas = diasProcessados.map(dia => {
     const pessoasHtml = ativos.filter(p=>turnos[p[0]]).map(p=>{
       const esc = dia.escala.find(e=>e.nome===p[0]);
+      const folgaSugerida = sugestoesJSON[`${dia.df}|${p[0]}`];
+      if(folgaSugerida) return `<td style="padding:4px 6px;text-align:center;font-size:10px;font-weight:600;background:#1a0d2e">
+        <div style="color:#c084fc">💤 Folga</div>
+        <div style="font-size:8px;color:#9f7aea">${folgaSugerida.motivo||'IA'}</div>
+      </td>`;
       if(!esc || (!esc.ent && !esc.sai)) return `<td style="padding:4px 6px;text-align:center;font-size:10px;color:#4a5568">—</td>`;
       const ajustado = esc.ajustado;
       const jaExistia = esc.existente;
@@ -283,7 +388,6 @@ export default async function handler(req, res) {
         ${jaExistia?`<div style="font-size:8px;color:#4a5568">já preenchido</div>`:''}
       </td>`;
     }).join('');
-
     const lacunasRestantes = dia.lacunasAntes - dia.lacunasResolvidas;
     return `<tr style="background:${dia.isFds?'#1a1f2e':''}">
       <td style="padding:6px 10px;border-bottom:1px solid #2d3748;white-space:nowrap">
@@ -333,36 +437,50 @@ export default async function handler(req, res) {
     <div style="background:${totalLacunas-totalAjustes>0?'#1f1010':'#0d2010'};border:1px solid ${totalLacunas-totalAjustes>0?'#3d2020':'#0d2010'};border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:#718096;font-weight:600;text-transform:uppercase;margin-bottom:4px">Lacunas restantes</div><div style="font-size:24px;font-weight:700;color:${totalLacunas-totalAjustes>0?'#fc8181':'#68d391'}">${totalLacunas-totalAjustes}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${totalLacunas-totalAjustes>0?'sem cobertura':'cobertura completa'}</div></div>
   </div>
   ${ajustesResumoHtml?`<div style="background:#242836;border:1px solid #2d3748;border-radius:10px;padding:16px;margin-bottom:16px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#718096;margin-bottom:10px">✱ Ajustes realizados pela IA</div>${ajustesResumoHtml}</div>`:''}
+
+  <div style="background:#242836;border:1px solid #2d3748;border-radius:10px;padding:16px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <span style="font-size:12px;font-weight:700;color:#e2e8f0">💤 Fadiga da equipe — sugestões de folga</span>
+      <span style="font-size:10px;color:#718096">baseado nos últimos 60 dias de escala + carga do Airtable</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
+      ${fadigaCards}
+    </div>
+    <div style="margin-top:10px;font-size:10px;color:#4a5568">🟢 ok · 🟡 5–6 dias seguidos · 🔴 7+ dias seguidos. Folgas roxas 💤 na tabela = sugeridas pela IA. Incluídas automaticamente ao compartilhar.</div>
+  </div>
+
   <div style="background:#242836;border:1px solid #2d3748;border-radius:10px;overflow:hidden;margin-bottom:16px">
-    <div style="padding:10px 16px;border-bottom:1px solid #2d3748;display:flex;align-items:center;gap:8px">
+    <div style="padding:10px 16px;border-bottom:1px solid #2d3748;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#a0aec0">Proposta de escala</span>
       <span style="background:#1a2744;color:#63b3ed;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">${totalAGravar} linhas novas</span>
+      ${Object.keys(sugestoesJSON).length>0?`<span style="background:#1a0d2e;color:#c084fc;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">💤 ${Object.keys(sugestoesJSON).length} folgas sugeridas</span>`:''}
       ${totalAjustes>0?`<span style="background:#2d1f00;color:#f6ad55;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">✱ amarelo = ajustado</span>`:''}
       ${totalJaPreenchidos>0?`<span style="background:#10131a;color:#a0aec0;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">cinza = já preenchido</span>`:''}
     </div>
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse">
         <thead><tr><th style="padding:6px 10px;text-align:left;font-size:9px;font-weight:600;color:#718096;text-transform:uppercase;background:#1e2230;border-bottom:1px solid #2d3748;min-width:110px">Dia</th>${cabecalho}</tr></thead>
-        <tbody>${linhasTabela}</tbody>
+        <tbody>${linhasTabelaComFolgas}</tbody>
       </table>
     </div>
   </div>
   <div style="background:#242836;border:1px solid #2d3748;border-radius:10px;padding:16px;display:flex;align-items:center;gap:16px">
     <div style="flex:1">
       <div style="font-size:13px;font-weight:600">Compartilhar escala com a equipe</div>
-      <div style="font-size:11px;color:#718096;margin-top:2px">Grava ${totalAGravar} linhas novas na aba Escala (o que já estava preenchido não é alterado) · ${totalAjustes} com turno ajustado pela IA · assim que confirmar, fica visível para todo o time</div>
+      <div style="font-size:11px;color:#718096;margin-top:2px">Grava ${totalAGravar} linhas novas · ${Object.keys(sugestoesJSON).length} folgas sugeridas pela IA · ${totalAjustes} turnos ajustados · o que já estava preenchido não é alterado</div>
     </div>
     <button onclick="confirmar()" id="btn" style="background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer">Compartilhar com a equipe ✓</button>
   </div>
 </div>
 <script>
 var AJUSTES = ${JSON.stringify(ajustesJSON)};
+var FOLGAS = ${sugestoesTexto};
 async function confirmar(){
-  if(!confirm('Compartilhar esta escala com toda a equipe? Os colaboradores poderão ver os turnos gerados imediatamente. O que já estava preenchido não será alterado.')) return;
+  if(!confirm('Compartilhar esta escala com toda a equipe?\\n\\nInclui ${Object.keys(sugestoesJSON).length} folgas sugeridas pela IA e ${totalAjustes} turnos ajustados.\\nO que já estava preenchido não será alterado.')) return;
   var btn=document.getElementById('btn');
   btn.textContent='Compartilhando...';btn.disabled=true;btn.style.background='#374151';
   try{
-    var r=await fetch('/api/gerar-escala',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes:AJUSTES})});
+    var r=await fetch('/api/gerar-escala',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes:AJUSTES,folgas:FOLGAS})});
     var d=await r.json();
     if(d.ok){btn.textContent='✓ Compartilhado com a equipe!';btn.style.background='#166534';setTimeout(()=>window.location='/api/escalas?v=semana&offset=1',1500);}
     else{btn.textContent='Compartilhar com a equipe ✓';btn.disabled=false;btn.style.background='#1d4ed8';alert('Erro: '+d.error);}
