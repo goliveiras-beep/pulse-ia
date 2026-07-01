@@ -197,7 +197,7 @@ export default async function handler(req, res) {
       const cargo = equipeRaw.find(r=>r[0]===nome)?.[1]||'';
       const { perigo, atencao } = resumoPessoa[nome];
       const escRegDia=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
-      return `<div data-nome-busca="${nome}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-df="${df}" data-nome2="${nome}" data-ent="${escRegDia?.[3]||''}" data-sai="${escRegDia?.[4]||''}" data-obs="${escRegDia?.[5]||''}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome2,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
+      return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-df="${df}" data-nome2="${nome}" data-ent="${escRegDia?.[3]||''}" data-sai="${escRegDia?.[4]||''}" data-obs="${escRegDia?.[5]||''}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome2,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <div style="width:32px;height:32px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
           <div style="flex:1"><div style="font-size:13px;font-weight:600">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
@@ -224,7 +224,7 @@ export default async function handler(req, res) {
     const linhas = nomes.map((nome,idx) => {
       const cargo = equipeRaw.find(r=>r[0]===nome)?.[1]||'';
       const {perigo,atencao}=resumoPessoa[nome];
-      return `<tr data-nome-busca="${nome}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}">
+      return `<tr data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}">
         <td style="padding:6px 10px;border-bottom:1px solid #f5f5f5">
           <div style="display:flex;align-items:center;gap:6px">
             <div style="width:24px;height:24px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
@@ -275,7 +275,7 @@ export default async function handler(req, res) {
         </div>`;
       }
       cal+=`</div>`;
-      return `<div data-nome-busca="${nome}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" style="background:var(--card);border:1px solid ${perigo>0?'var(--red-m-border)':atencao>0?'var(--amber-m-border)':'var(--border)'};border-radius:10px;padding:12px 14px">
+      return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" style="background:var(--card);border:1px solid ${perigo>0?'var(--red-m-border)':atencao>0?'var(--amber-m-border)':'var(--border)'};border-radius:10px;padding:12px 14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
           <div style="width:28px;height:28px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
           <div style="flex:1"><div style="font-size:12px;font-weight:600">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
@@ -290,6 +290,9 @@ export default async function handler(req, res) {
     }).join('');
     conteudoGrid = `<div id="grid-principal" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">${conteudoGrid}</div>`;
   }
+
+  // Lista de cargos únicos para o dropdown de filtro
+  const cargosUnicos = [...new Set(nomes.map(n => equipeRaw.find(r=>r[0]===n)?.[1]||'').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR"><head>
@@ -343,6 +346,10 @@ a{text-decoration:none}
       <button id="sort-alpha" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">A-Z</button>
       <button id="sort-alerta" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Alertas</button>
     </div>
+    <select id="filtro-cargo" style="border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;background:var(--card);color:var(--text);outline:none;cursor:pointer;min-width:140px">
+      <option value="">▾ Todos os cargos</option>
+      ${cargosUnicos.map(c=>`<option value="${c.toLowerCase()}">${c}</option>`).join('')}
+    </select>
     <input id="busca" placeholder="Buscar colaborador..." style="flex:1;min-width:160px;border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;outline:none;background:var(--input);color:var(--text)">
   </div>
   ${legendaHTML}
@@ -357,7 +364,23 @@ a{text-decoration:none}
 <script>
 var viewAtual='grid',sortAtual='default',visaoAtual='${visao}';
 function getItens(){if(visaoAtual==='semana')return Array.from(document.querySelectorAll('#tbody-semana tr[data-nome-busca]'));return Array.from(document.querySelectorAll('#grid-principal [data-nome-busca]'));}
-function aplicarFiltros(){var busca=document.getElementById('busca').value.toLowerCase();var itens=getItens();itens.forEach(function(el){el.style.display=el.getAttribute('data-nome-busca').toLowerCase().includes(busca)?'':'none';});var visiveis=itens.filter(function(el){return el.style.display!=='none';});if(sortAtual==='alpha')visiveis.sort(function(a,b){return a.getAttribute('data-nome-busca').localeCompare(b.getAttribute('data-nome-busca'),'pt-BR');});else if(sortAtual==='alerta')visiveis.sort(function(a,b){var pa=parseInt(a.getAttribute('data-perigo')||0),pb=parseInt(b.getAttribute('data-perigo')||0),aa=parseInt(a.getAttribute('data-atencao')||0),ab=parseInt(b.getAttribute('data-atencao')||0);return(pb*10+ab)-(pa*10+aa);});else visiveis.sort(function(a,b){return parseInt(a.getAttribute('data-ordem'))-parseInt(b.getAttribute('data-ordem'));});var parent=visiveis.length>0?visiveis[0].parentNode:null;if(parent)visiveis.forEach(function(el){parent.appendChild(el);});if(visaoAtual!=='semana'){var grid=document.getElementById('grid-principal');if(grid){if(viewAtual==='grid'){grid.style.display='grid';grid.style.gridTemplateColumns=visaoAtual==='mes'?'repeat(auto-fit,minmax(280px,1fr))':'repeat(auto-fit,minmax(220px,1fr))';grid.style.gap='12px';}else{grid.style.display='flex';grid.style.flexDirection='column';grid.style.gap='6px';}}}}
+function aplicarFiltros(){
+  var busca=document.getElementById('busca').value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  var cargo=document.getElementById('filtro-cargo').value;
+  var itens=getItens();
+  itens.forEach(function(el){
+    var nomeMatch=el.getAttribute('data-nome-busca').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(busca);
+    var cargoMatch=!cargo||el.getAttribute('data-cargo').includes(cargo);
+    el.style.display=(nomeMatch&&cargoMatch)?'':'none';
+  });
+  var visiveis=itens.filter(function(el){return el.style.display!=='none';});
+  if(sortAtual==='alpha')visiveis.sort(function(a,b){return a.getAttribute('data-nome-busca').localeCompare(b.getAttribute('data-nome-busca'),'pt-BR');});
+  else if(sortAtual==='alerta')visiveis.sort(function(a,b){var pa=parseInt(a.getAttribute('data-perigo')||0),pb=parseInt(b.getAttribute('data-perigo')||0),aa=parseInt(a.getAttribute('data-atencao')||0),ab=parseInt(b.getAttribute('data-atencao')||0);return(pb*10+ab)-(pa*10+aa);});
+  else visiveis.sort(function(a,b){return parseInt(a.getAttribute('data-ordem'))-parseInt(b.getAttribute('data-ordem'));});
+  var parent=visiveis.length>0?visiveis[0].parentNode:null;
+  if(parent)visiveis.forEach(function(el){parent.appendChild(el);});
+  if(visaoAtual!=='semana'){var grid=document.getElementById('grid-principal');if(grid){if(viewAtual==='grid'){grid.style.display='grid';grid.style.gridTemplateColumns=visaoAtual==='mes'?'repeat(auto-fit,minmax(280px,1fr))':'repeat(auto-fit,minmax(220px,1fr))';grid.style.gap='12px';}else{grid.style.display='flex';grid.style.flexDirection='column';grid.style.gap='6px';}}}
+}
 function setBtn(id){['sort-default','sort-alpha','sort-alerta','view-grid','view-list'].forEach(function(bid){var b=document.getElementById(bid);if(!b)return;if(bid===id){b.style.background='var(--text)';b.style.color='var(--bg)';}else if(bid.startsWith(id.split('-')[0])){b.style.background='none';b.style.color='var(--text3)';}});}
 document.getElementById('view-grid').addEventListener('click',function(){viewAtual='grid';setBtn('view-grid');aplicarFiltros();});
 document.getElementById('view-list').addEventListener('click',function(){viewAtual='list';setBtn('view-list');aplicarFiltros();});
@@ -365,6 +388,7 @@ document.getElementById('sort-default').addEventListener('click',function(){sort
 document.getElementById('sort-alpha').addEventListener('click',function(){sortAtual='alpha';setBtn('sort-alpha');aplicarFiltros();});
 document.getElementById('sort-alerta').addEventListener('click',function(){sortAtual='alerta';setBtn('sort-alerta');aplicarFiltros();});
 document.getElementById('busca').addEventListener('input',aplicarFiltros);
+document.getElementById('filtro-cargo').addEventListener('change',aplicarFiltros);
 function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');var btn=document.getElementById('tt');if(btn)btn.textContent=dk?'\u2600\uFE0F':'\uD83C\uDF19';}
 </script>
 <div id="editor-popup" style="display:none;position:fixed;z-index:500;background:#242836;border:1px solid #3d4660;border-radius:10px;padding:16px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
