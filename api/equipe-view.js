@@ -305,7 +305,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button onclick="document.getElementById('secao-ausencias').scrollIntoView({behavior:'smooth'})" style="background:#1f1010;border:1px solid #991b1b;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;color:#fc8181;cursor:pointer;display:flex;align-items:center;gap:6px;animation:pulsar-aus 1.5s ease-in-out infinite">
       🔔 <span>${solicitacoesPendentes.length} ausência${solicitacoesPendentes.length>1?'s':''} pendente${solicitacoesPendentes.length>1?'s':''}</span>
     </button>
-    ` : ''}
+    ` : `
+    <div style="background:#0d2010;border:1px solid #166534;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;color:#68d391;display:flex;align-items:center;gap:6px">
+      ✓ Sem ausências pendentes
+    </div>
+    `}
     <a href="/api/banco-horas" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">📊 Banco de horas</a>
     <a href="/api/app" class="btn-sm">← Voltar</a>
     <button id="tt" class="btn-sm" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" style="font-size:14px;padding:3px 8px">🌙</button>
