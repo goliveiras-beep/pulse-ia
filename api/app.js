@@ -487,6 +487,24 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
+  if (req.method === 'POST' && action === 'publicar') {
+    // Só gestor pode publicar
+    const eqCheck = await getSheet('Equipe!A2:I200');
+    const uCheck = eqCheck.find(r=>r[0]===nome);
+    if (uCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
+    const { horizonte } = req.body || {};
+    if (!horizonte) return res.status(400).json({ error: 'horizonte obrigatório' });
+    // Upsert em PulseConfig
+    const cfgRaw = await getSheet('PulseConfig!A2:B20');
+    const cfgIdx = (cfgRaw||[]).findIndex(r=>r[0]==='publicacao_horizonte');
+    if (cfgIdx >= 0) {
+      await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`PulseConfig!B${cfgIdx+2}`)}?valueInputOption=USER_ENTERED`, 'PUT', {values:[[horizonte]]});
+    } else {
+      await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent('PulseConfig!A:B')}:append?valueInputOption=USER_ENTERED`, 'POST', {values:[['publicacao_horizonte', horizonte]]});
+    }
+    return res.status(200).json({ ok: true, horizonte });
+  }
+
   const hoje = getBRT();
   const hojeStr = fmtData(hoje);
   const horaAtualMin = hoje.getHours() * 60 + hoje.getMinutes();
@@ -503,10 +521,11 @@ export default async function handler(req, res) {
   const DIAS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
   const DIAS_FULL = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
 
-  const [equipeRaw, escalaRaw, ausenciasRaw] = await Promise.all([
+  const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
     getSheet('Equipe!A2:L200'),
     getSheet('Escala!A2:F2000'),
     getSheet('Ausências!A2:I500'),
+    getSheet('PulseConfig!A2:B20'),
   ]);
 
   const usuario = equipeRaw.find(r => r[0] === nome && (r[10]||'ativo') === 'ativo');
@@ -519,7 +538,22 @@ export default async function handler(req, res) {
 
   const isGestor = usuario?.[8] === 'gestor' && (usuario?.[10]||'ativo') === 'ativo';
 
-  const escala = escalaRaw.map(r => r);
+  // Horizonte de publicação: gestores veem tudo, colaboradores só até a data publicada
+  const configMap = Object.fromEntries((configRaw||[]).filter(r=>r[0]).map(r=>[r[0],r[1]||'']));
+  const horizonteStr = configMap['publicacao_horizonte']||''; // formato DD/MM
+  function dentroHorizonte(df) {
+    if(isGestor || !horizonteStr) return true;
+    // Compara DD/MM — assume mesmo ano; se mês do horizonte < mês atual, é próximo ano
+    const [dh,mh]=horizonteStr.split('/').map(Number);
+    const [dd,md]=df.split('/').map(Number);
+    const anoBase = hoje.getFullYear();
+    const dataHorizonte = new Date(anoBase, mh-1, dh);
+    const dataEvento = new Date(anoBase, md-1, dd);
+    if(dataEvento < new Date(anoBase, hoje.getMonth(), hoje.getDate()-1)) return true; // passado sempre visível
+    return dataEvento <= dataHorizonte;
+  }
+
+  const escala = isGestor ? escalaRaw.map(r=>r) : escalaRaw.filter(r=>!r[0]||dentroHorizonte(r[0]));
   const ausencias = ausenciasRaw.map(r => r);
 
   const dias = [hoje, d1, d2, d3, d4, d5, d6];
@@ -1553,6 +1587,18 @@ setInterval(atualizarEventos, 60000);
     ? ` <span style="background:#dc2626;color:#fff;border-radius:50%;min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;padding:0 3px;vertical-align:middle">${totalPendentesGestor}</span>`
     : '';
 
+  // Horizonte de publicação
+  const horizonteAtual = configMap['publicacao_horizonte']||'';
+  const bannerPublicacao = isGestor ? `
+  <div style="background:${horizonteAtual?'#0d2010':'#1f1a0d'};border:1px solid ${horizonteAtual?'#166534':'#3d3010'};border-radius:8px;padding:8px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span style="font-size:11px;color:${horizonteAtual?'#68d391':'#f6ad55'}">📅 Publicação da escala:</span>
+    <span style="font-size:12px;font-weight:700;color:${horizonteAtual?'#68d391':'#f6ad55'}">${horizonteAtual ? 'Visível para a equipe até '+horizonteAtual : 'Nenhuma janela publicada — equipe não vê escala futura'}</span>
+    <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+      ${['1 dia','2 dias','1 semana','15 dias','1 mês'].map(op=>`<button onclick="publicarHorizonte('${op}')" style="border:1px solid ${horizonteAtual?'#166534':'#3d3010'};border-radius:5px;padding:4px 10px;font-size:11px;background:none;color:${horizonteAtual?'#68d391':'#f6ad55'};cursor:pointer;font-weight:600">${op}</button>`).join('')}
+      ${horizonteAtual?`<button onclick="publicarHorizonte('limpar')" style="border:1px solid #dc2626;border-radius:5px;padding:4px 10px;font-size:11px;background:none;color:#fc8181;cursor:pointer">✕ Limpar</button>`:''}
+    </div>
+  </div>` : '';
+
   const conteudo = `
 <div class="header">
   <div class="logo" style="background:none;padding:0;overflow:visible">
@@ -1590,6 +1636,7 @@ setInterval(atualizarEventos, 60000);
   </div>
 </div>
 <div class="wrap">
+  ${bannerPublicacao}
   <div class="metrics">
     <div class="metric blue-m"><div class="ml">Trabalhando amanhã</div><div class="mv blue-v">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
     <div class="metric ${folgHoje > 2 ? 'amber-m' : ''}"><div class="ml">Folgas hoje</div><div class="mv ${folgHoje > 2 ? 'amber-v' : ''}">${folgHoje}</div><div class="ms">${ausencias.filter(a => a[0] !== 'CANCELADO' && dentroAusencia(a, hojeStr)).length} via Pulse</div></div>
@@ -1713,6 +1760,31 @@ document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.cu
 window.addEventListener('load',function(){var b=document.getElementById('cb-hoje');var a=document.getElementById('primeiro-ativo-hoje');if(b&&a){var pos=0,el=a.previousElementSibling;while(el){pos+=el.offsetHeight+10;el=el.previousElementSibling;}b.scrollTop=Math.max(0,pos-280);}});
 var diaAtual3=0;
 function navDia(dir){var total=5;diaAtual3=(diaAtual3+dir+total)%total;for(var i=0;i<total;i++){var p=document.getElementById('painel3-'+i);var l=document.getElementById('tab3-label-'+i);if(p)p.style.display=i===diaAtual3?'block':'none';if(l)l.style.display=i===diaAtual3?'block':'none';}}
+
+async function publicarHorizonte(opcao) {
+  var hoje = new Date();
+  var d = new Date(hoje);
+  if(opcao==='limpar') {
+    if(!confirm('Remover a janela de publicação? A equipe não verá mais a escala futura.')) return;
+    var r=await fetch('/api/app?action=publicar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({horizonte:''})});
+    var data=await r.json();
+    if(data.ok) location.reload();
+    return;
+  }
+  if(opcao==='1 dia') d.setDate(d.getDate()+1);
+  else if(opcao==='2 dias') d.setDate(d.getDate()+2);
+  else if(opcao==='1 semana') d.setDate(d.getDate()+7);
+  else if(opcao==='15 dias') d.setDate(d.getDate()+15);
+  else if(opcao==='1 mês') d.setMonth(d.getMonth()+1);
+  var dd=String(d.getDate()).padStart(2,'0');
+  var mm=String(d.getMonth()+1).padStart(2,'0');
+  var horizonte=dd+'/'+mm;
+  if(!confirm('Publicar escala até '+horizonte+'?\n\nA equipe poderá ver os turnos até essa data.')) return;
+  var r=await fetch('/api/app?action=publicar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({horizonte})});
+  var data=await r.json();
+  if(data.ok){location.reload();}
+  else alert('Erro: '+(data.error||'?'));
+}
 
 // Mobile: abas de eventos
 var _gTabAtual = 0;
