@@ -68,8 +68,9 @@ async function setSheet(range, values) {
   await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,'PUT',{values});
 }
 async function appendSheet(range, values) {
-  // RAW = datas ficam como texto (ex: "02/07"), não são convertidas para serial pelo Sheets
-  await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}:append?valueInputOption=RAW`,'POST',{values});
+  // Não codifica o range para evitar que A:F vire A%3AF (quebra a API de append)
+  // RAW = datas ficam como texto puro, não convertidas para serial
+  await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${range}:append?valueInputOption=RAW`,'POST',{values});
 }
 
 const NIVEL_COR = {
@@ -115,6 +116,14 @@ const CHAT_IA_ESC = '\n<div id="chat-ia-btn" onclick="toggleChat()" style="posit
 export default async function handler(req, res) {
   const session = getSession(req);
   if (!session) return res.redirect(302, '/api/app');
+
+  if (req.method === 'GET' && req.query.debug === '1') {
+    const raw = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/Escala!A2:F2000`);
+    const rows = (raw.values||[]).slice(0,20);
+    const total = (raw.values||[]).length;
+    const julho = (raw.values||[]).filter(r=>String(r[0]).includes('07'));
+    return res.status(200).json({ total, primeiras20: rows, linhasJulho: julho.slice(0,20) });
+  }
 
   if (req.method === 'POST' && req.body?.action === 'quick-generate') {
     // Gerar escala dos próximos 14 dias

@@ -59,7 +59,7 @@ async function setSheet(range, values) {
   await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,'PUT',{values});
 }
 async function appendSheet(range, values) {
-  await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}:append?valueInputOption=RAW`,'POST',{values});
+  await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${range}:append?valueInputOption=RAW`,'POST',{values});
 }
 
 async function getEventosPeriodo(dataInicio, dataFim) {
