@@ -488,42 +488,34 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST' && action === 'publicar') {
-    // Só gestor pode publicar
     const eqCheck = await getSheet('Equipe!A2:I200');
     const uCheck = eqCheck.find(r=>r[0]===nome);
     if (uCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
     const { horizonte } = req.body || {};
-
     try {
-      // Garantir que a aba PulseConfig existe
-      const { getAccessToken } = await import('../lib/google-auth.js');
-      const token = await getAccessToken();
-      const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}?fields=sheets.properties`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const meta = await metaRes.json();
-      const sheets = (meta.sheets||[]).map(s=>s.properties?.title);
-      if (!sheets.includes('PulseConfig')) {
-        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}:batchUpdate`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'PulseConfig' } } }] })
-        });
-        await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/PulseConfig!A1:B1?valueInputOption=USER_ENTERED`, 'PUT', { values: [['chave', 'valor']] });
-      }
-
-      // Salvar ou limpar o horizonte
-      const cfgRaw = await getSheet('PulseConfig!A2:B20');
-      const cfgIdx = (cfgRaw||[]).findIndex(r=>r[0]==='publicacao_horizonte');
-      if (!horizonte) {
-        // Limpar: apaga a linha se existir
-        if (cfgIdx >= 0) {
-          await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`PulseConfig!A${cfgIdx+2}:B${cfgIdx+2}`)}?valueInputOption=USER_ENTERED`, 'PUT', {values:[['','']]});
+      // Tenta escrever direto — se a aba não existe, cria e tenta de novo
+      async function salvarConfig() {
+        const cfgRaw = await getSheet('PulseConfig!A2:B20');
+        const cfgIdx = (cfgRaw||[]).findIndex(r=>r[0]==='publicacao_horizonte');
+        if (!horizonte) {
+          if (cfgIdx >= 0) await setSheet(`PulseConfig!A${cfgIdx+2}:B${cfgIdx+2}`, [['','']]);
+        } else if (cfgIdx >= 0) {
+          await setSheet(`PulseConfig!B${cfgIdx+2}`, [[horizonte]]);
+        } else {
+          await appendSheet('PulseConfig!A:B', [['publicacao_horizonte', horizonte]]);
         }
-      } else if (cfgIdx >= 0) {
-        await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`PulseConfig!B${cfgIdx+2}`)}?valueInputOption=USER_ENTERED`, 'PUT', {values:[[horizonte]]});
-      } else {
-        await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent('PulseConfig!A:B')}:append?valueInputOption=USER_ENTERED`, 'POST', {values:[['publicacao_horizonte', horizonte]]});
+      }
+      try {
+        await salvarConfig();
+      } catch(e1) {
+        // Aba não existe — cria via batchUpdate
+        if (e1.message.includes('Unable to parse range') || e1.message.includes('404') || e1.message.includes('No grid')) {
+          await sheetsRequest(process.env.GOOGLE_SHEET_ID, ':batchUpdate', 'POST', {
+            requests: [{ addSheet: { properties: { title: 'PulseConfig' } } }]
+          });
+          await setSheet('PulseConfig!A1:B1', [['chave','valor']]);
+          await salvarConfig();
+        } else { throw e1; }
       }
       return res.status(200).json({ ok: true, horizonte: horizonte || '' });
     } catch(e) {
