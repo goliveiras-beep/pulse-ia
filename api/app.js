@@ -581,19 +581,22 @@ export default async function handler(req, res) {
   const ausSem = ausencias;
   const nomes = equipeRaw.map(r => r[0]);
 
-  // Para cobertura correta: incluir também turnos noturnos do dia anterior
-  // (ex: 23:00–07:00 de ontem cobre 04:00 de hoje)
+  // Inclui turnos noturnos do dia anterior que ainda estão de serviço no dia atual
+  // Ex: turno 23:00–07:00 de ontem cobre eventos de 00:00–07:00 de hoje
+  function diaAnteriorStr(dfStr) {
+    const [dd,mm] = dfStr.split('/').map(Number);
+    const d = new Date(new Date().getFullYear(), mm-1, dd);
+    d.setDate(d.getDate()-1);
+    return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+  }
   function escalaComNoturnosAnteriores(escalaArr, dataStr) {
+    const ontem = diaAnteriorStr(dataStr);
     const diaAtual = escalaArr.filter(r => r[0] === dataStr);
-    const diaAnterior = escalaArr.filter(r => {
-      if(r[0] === dataStr) return false;
-      if(!r[3]||!r[4]) return false;
-      // Turno noturno: saída < entrada (ex: 23:00→07:00)
-      return toMin(r[4]) < toMin(r[3]);
-    });
-    // Só inclui do dia anterior se a pessoa não tem entrada própria hoje
-    const nomesHoje = new Set(diaAtual.map(r=>r[2]));
-    const noturnos = diaAnterior.filter(r => !nomesHoje.has(r[2]));
+    // Turnos noturnos do dia anterior (saída < entrada = virou meia-noite)
+    const noturnos = escalaArr.filter(r =>
+      r[0] === ontem && r[3] && r[4] && toMin(r[4]) < toMin(r[3])
+    );
+    // Combina: hoje + noturnos de ontem (podem haver duplicatas de nome, tudo bem)
     return [...diaAtual, ...noturnos];
   }
 
