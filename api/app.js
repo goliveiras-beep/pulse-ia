@@ -1798,7 +1798,7 @@ async function publicarHorizonte(opcao) {
     if(!confirm('Publicar escala até '+horizonte+'?\nA equipe poderá ver os turnos até essa data.')) return;
   }
   try {
-    var r=await fetch('/api/app?action=publicar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({horizonte})});
+    var r=await fetch('/api/publicar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({horizonte})});
     var data=await r.json();
     if(data.ok){
       mostrarToast(opcao==='limpar'?'🔒 Publicação removida':'✓ Escala publicada até '+horizonte,'#166534');
