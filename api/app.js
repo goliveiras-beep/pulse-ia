@@ -493,16 +493,43 @@ export default async function handler(req, res) {
     const uCheck = eqCheck.find(r=>r[0]===nome);
     if (uCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
     const { horizonte } = req.body || {};
-    if (!horizonte) return res.status(400).json({ error: 'horizonte obrigatório' });
-    // Upsert em PulseConfig
-    const cfgRaw = await getSheet('PulseConfig!A2:B20');
-    const cfgIdx = (cfgRaw||[]).findIndex(r=>r[0]==='publicacao_horizonte');
-    if (cfgIdx >= 0) {
-      await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`PulseConfig!B${cfgIdx+2}`)}?valueInputOption=USER_ENTERED`, 'PUT', {values:[[horizonte]]});
-    } else {
-      await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent('PulseConfig!A:B')}:append?valueInputOption=USER_ENTERED`, 'POST', {values:[['publicacao_horizonte', horizonte]]});
+
+    try {
+      // Garantir que a aba PulseConfig existe
+      const { getAccessToken } = await import('../lib/google-auth.js');
+      const token = await getAccessToken();
+      const metaRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}?fields=sheets.properties`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const meta = await metaRes.json();
+      const sheets = (meta.sheets||[]).map(s=>s.properties?.title);
+      if (!sheets.includes('PulseConfig')) {
+        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}:batchUpdate`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requests: [{ addSheet: { properties: { title: 'PulseConfig' } } }] })
+        });
+        await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/PulseConfig!A1:B1?valueInputOption=USER_ENTERED`, 'PUT', { values: [['chave', 'valor']] });
+      }
+
+      // Salvar ou limpar o horizonte
+      const cfgRaw = await getSheet('PulseConfig!A2:B20');
+      const cfgIdx = (cfgRaw||[]).findIndex(r=>r[0]==='publicacao_horizonte');
+      if (!horizonte) {
+        // Limpar: apaga a linha se existir
+        if (cfgIdx >= 0) {
+          await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`PulseConfig!A${cfgIdx+2}:B${cfgIdx+2}`)}?valueInputOption=USER_ENTERED`, 'PUT', {values:[['','']]});
+        }
+      } else if (cfgIdx >= 0) {
+        await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`PulseConfig!B${cfgIdx+2}`)}?valueInputOption=USER_ENTERED`, 'PUT', {values:[[horizonte]]});
+      } else {
+        await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent('PulseConfig!A:B')}:append?valueInputOption=USER_ENTERED`, 'POST', {values:[['publicacao_horizonte', horizonte]]});
+      }
+      return res.status(200).json({ ok: true, horizonte: horizonte || '' });
+    } catch(e) {
+      console.error('publicar erro:', e.message);
+      return res.status(500).json({ error: e.message });
     }
-    return res.status(200).json({ ok: true, horizonte });
   }
 
   const hoje = getBRT();
@@ -1764,26 +1791,36 @@ function navDia(dir){var total=5;diaAtual3=(diaAtual3+dir+total)%total;for(var i
 async function publicarHorizonte(opcao) {
   var hoje = new Date();
   var d = new Date(hoje);
+  var horizonte = '';
   if(opcao==='limpar') {
     if(!confirm('Remover a janela de publicação? A equipe não verá mais a escala futura.')) return;
-    var r=await fetch('/api/app?action=publicar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({horizonte:''})});
-    var data=await r.json();
-    if(data.ok) location.reload();
-    return;
+  } else {
+    if(opcao==='1 dia') d.setDate(d.getDate()+1);
+    else if(opcao==='2 dias') d.setDate(d.getDate()+2);
+    else if(opcao==='1 semana') d.setDate(d.getDate()+7);
+    else if(opcao==='15 dias') d.setDate(d.getDate()+15);
+    else if(opcao==='1 mês') d.setMonth(d.getMonth()+1);
+    var dd=String(d.getDate()).padStart(2,'0');
+    var mm=String(d.getMonth()+1).padStart(2,'0');
+    horizonte=dd+'/'+mm;
+    if(!confirm('Publicar escala até '+horizonte+'?\nA equipe poderá ver os turnos até essa data.')) return;
   }
-  if(opcao==='1 dia') d.setDate(d.getDate()+1);
-  else if(opcao==='2 dias') d.setDate(d.getDate()+2);
-  else if(opcao==='1 semana') d.setDate(d.getDate()+7);
-  else if(opcao==='15 dias') d.setDate(d.getDate()+15);
-  else if(opcao==='1 mês') d.setMonth(d.getMonth()+1);
-  var dd=String(d.getDate()).padStart(2,'0');
-  var mm=String(d.getMonth()+1).padStart(2,'0');
-  var horizonte=dd+'/'+mm;
-  if(!confirm('Publicar escala até '+horizonte+'?\n\nA equipe poderá ver os turnos até essa data.')) return;
-  var r=await fetch('/api/app?action=publicar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({horizonte})});
-  var data=await r.json();
-  if(data.ok){location.reload();}
-  else alert('Erro: '+(data.error||'?'));
+  try {
+    var r=await fetch('/api/app?action=publicar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({horizonte})});
+    var data=await r.json();
+    if(data.ok){
+      mostrarToast(opcao==='limpar'?'🔒 Publicação removida':'✓ Escala publicada até '+horizonte,'#166534');
+      setTimeout(function(){location.reload();},1200);
+    } else {
+      mostrarToast('Erro: '+(data.error||'?'),'#dc2626');
+    }
+  } catch(e) { mostrarToast('Erro de conexão: '+e.message,'#dc2626'); }
+}
+function mostrarToast(msg,bg){
+  var t=document.getElementById('toast');
+  if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;color:#fff;display:none';document.body.appendChild(t);}
+  t.textContent=msg;t.style.background=bg;t.style.display='block';
+  clearTimeout(t._t);t._t=setTimeout(function(){t.style.display='none';},3500);
 }
 
 // Mobile: abas de eventos
