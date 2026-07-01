@@ -10,7 +10,17 @@ const TOKEN    = process.env.IMPORT_TOKEN || 'pulse_import_2026';
 // Formato: [DD/MM, '', nome, entrada, saida, obs]
 // obs = 'Folga' para dias de folga, '' para turno normal
 const LINHAS = [
-// 01/06
+// 01/07
+['01/07','','Bruno Dias','11:30','00:30',''],
+['01/07','','Rafael Gusmão','07:00','15:00',''],
+['01/07','','Lucas Malveira','','','Folga'],
+['01/07','','Thiago Russo','07:00','15:00',''],
+['01/07','','Bernardo Oliva','08:00','16:00',''],
+['01/07','','Rodrigo Cesar de Oliveira Pinheiro','18:00','02:00',''],
+['01/07','','Matheus Ribeiro dos Santos','15:00','23:00',''],
+['01/07','','Rodrigo Alcantara da Rocha','23:00','07:00',''],
+['01/07','','Alan Veiga','15:00','23:00',''],
+['01/07','','Fabio Silva','23:00','07:00',''],
 ['01/06','','Rodrigo Alcantara da Rocha','08:00','14:00',''],
 ['01/06','','Rodrigo Cesar de Oliveira Pinheiro','08:00','14:00',''],
 ['01/06','','Matheus Ribeiro dos Santos','','','Folga'],
