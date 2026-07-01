@@ -133,6 +133,25 @@ export default async function handler(req, res) {
       if (usuario2?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});
 
       const escalaAtual = await getSheet('Escala!A2:F2000');
+      const ausenciasRaw = await getSheet('Ausências!A2:F500');
+      // Ausências aprovadas: não gerar turno para quem está de férias/atestado no dia
+      function temAusencia(nome, df) {
+        return ausenciasRaw.some(a => {
+          if(a[1] !== nome) return false;
+          if(!String(a[0]).startsWith('APROVADO')) return false;
+          const ini = a[4]||'', fim = a[5]||a[4]||'';
+          if(!ini) return false;
+          // Compara DD/MM
+          const [ddf,mmf] = df.split('/').map(Number);
+          const [di,mi] = ini.split('/').map(Number);
+          const [df2,mf2] = (fim||ini).split('/').map(Number);
+          const ano = new Date().getFullYear();
+          const dtDf = new Date(ano, mmf-1, ddf);
+          const dtIni = new Date(ano, mi-1, di);
+          const dtFim = new Date(ano, mf2-1, df2);
+          return dtDf >= dtIni && dtDf <= dtFim;
+        });
+      }
       const escalaNorm = escalaAtual.map(r=>[normalizarDf(r[0]||''),r[1]||'',r[2]||'',r[3]||'',r[4]||'',r[5]||'']);
       // existingQ: preserva dados manuais, permite sobrescrever "Gerado IA" com novo dado
       const existingQ = new Set(
@@ -167,6 +186,7 @@ export default async function handler(req, res) {
           const t=turnosQ[p[0]];
           if(!t) return;
           if(existingQ.has(df+'|'+p[0])) return;
+          if(temAusencia(p[0], df)) return; // tem férias/atestado aprovado — pula
           linhas.push([df,'',p[0],t.ent,t.sai,'Gerado IA']);
         });
       }

@@ -251,7 +251,7 @@ export default async function handler(req, res) {
         +'</div>'
       +'</div>';
     }).join('');
-    return `<div class="section-title" style="margin-top:0">
+    return `<div id="secao-ausencias" class="section-title" style="margin-top:0">
       <span style="background:#7c3aed;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:11px">${solicitacoesPendentes.length}</span>
       Solicitações de ausência
     </div>
@@ -293,6 +293,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn-primary{flex:2;border:none;border-radius:6px;padding:9px;font-size:13px;font-weight:600;background:#1d4ed8;color:#fff;cursor:pointer}
 .btn-danger{border:none;border-radius:6px;padding:9px 14px;font-size:13px;font-weight:600;background:#dc2626;color:#fff;cursor:pointer}
 .toast{display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:300}
+@keyframes pulsar-aus{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 6px rgba(239,68,68,0)}}
 </style>
 </head>
 <body>
@@ -300,6 +301,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div style="width:32px;height:32px;border-radius:8px;background:#e53e3e;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0">P</div>
   <div><div class="ht">Pulse <span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px">Equipe</span></div><div class="hs">${ativos.length} ativos${pendentes.length ? ` · ${pendentes.length} pendente${pendentes.length>1?'s':''}` : ''}</div></div>
   <div class="hr">
+    ${solicitacoesPendentes.length ? `
+    <button onclick="document.getElementById('secao-ausencias').scrollIntoView({behavior:'smooth'})" style="background:#1f1010;border:1px solid #991b1b;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;color:#fc8181;cursor:pointer;display:flex;align-items:center;gap:6px;animation:pulsar-aus 1.5s ease-in-out infinite">
+      🔔 <span>${solicitacoesPendentes.length} ausência${solicitacoesPendentes.length>1?'s':''} pendente${solicitacoesPendentes.length>1?'s':''}</span>
+    </button>
+    ` : ''}
     <a href="/api/banco-horas" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">📊 Banco de horas</a>
     <a href="/api/app" class="btn-sm">← Voltar</a>
     <button id="tt" class="btn-sm" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" style="font-size:14px;padding:3px 8px">🌙</button>
