@@ -1650,15 +1650,6 @@ setInterval(atualizarEventos, 60000);
 
   // Horizonte de publicação
   const horizonteAtual = configMap['publicacao_horizonte']||'';
-  const bannerPublicacao = isGestor ? `
-  <div style="background:${horizonteAtual?'#0d2010':'#1f1a0d'};border:1px solid ${horizonteAtual?'#166534':'#3d3010'};border-radius:8px;padding:8px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-    <span style="font-size:11px;color:${horizonteAtual?'#68d391':'#f6ad55'}">📅 Publicação da escala:</span>
-    <span style="font-size:12px;font-weight:700;color:${horizonteAtual?'#68d391':'#f6ad55'}">${horizonteAtual ? 'Visível para a equipe até '+horizonteAtual : 'Nenhuma janela publicada — equipe não vê escala futura'}</span>
-    <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-      ${['1 dia','2 dias','1 semana','15 dias','1 mês'].map(op=>`<button onclick="publicarHorizonte('${op}')" style="border:1px solid ${horizonteAtual?'#166534':'#3d3010'};border-radius:5px;padding:4px 10px;font-size:11px;background:none;color:${horizonteAtual?'#68d391':'#f6ad55'};cursor:pointer;font-weight:600">${op}</button>`).join('')}
-      ${horizonteAtual?`<button onclick="publicarHorizonte('limpar')" style="border:1px solid #dc2626;border-radius:5px;padding:4px 10px;font-size:11px;background:none;color:#fc8181;cursor:pointer">✕ Limpar</button>`:''}
-    </div>
-  </div>` : '';
 
   const conteudo = `
 <div class="header">
@@ -1697,7 +1688,7 @@ setInterval(atualizarEventos, 60000);
   </div>
 </div>
 <div class="wrap">
-  ${bannerPublicacao ? '' : ''}
+  
   <div class="frase-banner">
     <div class="frase-ic">
       <svg class="pulse-heart-anim" width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/><rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/><path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/><polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
