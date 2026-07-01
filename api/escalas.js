@@ -479,30 +479,67 @@ async function excluirTurno(){
     else{toast('Erro: '+res.error,'#dc2626');btn.textContent='🗑 Excluir';btn.disabled=false;}
   }catch(e){toast('Erro de conexão','#dc2626');btn.textContent='🗑 Excluir';btn.disabled=false;}
 }
+// ── Célula em foco para Ctrl+C e Ctrl+V direto ──────────────────────────────
+var _celFoco = null; // {el, df, nome, ent, sai, obs}
+
+// Tracking via mouseover nas células
+document.addEventListener('mouseover', function(e) {
+  var td = e.target.closest('[data-df][data-nome]') || e.target.closest('[data-df][data-nome2]');
+  if(td) _celFoco = {el:td, df:td.dataset.df||td.dataset.df, nome:td.dataset.nome||td.dataset.nome2, ent:td.dataset.ent||'', sai:td.dataset.sai||'', obs:td.dataset.obs||''};
+});
+
 document.addEventListener('keydown',function(e){
   var popupAberto=document.getElementById('editor-popup').style.display!=='none';
-  if(!popupAberto) return;
-  var emInput=document.activeElement&&(document.activeElement.id==='editor-ent'||document.activeElement.id==='editor-sai');
-  // Ctrl+C = copiar turno (só quando não está digitando)
-  if((e.ctrlKey||e.metaKey)&&e.key==='c'&&!emInput){e.preventDefault();copiarTurno();}
-  // Ctrl+V = colar turno (funciona mesmo com input focado)
-  if((e.ctrlKey||e.metaKey)&&e.key==='v'&&clipboard){
+
+  // Ctrl+V direto na célula (popup fechado)
+  if((e.ctrlKey||e.metaKey)&&e.key==='v'&&!popupAberto&&clipboard&&_celFoco){
+    e.preventDefault();
+    colarDireto(_celFoco);
+    return;
+  }
+
+  // Ctrl+V no popup (popup aberto) — preenche campos
+  if((e.ctrlKey||e.metaKey)&&e.key==='v'&&popupAberto&&clipboard){
     e.preventDefault();
     setTipo(clipboard.tipo||'turno');
     document.getElementById('editor-ent').value=clipboard.ent||'';
     document.getElementById('editor-sai').value=clipboard.sai||'';
     document.getElementById('editor-sai').focus();
     toast('Colado: '+clipboard.ent+' → '+clipboard.sai,'#166634');
+    return;
   }
-  // Delete/Backspace = excluir (só fora dos inputs)
+
+  // Ctrl+C — copia célula em foco ou turno do popup
+  if((e.ctrlKey||e.metaKey)&&e.key==='c') {
+    if(popupAberto) { e.preventDefault(); copiarTurno(); return; }
+    if(_celFoco&&_celFoco.ent) {
+      e.preventDefault();
+      clipboard={ent:_celFoco.ent,sai:_celFoco.sai,tipo:'turno'};
+      toast('Copiado: '+_celFoco.ent+' → '+_celFoco.sai,'#166634');
+      // Destaca a célula brevemente
+      if(_celFoco.el){_celFoco.el.style.outline='2px solid #1d4ed8';setTimeout(function(){if(_celFoco.el)_celFoco.el.style.outline='';},600);}
+    }
+    return;
+  }
+
+  if(!popupAberto) return;
+  var emInput=document.activeElement&&(document.activeElement.id==='editor-ent'||document.activeElement.id==='editor-sai');
   if((e.key==='Delete'||e.key==='Backspace')&&!emInput){e.preventDefault();excluirTurno();}
-  // Escape = fechar
   if(e.key==='Escape'){fecharEditor();}
-  // Enter = salvar (só fora dos inputs)
   if(e.key==='Enter'&&!emInput){e.preventDefault();salvarEdicao();}
-  // Tab = pular entrada → saída
   if(e.key==='Tab'&&document.activeElement.id==='editor-ent'){e.preventDefault();document.getElementById('editor-sai').focus();}
 });
+
+async function colarDireto(cel) {
+  if(!clipboard||!cel.df||!cel.nome) return;
+  toast('Colando...','#374151');
+  try {
+    var r=await fetch('/api/escalas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:cel.df,colaborador:cel.nome,ent:clipboard.ent,sai:clipboard.sai,tipo:clipboard.tipo||'turno'})});
+    var d=await r.json();
+    if(d.ok){toast('✓ '+cel.nome+' '+cel.df+' → '+clipboard.ent+'-'+clipboard.sai,'#166634');setTimeout(function(){location.reload();},800);}
+    else toast('Erro: '+d.error,'#dc2626');
+  } catch(e){toast('Erro de conexão','#dc2626');}
+}
 </script>
 </body></html>`;
 

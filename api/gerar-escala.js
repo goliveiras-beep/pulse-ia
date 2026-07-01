@@ -596,7 +596,7 @@ async function confirmar(){
   try{
     var r=await fetch('/api/gerar-escala',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes:AJUSTES,folgas:FOLGAS_IA})});
     var d=await r.json();
-    if(d.ok){btn.textContent='✓ Compartilhado!';btn.style.background='#166534';setTimeout(()=>window.location='/api/escalas?v=semana&offset=1',1500);}
+    if(d.ok){btn.textContent='✓ Compartilhado!';btn.style.background='#166534';setTimeout(()=>window.location='/api/escalas?v=semana',1500);}
     else{btn.textContent='Compartilhar com a equipe ✓';btn.disabled=false;btn.style.background='#1d4ed8';alert('Erro: '+d.error);}
   }catch(e){btn.textContent='Compartilhar com a equipe ✓';btn.disabled=false;btn.style.background='#1d4ed8';alert('Erro de conexão');}
 }
