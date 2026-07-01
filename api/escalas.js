@@ -328,8 +328,13 @@ export default async function handler(req, res) {
         const [d,m]=df.split('/');
         const dataObj=new Date(new Date().getFullYear(),parseInt(m)-1,parseInt(d));
         const isHoje=df===fmtData(hoje);
-        return `<th style="padding:6px 4px;text-align:center;font-size:10px;font-weight:600;color:${isHoje?'#1d4ed8':'#888'};text-transform:uppercase;background:${isHoje?'var(--today-bg)':'var(--th)'};border-bottom:${isHoje?'2px solid var(--today-border)':'1px solid var(--th-border)'};white-space:nowrap;min-width:90px">
-          ${DIAS_PT[dataObj.getDay()]}<br><span style="font-weight:400">${df}</span>
+        const diaSem=dataObj.getDay();
+        const isFds=diaSem===0||diaSem===6; // sábado=6, domingo=0
+        const thBg = isHoje ? 'var(--today-bg)' : isFds ? 'var(--fds-bg,rgba(99,102,241,.08))' : 'var(--th)';
+        const thColor = isHoje ? '#1d4ed8' : isFds ? 'var(--fds-c,#818cf8)' : '#888';
+        const thBorder = isHoje ? '2px solid var(--today-border)' : isFds ? '2px solid var(--fds-border,rgba(99,102,241,.3))' : '1px solid var(--th-border)';
+        return `<th style="padding:6px 4px;text-align:center;font-size:10px;font-weight:600;color:${thColor};text-transform:uppercase;background:${thBg};border-bottom:${thBorder};white-space:nowrap;min-width:90px">
+          ${DIAS_PT[diaSem]}<br><span style="font-weight:400">${df}</span>
         </th>`;
       }).join('')}
     </tr>`;
@@ -351,11 +356,16 @@ export default async function handler(req, res) {
           </div>
         </td>
         ${datas.map(df=>{
+          const [dd,mm]=df.split('/');
+          const dataObj2=new Date(new Date().getFullYear(),parseInt(mm)-1,parseInt(dd));
+          const diaSem2=dataObj2.getDay();
+          const isFds2=diaSem2===0||diaSem2===6;
           const a=analise[nome]?.[df];
           const isHoje=df===fmtData(hoje);
           const escReg=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
           const _ent=(escReg?.[3]||'');const _sai=(escReg?.[4]||'');const _obs=(escReg?.[5]||'');
-          return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${isHoje?'var(--today-bg)':''};cursor:pointer" data-df="${df}" data-nome="${nome}" data-ent="${_ent}" data-sai="${_sai}" data-obs="${_obs}" onclick="var el=this;abrirEditor(el,el.dataset.df,el.dataset.nome,el.dataset.ent,el.dataset.sai,el.dataset.obs)">${celulaAnalise(a,null,true)}</td>`;
+          const cellBg = isHoje ? 'var(--today-bg)' : isFds2 ? 'var(--fds-bg,rgba(99,102,241,.04))' : '';
+          return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${cellBg};cursor:pointer${isFds2?';border-left:1px solid var(--fds-border,rgba(99,102,241,.15))':''}" data-df="${df}" data-nome="${nome}" data-ent="${_ent}" data-sai="${_sai}" data-obs="${_obs}" onclick="var el=this;abrirEditor(el,el.dataset.df,el.dataset.nome,el.dataset.ent,el.dataset.sai,el.dataset.obs)">${celulaAnalise(a,null,true)}</td>`;
         }).join('')}
       </tr>`;
     }).join('');
@@ -413,8 +423,8 @@ export default async function handler(req, res) {
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse - Escala</title>
 <style>
-:root{--bg:#f5f5f5;--bg2:#fff;--bg3:#fafafa;--border:#e5e5e5;--border2:#f0f0f0;--text:#1a1a1a;--text2:#555;--text3:#888;--text4:#aaa;--header:#1a1a1a;--card:#fff;--input:#fff;--th:#fafafa;--th-border:#f0f0f0;--td-border:#f5f5f5;--btn-border:#444;--btn-c:#ccc;--blue-m-bg:#eff6ff;--blue-m-border:#dbeafe;--blue-m-v:#1d4ed8;--red-m-bg:#fef2f2;--red-m-border:#fca5a5;--red-m-v:#dc2626;--amber-m-bg:#fffbeb;--amber-m-border:#fcd34d;--amber-m-v:#d97706;--badge-green-bg:#dcfce7;--badge-green-c:#166534;--badge-red-bg:#fee2e2;--badge-red-c:#991b1b;--badge-amber-bg:#fef3c7;--badge-amber-c:#92400e;--today-bg:#eff6ff;--today-border:#3b82f6;--today-c:#1d4ed8;}
-html.dark{--bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--border:#2d3748;--border2:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--text4:#4a5568;--header:#161920;--card:#242836;--input:#2d3140;--th:#1e2230;--th-border:#2d3748;--td-border:#252a38;--btn-border:#3d4660;--btn-c:#a0aec0;--blue-m-bg:#1a2744;--blue-m-border:#2a4080;--blue-m-v:#63b3ed;--red-m-bg:#1f1010;--red-m-border:#3d2020;--red-m-v:#fc8181;--amber-m-bg:#1f1a0d;--amber-m-border:#3d3010;--amber-m-v:#f6ad55;--badge-green-bg:#0d2010;--badge-green-c:#68d391;--badge-red-bg:#1f1010;--badge-red-c:#fc8181;--badge-amber-bg:#2d1f00;--badge-amber-c:#f6ad55;--today-bg:#1a2744;--today-border:#2a4080;--today-c:#63b3ed;}
+:root{--bg:#f5f5f5;--bg2:#fff;--bg3:#fafafa;--border:#e5e5e5;--border2:#f0f0f0;--text:#1a1a1a;--text2:#555;--text3:#888;--text4:#aaa;--header:#1a1a1a;--card:#fff;--input:#fff;--th:#fafafa;--th-border:#f0f0f0;--td-border:#f5f5f5;--btn-border:#444;--btn-c:#ccc;--blue-m-bg:#eff6ff;--blue-m-border:#dbeafe;--blue-m-v:#1d4ed8;--red-m-bg:#fef2f2;--red-m-border:#fca5a5;--red-m-v:#dc2626;--amber-m-bg:#fffbeb;--amber-m-border:#fcd34d;--amber-m-v:#d97706;--badge-green-bg:#dcfce7;--badge-green-c:#166534;--badge-red-bg:#fee2e2;--badge-red-c:#991b1b;--badge-amber-bg:#fef3c7;--badge-amber-c:#92400e;--today-bg:#eff6ff;--today-border:#3b82f6;--today-c:#1d4ed8;--fds-bg:rgba(99,102,241,.06);--fds-c:#6366f1;--fds-border:rgba(99,102,241,.25);}
+html.dark{--bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--border:#2d3748;--border2:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--text4:#4a5568;--header:#161920;--card:#242836;--input:#2d3140;--th:#1e2230;--th-border:#2d3748;--td-border:#252a38;--btn-border:#3d4660;--btn-c:#a0aec0;--blue-m-bg:#1a2744;--blue-m-border:#2a4080;--blue-m-v:#63b3ed;--red-m-bg:#1f1010;--red-m-border:#3d2020;--red-m-v:#fc8181;--amber-m-bg:#1f1a0d;--amber-m-border:#3d3010;--amber-m-v:#f6ad55;--badge-green-bg:#0d2010;--badge-green-c:#68d391;--badge-red-bg:#1f1010;--badge-red-c:#fc8181;--badge-amber-bg:#2d1f00;--badge-amber-c:#f6ad55;--today-bg:#1a2744;--today-border:#2a4080;--today-c:#63b3ed;--fds-bg:rgba(99,102,241,.08);--fds-c:#818cf8;--fds-border:rgba(99,102,241,.3);}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 a{text-decoration:none}
