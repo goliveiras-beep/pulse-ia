@@ -333,7 +333,9 @@ Responda SOMENTE JSON (sem texto):
   }
 
   try {
-  const eventos = await getEventosPeriodo(fmtAirtable(inicio), fmtAirtable(fim));
+  // Eventos do Airtable carregados de forma lazy (não bloqueia o carregamento da página)
+  let eventos = [];
+  try { eventos = await getEventosPeriodo(fmtAirtable(inicio), fmtAirtable(fim)); } catch(e) { console.warn('Airtable indisponível:', e.message); }
 
   const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   const diasProcessados = [];
