@@ -42,8 +42,26 @@ function getSession(req) {
   }
 }
 
+// Normaliza datas de qualquer formato para DD/MM — resolve legado USER_ENTERED
+function normalizarDf(raw) {
+  if(!raw) return '';
+  const s = String(raw).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) { const p=s.split('-'); return p[2].slice(0,2).padStart(2,'0')+'/'+p[1].padStart(2,'0'); }
+  if(/^\d{1,2}\/\d{1,2}/.test(s)) { const p=s.split('/'); return p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0'); }
+  if(/^\d{5,6}$/.test(s)) return s; // serial numérico — ignora
+  return s;
+}
+
 async function getSheet(range) {
-  try { const d = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(range)}`); return d.values||[]; }
+  try {
+    const d = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(range)}`);
+    const values = d.values||[];
+    // Normaliza coluna A (data) se for range de Escala
+    if(range.includes('Escala')) {
+      return values.map(r => r.length>0 ? [normalizarDf(r[0]||''), ...r.slice(1)] : r);
+    }
+    return values;
+  }
   catch { return []; }
 }
 async function setSheet(range, values) {
@@ -106,13 +124,6 @@ export default async function handler(req, res) {
       if (usuario2?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});
 
       const escalaAtual = await getSheet('Escala!A2:F2000');
-      function normalizarDf(raw) {
-        if(!raw) return '';
-        const s = String(raw).trim();
-        if(/^\d{4}-\d{2}-\d{2}/.test(s)) { const p=s.split('-'); return p[2].slice(0,2).padStart(2,'0')+'/'+p[1].padStart(2,'0'); }
-        if(/^\d{1,2}\/\d{1,2}/.test(s)) { const p=s.split('/'); return p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0'); }
-        return s;
-      }
       const escalaNorm = escalaAtual.map(r=>[normalizarDf(r[0]||''),r[1]||'',r[2]||'',r[3]||'',r[4]||'',r[5]||'']);
       const existingQ = new Set(escalaNorm.filter(r=>r[0]&&r[2]).map(r=>r[0]+'|'+r[2]));
       const ativos = equipeRaw2.filter(r=>r[0]&&r[8]!=='pendente');
