@@ -1785,7 +1785,6 @@ async function publicarHorizonte(opcao) {
   var d = new Date(hoje);
   var horizonte = '';
   if(opcao==='limpar') {
-    if(!confirm('Remover a janela de publicação? A equipe não verá mais a escala futura.')) return;
   } else {
     if(opcao==='1 dia') d.setDate(d.getDate()+1);
     else if(opcao==='2 dias') d.setDate(d.getDate()+2);
@@ -1795,7 +1794,7 @@ async function publicarHorizonte(opcao) {
     var dd=String(d.getDate()).padStart(2,'0');
     var mm=String(d.getMonth()+1).padStart(2,'0');
     horizonte=dd+'/'+mm;
-    if(!confirm('Publicar escala até '+horizonte+'?\nA equipe poderá ver os turnos até essa data.')) return;
+  mostrarToast('Salvando...','#374151');
   }
   try {
     var r=await fetch('/api/publicar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({horizonte})});
