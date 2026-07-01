@@ -194,8 +194,9 @@ export default async function handler(req, res) {
       ? `<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">Gestor</span>`
       : `<span style="background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600">Colaborador</span>`;
     const tipoCores = { 'CLT':['#dcfce7','#166534'], 'PJ':['#f3e8ff','#7c3aed'], 'Temporário':['#fef3c7','#92400e'] };
+    const tipoLabels = { 'CLT':'LIVE MODE', 'Temporário':'LET', 'PJ':'PJ' };
     const [tbg,tc] = tipoCores[m.tipoContrato] || ['#f3f4f6','#6b7280'];
-    const badgeTipoContrato = `<span style="background:${tbg};color:${tc};border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600">${m.tipoContrato || 'Sem tipo definido'}</span>`;
+    const badgeTipoContrato = `<span style="background:${tbg};color:${tc};border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600">${tipoLabels[m.tipoContrato] || m.tipoContrato || '—'}</span>`;
     return `
     <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px">
       <div style="width:44px;height:44px;border-radius:50%;background:${cor};color:${corT};font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(m.nome)}</div>
@@ -367,9 +368,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="field"><label>Tipo de contrato</label>
         <select id="ed-tipo-contrato">
           <option value="">Não definido</option>
-          <option value="CLT">CLT</option>
+          <option value="CLT">LIVE MODE (CLT)</option>
           <option value="PJ">PJ</option>
-          <option value="Temporário">Temporário (LET · 6x1)</option>
+          <option value="Temporário">LET (Temporário)</option>
         </select>
       </div>
       <div class="field"><label>Perfil de acesso</label>
