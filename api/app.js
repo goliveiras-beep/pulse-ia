@@ -333,6 +333,11 @@ a{text-decoration:none;color:inherit}
 .semana-titulo{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
 .grid7{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 @keyframes pulsar{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes border-pulse-green{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 4px rgba(34,197,94,0)}}
+@keyframes border-pulse-amber{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.4)}50%{box-shadow:0 0 0 4px rgba(245,158,11,0)}}
+.g-ev-aovivo{border-color:#22c55e!important;animation:border-pulse-green 2s ease-in-out infinite!important}
+.g-ev-p30{border-color:#f59e0b!important;animation:border-pulse-amber 2s ease-in-out infinite!important}
+.g-ev-p60{border-color:#fb923c!important}
 @keyframes pulse-heart{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
 .pulse-heart-anim{animation:pulse-heart 1.5s ease-in-out infinite}
 @media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}}
@@ -1852,13 +1857,16 @@ function atualizarBadgesGestor(){
     }
     if(s==='aovivo'){
       badge.innerHTML='<span style="background:#166534;color:#86efac;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">● AO VIVO</span>';
-      el.style.borderColor='#22c55e';
+      el.classList.add('g-ev-aovivo'); el.classList.remove('g-ev-p30','g-ev-p60');
     } else if(s==='p30'){
       badge.innerHTML='<span style="background:#451a03;color:#fcd34d;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">⚡ &lt;30min</span>';
+      el.classList.add('g-ev-p30'); el.classList.remove('g-ev-aovivo','g-ev-p60');
     } else if(s==='p60'){
       badge.innerHTML='<span style="background:#431407;color:#fb923c;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">🔜 &lt;60min</span>';
+      el.classList.add('g-ev-p60'); el.classList.remove('g-ev-aovivo','g-ev-p30');
     } else {
       badge.innerHTML='';
+      el.classList.remove('g-ev-aovivo','g-ev-p30','g-ev-p60');
     }
   });
 }
