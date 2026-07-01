@@ -134,12 +134,16 @@ export default async function handler(req, res) {
 
       const escalaAtual = await getSheet('Escala!A2:F2000');
       const escalaNorm = escalaAtual.map(r=>[normalizarDf(r[0]||''),r[1]||'',r[2]||'',r[3]||'',r[4]||'',r[5]||'']);
-      // existingQ: só bloqueia se data já está em formato correto DD/MM
-      // Linhas com formato errado (02/07/2026) NÃO bloqueiam — serão sobrescritas/duplicadas
+      // existingQ: preserva dados manuais, permite sobrescrever "Gerado IA" com novo dado
       const existingQ = new Set(
         escalaAtual
-          .filter(r=>r[0]&&r[2]&&/^\d{2}\/\d{2}$/.test(String(r[0]).trim()))
-          .map(r=>String(r[0]).trim()+'|'+r[2])
+          .filter(r => {
+            if(!r[0]||!r[2]) return false;
+            if(!r[3]&&!r[4]&&r[5]!=='Folga') return false; // linha vazia
+            if(r[5]==='Gerado IA') return false; // pode ser regerado
+            return true; // manual = preservar
+          })
+          .map(r => normalizarDf(r[0])+'|'+r[2])
       );
       const ativos = equipeRaw2.filter(r=>r[0]&&r[8]!=='pendente');
       const revQ = [...escalaNorm].reverse();
@@ -166,9 +170,21 @@ export default async function handler(req, res) {
           linhas.push([df,'',p[0],t.ent,t.sai,'Gerado IA']);
         });
       }
-      if(linhas.length===0) return res.status(200).json({ok:true,gravadas:0,mensagem:'Todos os dias já preenchidos'});
-      await appendSheet('Escala!A:F', linhas);
-      return res.status(200).json({ok:true, gravadas:linhas.length, debug:{pessoa:session.nome, ativos:ativos.length, linhas:linhas.length}});
+      // Para cada linha a gerar: atualizar se já existe "Gerado IA", senão appendar
+      const linhasNovas = [];
+      for(const linha of linhas) {
+        const df = linha[0], nome = linha[2];
+        // Procura linha existente com "Gerado IA" para esta data/pessoa
+        const idxExist = escalaAtual.findIndex(r => normalizarDf(r[0])===df && r[2]===nome && r[5]==='Gerado IA');
+        if(idxExist >= 0) {
+          // Atualiza a linha existente com os novos horários
+          await setSheet(`Escala!A${idxExist+2}:F${idxExist+2}`, [linha]);
+        } else {
+          linhasNovas.push(linha);
+        }
+      }
+      if(linhasNovas.length > 0) await appendSheet('Escala!A:F', linhasNovas);
+      return res.status(200).json({ok:true, gravadas:linhas.length, atualizadas:linhas.length-linhasNovas.length, novas:linhasNovas.length});
     } catch(e) {
       return res.status(500).json({error:e.message});
     }
