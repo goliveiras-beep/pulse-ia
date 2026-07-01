@@ -64,8 +64,9 @@ async function appendSheet(range, values) {
 }
 
 async function getEventos(dataStr) {
-  // Filtro só pela data de INÍCIO do evento — evita mostrar eventos do dia anterior que terminam depois da meia-noite
-  const filter=`AND(DATESTR({fldRnfbwPVzFiHMqs})='${dataStr}',{Status}!='Cancelado')`;
+  // Filtra pela data de INÍCIO do evento (campo fld8hthI7oI4MY5aP = Data de início)
+  // fldRnfbwPVzFiHMqs é o campo "Data c/ Pós" (data de término) — não usar para filtrar
+  const filter=`AND(DATESTR({fld8hthI7oI4MY5aP})='${dataStr}',{Status}!='Cancelado')`;
   try {
     const r=await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=30`,
       {headers:{Authorization:`Bearer ${process.env.AIRTABLE_API_KEY}`}});
