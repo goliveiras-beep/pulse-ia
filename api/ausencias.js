@@ -86,37 +86,63 @@ export default async function handler(req,res){
   }
 
   // Timeline HTML
+  const MESES_ABR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   const timelineHtml = colaboradores.length===0 ? `<div style="padding:32px;text-align:center;color:#718096;font-size:13px">Nenhuma ausência aprovada nos próximos 30 dias</div>` : `
   <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
   <table style="border-collapse:collapse;min-width:100%">
-    <thead><tr>
-      <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;color:#718096;text-transform:uppercase;white-space:nowrap;background:#1e2230;position:sticky;left:0;z-index:2;min-width:150px">Colaborador</th>
-      ${diasTimeline.map(({df,d,isFds,isHoje})=>`
-        <th style="padding:4px 2px;text-align:center;font-size:9px;font-weight:600;color:${isHoje?'#63b3ed':isFds?'#fb923c':'#718096'};background:${isHoje?'#1a2744':isFds?'#1c1206':'#1e2230'};border-bottom:2px solid ${isHoje?'#3b82f6':isFds?'#92400e':'#2d3748'};min-width:32px">
-          ${['D','S','T','Q','Q','S','S'][d.getDay()]}<br><span style="font-weight:400">${d.getDate()}</span>
-        </th>`).join('')}
-    </tr></thead>
+    <thead>
+      <!-- Linha do mês -->
+      <tr>
+        <th style="background:#1e2230;position:sticky;left:0;z-index:2;min-width:150px;border-bottom:0"></th>
+        ${(() => {
+          let lastMes=-1, cells='';
+          diasTimeline.forEach(({d,isFds,isHoje})=>{
+            const mes=d.getMonth();
+            const bg=isHoje?'#1a2744':isFds?'#1c1206':'#1e2230';
+            if(mes!==lastMes){lastMes=mes;cells+=`<td style="padding:3px 4px;text-align:left;font-size:10px;font-weight:700;color:#f6ad55;background:${bg};border-bottom:0;white-space:nowrap">${MESES_ABR[mes].toUpperCase()}</td>`;}
+            else cells+=`<td style="background:${bg};border-bottom:0;padding:0"></td>`;
+          });
+          return cells;
+        })()}
+      </tr>
+      <!-- Linha dos dias -->
+      <tr>
+        <th style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;color:#718096;text-transform:uppercase;white-space:nowrap;background:#1e2230;position:sticky;left:0;z-index:2;min-width:150px;border-bottom:2px solid #2d3748">Colaborador</th>
+        ${diasTimeline.map(({df,d,isFds,isHoje})=>`
+          <th style="padding:4px 2px;text-align:center;background:${isHoje?'#1a2744':isFds?'#1c1206':'#1e2230'};border-bottom:2px solid ${isHoje?'#3b82f6':isFds?'#92400e':'#2d3748'};min-width:36px">
+            <div style="font-size:9px;font-weight:700;color:${isHoje?'#63b3ed':isFds?'#fb923c':'#4a5568'}">${['D','S','T','Q','Q','S','S'][d.getDay()]}</div>
+            <div style="font-size:11px;font-weight:800;color:${isHoje?'#93c5fd':isFds?'#fdba74':'#718096'}">${d.getDate()}</div>
+          </th>`).join('')}
+      </tr>
+    </thead>
     <tbody>
     ${colaboradores.map(nome=>{
       const ausNome=aprovadas.filter(a=>a.nome===nome);
       return `<tr>
-        <td style="padding:6px 12px;border-bottom:1px solid #2d3748;background:#161920;position:sticky;left:0;z-index:1;white-space:nowrap">
+        <td style="padding:8px 12px;border-bottom:1px solid #2d3748;background:#161920;position:sticky;left:0;z-index:1;white-space:nowrap">
           <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:24px;height:24px;border-radius:50%;background:#1a2744;color:#63b3ed;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${nome.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
-            <span style="font-size:12px;font-weight:600;color:#e2e8f0">${nome.split(' ').slice(0,2).join(' ')}</span>
+            <div style="width:28px;height:28px;border-radius:50%;background:#1a2744;color:#63b3ed;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${nome.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:#e2e8f0">${nome.split(' ').slice(0,2).join(' ')}</div>
+              ${ausNome.map(a=>`<div style="font-size:9px;color:#718096">${TIPO_COR[a.tipo]?.[2]||'📋'} ${a.ini}→${a.fim||a.ini}</div>`).join('')}
+            </div>
           </div>
         </td>
-        ${diasTimeline.map(({df,isFds,isHoje})=>{
+        ${diasTimeline.map(({df,d,isFds,isHoje})=>{
           const aus=ausNome.find(a=>dentroAus(a.ini,a.fim,df,ano));
-          const bgCell=isHoje?'#1a2744':isFds?'#1c1206':'';
+          const bgCell=isHoje?'rgba(26,39,68,.5)':isFds?'rgba(28,18,6,.5)':'';
           if(aus){
             const [bg,c,ic]=TIPO_COR[aus.tipo]||['#1e2230','#94a3b8','📋'];
-            const isIni=aus.ini===df,isFim=aus.fim===df||(!aus.fim&&aus.ini===df);
-            return `<td style="padding:3px 2px;border-bottom:1px solid #2d3748;background:${bg};${isIni?'border-left:3px solid '+c+';':''}${isFim?'border-right:3px solid '+c+';':''}" title="${aus.tipo}: ${aus.ini}→${aus.fim||aus.ini}">
-              <div style="height:20px;display:flex;align-items:center;justify-content:center;font-size:10px">${isIni?ic:''}</div>
+            const isIni=aus.ini===df;
+            const isFim=(aus.fim||aus.ini)===df;
+            const isMiddle=!isIni&&!isFim;
+            return `<td style="padding:4px 1px;border-bottom:1px solid #2d3748;background:${bg}" title="${aus.tipo}: ${aus.ini} → ${aus.fim||aus.ini}">
+              <div style="height:28px;border-radius:${isIni?'6px 0 0 6px':isFim?'0 6px 6px 0':isMiddle?'0':'4px'};background:${c}22;border-top:2px solid ${c};border-bottom:2px solid ${c};${isIni?'border-left:3px solid '+c+';':''}${isFim?'border-right:3px solid '+c+';':''}display:flex;align-items:center;justify-content:center;font-size:12px">
+                ${isIni?`<span title="${aus.tipo}">${ic}</span>`:''}
+              </div>
             </td>`;
           }
-          return `<td style="padding:3px 2px;border-bottom:1px solid #2d3748;background:${bgCell}"><div style="height:20px"></div></td>`;
+          return `<td style="padding:4px 1px;border-bottom:1px solid #2d3748;background:${bgCell}"><div style="height:28px;border-radius:3px"></div></td>`;
         }).join('')}
       </tr>`;
     }).join('')}
