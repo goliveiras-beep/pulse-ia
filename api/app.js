@@ -343,16 +343,13 @@ a{text-decoration:none;color:inherit}
 @media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:640px){
   .wrap{padding:10px}
-  .header{padding:8px 10px;gap:6px;flex-wrap:nowrap;overflow:hidden}
-  .ht{font-size:11px!important}.hs{display:none!important}
-  .hr{gap:4px;flex-wrap:nowrap;overflow:hidden}
-  .btn-sm{display:none!important}
-  .hr .btn-sm-keep{display:flex!important}
-  #grelogio-gmt{display:none!important}
-  #gtempo-cidade{display:none!important}
-  #gtempo-widget{padding:3px 7px!important}
-  #grelogio-brt,#relogio-brt{font-size:13px!important}
-  #saudacao-gestor{display:none!important}
+  .header{padding:6px 10px;gap:6px;flex-wrap:nowrap}
+  .ht{font-size:12px!important}.hs{display:none!important}
+  /* Esconde TUDO no .hr exceto .m-keep */
+  .hr>*{display:none!important}
+  .hr>.m-keep{display:flex!important;align-items:center}
+  /* Relógio BRT compacto */
+  #grelogio-brt,#relogio-brt{font-size:13px!important;font-weight:700!important}
   .wrap table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
   .eventos-grid{grid-template-columns:1fr!important}
   .eventos-tab{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;white-space:nowrap;padding-bottom:4px}
@@ -1057,18 +1054,15 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
       <span id="tempo-temp" style="font-weight:700">--°C</span>
       <span id="tempo-cidade" style="color:#718096;font-size:10px"></span>
     </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
-      <div style="display:flex;align-items:center;gap:5px">
-        <span style="font-size:9px;font-weight:600;color:#718096;letter-spacing:.04em">Brasil</span>
+    <div class="m-keep" style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:9px;color:#718096">BRT</span>
         <span id="relogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
       </div>
-      <div style="display:flex;align-items:center;gap:5px">
-        <span style="font-size:9px;font-weight:600;color:#4a5568;letter-spacing:.04em">GMT</span>
-        <span id="relogio-gmt" style="font-size:11px;font-weight:600;color:#718096;font-variant-numeric:tabular-nums"></span>
-      </div>
+      <span id="relogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
     </div>
-    <button id="tt" class="btn-sm btn-sm-keep-colab" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;';})()" style="font-size:14px;padding:3px 8px">&#127769;</button>
-    <form method="POST" action="/api/app?action=logout" style="display:inline"><button type="submit" class="btn-sm btn-sm-keep-colab">Sair</button></form>
+    <button id="tt" class="btn-sm btn-sm-keep-colab m-keep" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;';})()" style="font-size:14px;padding:3px 8px">&#127769;</button>
+    <form method="POST" action="/api/app?action=logout" class="m-keep" style="display:inline"><button type="submit" class="btn-sm" style="display:inline-block">Sair</button></form>
   </div>
 </div>
 <style>
@@ -1082,17 +1076,11 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
 .tab-btn-colab.ativo{background:var(--blue-m-bg);border-color:var(--blue-m-border);color:var(--blue-m-v)}
 /* ── MOBILE ── */
 @media(max-width:640px){
-  .header{padding:8px 10px;gap:5px;overflow:hidden}
-  .ht{font-size:11px!important}
-  .hs{display:none!important}
-  .hr{gap:4px;flex-shrink:0}
-  .btn-sm{display:none!important}
-  .btn-sm-keep-colab{display:inline-block!important}
-  #gtempo-cidade,#tempo-cidade{display:none!important}
-  #grelogio-brt,#relogio-brt{font-size:12px!important}
-  #grelogio-gmt,#relogio-gmt{display:none!important}
-  #gtempo-temp,#tempo-temp{font-size:11px!important}
-  #tempo-widget,#gtempo-widget{padding:3px 6px!important}
+  .header{padding:6px 10px;gap:6px;flex-wrap:nowrap}
+  .ht{font-size:12px!important}.hs{display:none!important}
+  .hr>*{display:none!important}
+  .hr>.m-keep{display:flex!important;align-items:center}
+  #relogio-brt{font-size:13px!important;font-weight:700!important}
   .wrap{padding:10px 12px}
   .wrap > div[style*="grid-template-columns:1fr 1fr"]:first-child{grid-template-columns:1fr!important}
   #painel-dia > div[style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
@@ -1684,23 +1672,20 @@ setInterval(atualizarEventos, 60000);
       <span id="gtempo-temp" style="font-weight:700">--°C</span>
       <span id="gtempo-cidade" style="color:#718096;font-size:10px"></span>
     </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+    <div class="m-keep" style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
       <div style="display:flex;align-items:center;gap:5px">
-        <span style="font-size:9px;font-weight:600;color:#718096;letter-spacing:.04em">Brasil</span>
+        <span style="font-size:9px;font-weight:600;color:#718096;letter-spacing:.04em">BRT</span>
         <span id="grelogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
       </div>
-      <div style="display:flex;align-items:center;gap:5px">
-        <span style="font-size:9px;font-weight:600;color:#4a5568;letter-spacing:.04em">GMT</span>
-        <span id="grelogio-gmt" style="font-size:11px;font-weight:600;color:#718096;font-variant-numeric:tabular-nums"></span>
-      </div>
+      <span id="grelogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
     </div>
     <span id="saudacao-gestor" style="font-size:12px;color:#666">Ola, ${nome.split(' ')[0]}</span>
-    <a href="/api/escalas?v=semana" class="btn-sm btn-sm-keep">Escala</a>
-    <a href="/api/equipe-view" class="btn-sm btn-sm-keep" style="display:inline-flex;align-items:center;gap:4px">Equipe${badgeEquipeGestor}</a>
+    <a href="/api/escalas?v=semana" class="btn-sm btn-sm-keep m-keep">Escala</a>
+    <a href="/api/equipe-view" class="btn-sm btn-sm-keep m-keep" style="display:inline-flex;align-items:center;gap:4px">Equipe${badgeEquipeGestor}</a>
     <a href="/api/repositorio" class="btn-sm">Repositorio</a>
     <button class="btn-sm" onclick="location.reload()">&#8635;</button>
-    <button id="tt" class="btn-sm btn-sm-keep" onclick="(function(){var h=document.documentElement;var dk=h.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;'})()" style="font-size:14px;padding:3px 8px;display:flex">&#127769;</button>
-    <form method="POST" action="/api/app?action=logout" style="display:inline"><button type="submit" class="btn-sm btn-sm-keep" style="display:inline-block">Sair</button></form>
+    <button id="tt" class="btn-sm btn-sm-keep m-keep" onclick="(function(){var h=document.documentElement;var dk=h.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;'})()" style="font-size:14px;padding:3px 8px;display:flex">&#127769;</button>
+    <form method="POST" action="/api/app?action=logout" class="m-keep" style="display:inline"><button type="submit" class="btn-sm" style="display:inline-block">Sair</button></form>
   </div>
 </div>
 <div class="wrap">
