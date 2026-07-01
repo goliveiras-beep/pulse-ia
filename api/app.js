@@ -107,15 +107,20 @@ async function getFraseDoDia(dataStr) {
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant', max_tokens: 80,
         messages: [
-          { role: 'system', content: 'Responda com APENAS UMA frase curta de até 6 palavras. Sem explicações, sem listas, sem sugestões. Só a frase. Exemplo: Café na veia, câmera no ar!' },
-          { role: 'user', content: `Uma frase curta e animada para equipe de TV. Dia ${dataStr}.` }
+          { role: 'system', content: 'Responda com APENAS UMA frase curta de até 6 palavras, sem mencionar o dia da semana. Sem explicações, sem listas. Só a frase animada para equipe de TV ao vivo.' },
+          { role: 'user', content: `Frase animada para equipe de TV ao vivo. Data: ${dataStr}.` }
         ]
       })
     });
     const d = await r.json();
-    const frase = d.choices?.[0]?.message?.content?.trim() || 'Bora que hoje vai ser incrivel!';
-    try { await setSheet('Equipe!K1:L1', [[dataStr, frase]]); } catch {}
-    return frase;
+    const frase = d.choices?.[0]?.message?.content?.trim()?.replace(/^["']|["']$/g,'') || 'Câmera ligada, coração acelerado!';
+    // Remove menções a dias da semana da frase gerada
+    const diasSemana = ['domingo','segunda','terça','quarta','quinta','sexta','sábado','segunda-feira','terça-feira'];
+    const fraseOk = diasSemana.some(d => frase.toLowerCase().includes(d))
+      ? 'Câmera ligada, produção no ar!'
+      : frase;
+    try { await setSheet('Equipe!K1:L1', [[dataStr, fraseOk]]); } catch {}
+    return fraseOk;
   } catch { return 'Camera ligada, coração acelerado, vamos nessa!'; }
 }
 
@@ -1684,14 +1689,6 @@ setInterval(atualizarEventos, 60000);
 </div>
 <div class="wrap">
   ${bannerPublicacao}
-  <div class="metrics">
-    <div class="metric blue-m"><div class="ml">Trabalhando amanhã</div><div class="mv blue-v">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
-    <div class="metric ${folgHoje > 2 ? 'amber-m' : ''}"><div class="ml">Folgas hoje</div><div class="mv ${folgHoje > 2 ? 'amber-v' : ''}">${folgHoje}</div><div class="ms">${ausencias.filter(a => a[0] !== 'CANCELADO' && dentroAusencia(a, hojeStr)).length} via Pulse</div></div>
-    <div class="metric ${folgAmanha > 2 ? 'amber-m' : ''}"><div class="ml">Folgas amanhã</div><div class="mv ${folgAmanha > 2 ? 'amber-v' : ''}">${folgAmanha}</div><div class="ms">${ausencias.filter(a => a[4] === d1Str).length} via Pulse</div></div>
-    <div class="metric ${semCob > 0 ? 'red-m' : ''}" title="Eventos cujo intervalo início→fim não é coberto por nenhum turno escalado."><div class="ml">Sem cobertura</div><div class="mv ${semCob > 0 ? 'red-v' : ''}">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanhã</div></div>
-    ${feriasAtivas > 0 ? `<div class="metric amber-m"><div class="ml">Férias em até 7 dias</div><div class="mv amber-v">${feriasAtivas}</div><div class="ms">${feriasProximas.map(a => `${a[1].split(' ')[0]} (${a[4]})`).join(', ')}</div></div>` : ''}
-  </div>
-
   <div class="frase-banner">
     <div class="frase-ic">
       <svg class="pulse-heart-anim" width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/><rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/><path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/><polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1700,6 +1697,14 @@ setInterval(atualizarEventos, 60000);
       <div class="frase-label">Frase do dia</div>
       <div class="frase-txt">"${fraseDoDia}"</div>
     </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric blue-m"><div class="ml">Trabalhando amanhã</div><div class="mv blue-v">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
+    <div class="metric ${folgHoje > 2 ? 'amber-m' : ''}"><div class="ml">Folgas hoje</div><div class="mv ${folgHoje > 2 ? 'amber-v' : ''}">${folgHoje}</div><div class="ms">${ausencias.filter(a => a[0] !== 'CANCELADO' && dentroAusencia(a, hojeStr)).length} via Pulse</div></div>
+    <div class="metric ${folgAmanha > 2 ? 'amber-m' : ''}"><div class="ml">Folgas amanhã</div><div class="mv ${folgAmanha > 2 ? 'amber-v' : ''}">${folgAmanha}</div><div class="ms">${ausencias.filter(a => a[4] === d1Str).length} via Pulse</div></div>
+    <div class="metric ${semCob > 0 ? 'red-m' : ''}" title="Eventos cujo intervalo início→fim não é coberto por nenhum turno escalado."><div class="ml">Sem cobertura</div><div class="mv ${semCob > 0 ? 'red-v' : ''}">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanhã</div></div>
+    ${feriasAtivas > 0 ? `<div class="metric amber-m"><div class="ml">Férias em até 7 dias</div><div class="mv amber-v">${feriasAtivas}</div><div class="ms">${feriasProximas.map(a => `${a[1].split(' ')[0]} (${a[4]})`).join(', ')}</div></div>` : ''}
   </div>
 
   <!-- Abas de navegação (só mobile) -->
