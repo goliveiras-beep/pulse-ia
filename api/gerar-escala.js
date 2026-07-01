@@ -242,16 +242,23 @@ Responda SOMENTE JSON (sem texto):
   const existingKeys = new Set(escalaRaw.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
   function jaPreenchido(df, nome) { return existingKeys.has(`${df}|${nome}`); }
 
-  // Histórico ampliado: 60 dias para cobrir todo o período Copa do Mundo
+  // Histórico ampliado: 60 dias — usar comparação correta para DD/MM
   const h60dias = new Date(hoje); h60dias.setDate(hoje.getDate()-60);
-  const escalaHist = escalaRaw.filter(r=>r[0]>=fmtData(h60dias)&&r[0]<=fmtData(hoje)&&r[3]&&r[4]&&r[5]!=='Folga');
-  const escalaTudo = escalaRaw.filter(r=>r[0]>=fmtData(h60dias)&&r[0]<=fmtData(hoje));
+  function dfParaNum(df) { // DD/MM → MMDD como número para comparação
+    const [d,m] = df.split('/'); return parseInt(m)*100+parseInt(d);
+  }
+  function dfParaData(df) { const [d,m] = df.split('/'); return new Date(hoje.getFullYear(), parseInt(m)-1, parseInt(d)); }
+  function dentroJanela(df) {
+    try { const dt = dfParaData(df); return dt >= h60dias && dt <= hoje; } catch { return false; }
+  }
+  const escalaHist = escalaRaw.filter(r=>r[0]&&dentroJanela(r[0])&&r[3]&&r[4]&&r[5]!=='Folga');
+  const escalaTudo = escalaRaw.filter(r=>r[0]&&dentroJanela(r[0]));
 
   const turnos = {};
   ativos.forEach(p => {
-    // Turno base: moda dos últimos 21 dias (padrão recente)
     const h3semanas = new Date(hoje); h3semanas.setDate(hoje.getDate()-21);
-    const regsRecentes = escalaHist.filter(r=>r[2]===p[0]&&r[0]>=fmtData(h3semanas));
+    function dentro3sem(df) { try { const dt=dfParaData(df); return dt>=h3semanas&&dt<=hoje; } catch { return false; } }
+    const regsRecentes = escalaHist.filter(r=>r[2]===p[0]&&dentro3sem(r[0]));
     const regs = regsRecentes.length ? regsRecentes : escalaHist.filter(r=>r[2]===p[0]);
     if(!regs.length) { turnos[p[0]]=null; return; }
     const freq={};
@@ -325,6 +332,7 @@ Responda SOMENTE JSON (sem texto):
     }
   }
 
+  try {
   const eventos = await getEventosPeriodo(fmtAirtable(inicio), fmtAirtable(fim));
 
   const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -615,4 +623,12 @@ async function confirmar(){
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Cache-Control','no-cache');
   return res.status(200).send(html);
+  } catch(err) {
+    console.error('gerar-escala GET erro:', err.message, err.stack);
+    res.setHeader('Content-Type','text/html; charset=utf-8');
+    return res.status(500).send(`<!DOCTYPE html><html><body style="font-family:sans-serif;background:#1c1f26;color:#fc8181;padding:40px">
+      <h2>Erro ao gerar escala</h2><pre style="font-size:13px;color:#a0aec0;white-space:pre-wrap">${err.message}\n\n${err.stack||''}</pre>
+      <a href="/api/escalas" style="color:#63b3ed">← Voltar para a Escala</a>
+    </body></html>`);
+  }
 }
