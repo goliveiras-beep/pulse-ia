@@ -340,7 +340,7 @@ export default async function handler(req, res) {
       </tr>`;
     }).join('');
 
-    conteudoGrid = `<div style="overflow-x:auto"><table id="grid-principal" style="width:100%;border-collapse:collapse">${cabecalho}<tbody id="tbody-semana">${linhas}</tbody></table></div>`;
+    conteudoGrid = `<div id="esc-tabela-wrap" style="overflow-x:auto"><table id="grid-principal" style="width:100%;border-collapse:collapse">${cabecalho}<tbody id="tbody-semana">${linhas}</tbody></table></div>`;
   } else {
     const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth() + offset, 1);
     const diasSemana = primeiroDia.getDay();
@@ -398,20 +398,46 @@ html.dark{--bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--border:#2d3748;--border2:#2
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 a{text-decoration:none}
+/* ── MOBILE ── */
+@media(max-width:640px){
+  /* Header */
+  #esc-header{padding:8px 12px!important;gap:8px!important}
+  #esc-header-right{gap:5px!important}
+  #esc-atualizado{display:none!important}
+  #esc-home-btn{display:none!important}
+  /* Métricas: 2 colunas */
+  #esc-metrics{grid-template-columns:repeat(2,1fr)!important;gap:8px!important}
+  #esc-metrics>div{padding:10px 12px!important}
+  #esc-metrics .mv{font-size:20px!important}
+  /* Controles: quebrar em 2 linhas */
+  #esc-controls{gap:6px!important;padding:8px 10px!important}
+  #esc-controls .ctrl-nav{order:2;width:100%;justify-content:space-between}
+  #esc-controls .ctrl-views{order:1}
+  #esc-controls .ctrl-titulo{display:none!important}
+  /* Filtros: esconder cargo dropdown no mobile */
+  #esc-filtros{padding:6px 10px!important;gap:6px!important;flex-wrap:wrap!important}
+  #esc-cargo-filter{font-size:11px!important;padding:4px 6px!important;max-width:120px}
+  /* Tabela: scroll horizontal */
+  #esc-tabela-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}
+  #esc-tabela-wrap table{min-width:600px}
+  #esc-tabela-wrap td,#esc-tabela-wrap th{padding:3px!important;font-size:10px!important}
+  /* Regras: compactar */
+  #esc-regras{font-size:10px!important;padding:8px!important;flex-wrap:wrap!important;gap:4px!important}
+}
 </style>
 </head><body>
-<div style="background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100">
+<div id="esc-header" style="background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100">
   <a href="/api/app" style="width:28px;height:28px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#1a1a1a;font-size:12px;font-weight:700;flex-shrink:0;text-decoration:none">P</a>
   <div><div style="font-size:14px;font-weight:600;color:#fff">Pulse - Escala</div><div style="font-size:11px;color:#666">${titulo} &middot; ${subtitulo}</div></div>
-  <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-    <span style="font-size:11px;color:#555">${atualizado}</span>
+  <div id="esc-header-right" style="margin-left:auto;display:flex;align-items:center;gap:6px">
+    <span id="esc-atualizado" style="font-size:11px;color:#555">${atualizado}</span>
     <button id="btn-gerar-ia" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;cursor:pointer" onclick="gerarEscalaIA()">&#10024; Gerar escala IA</button>
     <button id="tt" onclick="toggleTheme()" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">&#127769;</button>
-    <a href="/api/app" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--btn-c)">Home</a>
+    <a id="esc-home-btn" href="/api/app" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--btn-c)">Home</a>
   </div>
 </div>
 <div style="max-width:1200px;margin:0 auto;padding:16px 20px">
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+<div id="esc-metrics" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Periodo</div><div style="font-size:18px;font-weight:700">${datas.length} dia${datas.length>1?'s':''}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${nomes.length} colaboradores</div></div>
     <div style="background:${totalPerigo>0?'#fef2f2':'var(--card)'};border:1px solid ${totalPerigo>0?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Alertas criticos</div><div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':'var(--text)'}">${totalPerigo}</div><div style="font-size:10px;color:#aaa;margin-top:2px">interjornada, consecutivos</div></div>
     <div style="background:${totalAtencao>0?'#fffbeb':'var(--card)'};border:1px solid ${totalAtencao>0?'#fcd34d':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Atencoes</div><div style="font-size:24px;font-weight:700;color:${totalAtencao>0?'#d97706':'var(--text)'}">${totalAtencao}</div><div style="font-size:10px;color:#aaa;margin-top:2px">descanso, 6 dia</div></div>
