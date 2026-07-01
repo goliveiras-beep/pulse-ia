@@ -97,6 +97,55 @@ export default async function handler(req, res) {
   const session = getSession(req);
   if (!session) return res.redirect(302, '/api/app');
 
+  if (req.method === 'POST' && req.body?.action === 'quick-generate') {
+    // Gerar escala dos próximos 14 dias
+    try {
+      const equipeRaw2 = await getSheet('Equipe!A2:I50');
+      const usuario2 = equipeRaw2.find(r=>r[0]===session.nome);
+      if (usuario2?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});
+
+      const escalaAtual = await getSheet('Escala!A2:F2000');
+      function normalizarDf(raw) {
+        if(!raw) return '';
+        const s = String(raw).trim();
+        if(/^\d{4}-\d{2}-\d{2}/.test(s)) { const p=s.split('-'); return p[2].slice(0,2).padStart(2,'0')+'/'+p[1].padStart(2,'0'); }
+        if(/^\d{1,2}\/\d{1,2}/.test(s)) { const p=s.split('/'); return p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0'); }
+        return s;
+      }
+      const escalaNorm = escalaAtual.map(r=>[normalizarDf(r[0]||''),r[1]||'',r[2]||'',r[3]||'',r[4]||'',r[5]||'']);
+      const existingQ = new Set(escalaNorm.filter(r=>r[0]&&r[2]).map(r=>r[0]+'|'+r[2]));
+      const ativos = equipeRaw2.filter(r=>r[0]&&r[8]!=='pendente');
+      const revQ = [...escalaNorm].reverse();
+      const turnosQ = {};
+      ativos.forEach(p=>{
+        const regsP = escalaNorm.filter(r=>r[2]===p[0]&&r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Férias').slice(-30);
+        if(!regsP.length){ const last=revQ.find(r=>r[2]===p[0]&&r[3]&&r[4]); turnosQ[p[0]]=last?{ent:last[3],sai:last[4]}:null; return; }
+        const freq={};
+        regsP.forEach(r=>{const k=r[3]+'|'+r[4];freq[k]=(freq[k]||0)+1;});
+        const best=Object.entries(freq).sort((a,b)=>b[1]-a[1])[0][0].split('|');
+        turnosQ[p[0]]={ent:best[0],sai:best[1]};
+      });
+      const hoje2=new Date(new Date().toLocaleString('en',{timeZone:'America/Sao_Paulo'}));
+      const fmtD=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+      const linhas=[];
+      for(let i=1;i<=14;i++){
+        const d=new Date(hoje2); d.setDate(hoje2.getDate()+i);
+        const df=fmtD(d);
+        ativos.forEach(p=>{
+          const t=turnosQ[p[0]];
+          if(!t) return;
+          if(existingQ.has(df+'|'+p[0])) return;
+          linhas.push([df,'',p[0],t.ent,t.sai,'Gerado IA']);
+        });
+      }
+      if(linhas.length===0) return res.status(200).json({ok:true,gravadas:0,mensagem:'Todos os dias já preenchidos'});
+      await appendSheet('Escala!A:F', linhas);
+      return res.status(200).json({ok:true, gravadas:linhas.length, debug:{pessoa:session.nome, ativos:ativos.length, linhas:linhas.length}});
+    } catch(e) {
+      return res.status(500).json({error:e.message});
+    }
+  }
+
   if (req.method === 'POST') {
     const equipeRaw2 = await getSheet('Equipe!A2:I50');
     const usuario2 = equipeRaw2.find(r=>r[0]===session.nome);
@@ -314,7 +363,7 @@ a{text-decoration:none}
     <span style="font-size:11px;color:#555">${atualizado}</span>
     <button id="btn-gerar-ia" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;cursor:pointer" onclick="
       var b=this;b.textContent='⏳ Gerando...';b.disabled=true;
-      fetch('/api/gerar-escala?action=quick',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'})
+      fetch('/api/escalas',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'quick-generate'})})
         .then(function(r){return r.json();})
         .then(function(d){
           if(d.ok){
@@ -548,7 +597,7 @@ async function gerarEscalaIA(){
   var btn=document.getElementById('btn-gerar-ia');
   btn.textContent='⏳ Gerando...';btn.disabled=true;btn.style.color='#a0aec0';
   try{
-    var r=await fetch('/api/gerar-escala?action=quick',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    var r=await fetch('/api/escalas',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'quick-generate'})});
     var d=await r.json();
     if(d.ok){
       btn.textContent='✓ '+d.gravadas+' turnos gerados!';btn.style.background='#0d2010';btn.style.color='#68d391';btn.style.borderColor='#166534';
