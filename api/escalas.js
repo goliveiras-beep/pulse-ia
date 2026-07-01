@@ -415,8 +415,8 @@ function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');
   </div>
   <div id="editor-horarios">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-      <div><div style="font-size:10px;color:#718096;margin-bottom:3px">Entrada</div><input id="editor-ent" type="time" style="width:100%;background:#1e2230;border:1px solid #3d4660;border-radius:5px;padding:6px 8px;font-size:13px;color:#e2e8f0;outline:none"></div>
-      <div><div style="font-size:10px;color:#718096;margin-bottom:3px">Saida</div><input id="editor-sai" type="time" style="width:100%;background:#1e2230;border:1px solid #3d4660;border-radius:5px;padding:6px 8px;font-size:13px;color:#e2e8f0;outline:none"></div>
+      <div><div style="font-size:10px;color:#718096;margin-bottom:3px">Entrada</div><input id="editor-ent" type="text" placeholder="HH:MM" maxlength="5" style="width:100%;background:#1e2230;border:1px solid #3d4660;border-radius:5px;padding:6px 8px;font-size:15px;color:#e2e8f0;outline:none;font-family:monospace"></div>
+      <div><div style="font-size:10px;color:#718096;margin-bottom:3px">Saída</div><input id="editor-sai" type="text" placeholder="HH:MM" maxlength="5" style="width:100%;background:#1e2230;border:1px solid #3d4660;border-radius:5px;padding:6px 8px;font-size:15px;color:#e2e8f0;outline:none;font-family:monospace"></div>
     </div>
   </div>
   <div style="display:flex;gap:6px;margin-top:4px">
@@ -430,7 +430,36 @@ function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');
 <div id="toast-esc" style="position:fixed;bottom:20px;right:20px;background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:500;z-index:600;display:none;max-width:280px"></div>
 <script>
 var editorData={},clipboard=null;
-function abrirEditor(el,data,nome,ent,sai,obs){editorData={el,data,nome,ent,sai,obs};document.getElementById('editor-titulo').textContent=nome+' · '+data;var tipo='turno';if(obs==='Folga')tipo='folga';else if(obs==='Dispensa Médica')tipo='dispensa';else if(obs==='Férias')tipo='ferias';setTipo(tipo,false);document.getElementById('editor-ent').value=ent||'';document.getElementById('editor-sai').value=sai||'';var rect=el.getBoundingClientRect(),popup=document.getElementById('editor-popup');popup.style.display='block';document.getElementById('editor-overlay').style.display='block';var top=rect.bottom+4,left=rect.left;if(top+200>window.innerHeight)top=rect.top-220;if(left+250>window.innerWidth)left=window.innerWidth-260;popup.style.top=top+'px';popup.style.left=left+'px';setTimeout(function(){document.getElementById('editor-ent').focus();},100);}
+function abrirEditor(el,data,nome,ent,sai,obs){
+  editorData={el,data,nome,ent,sai,obs};
+  document.getElementById('editor-titulo').textContent=nome+' · '+data;
+  var tipo='turno';
+  if(obs==='Folga')tipo='folga';
+  else if(obs==='Dispensa Médica')tipo='dispensa';
+  else if(obs==='Férias')tipo='ferias';
+  setTipo(tipo);
+  document.getElementById('editor-ent').value=ent||'';
+  document.getElementById('editor-sai').value=sai||'';
+  var rect=el.getBoundingClientRect(),popup=document.getElementById('editor-popup');
+  popup.style.display='block';
+  document.getElementById('editor-overlay').style.display='block';
+  var top=rect.bottom+4,left=rect.left;
+  if(top+260>window.innerHeight)top=Math.max(10,rect.top-270);
+  if(left+260>window.innerWidth)left=Math.max(10,window.innerWidth-270);
+  popup.style.top=top+'px';popup.style.left=left+'px';
+  setTimeout(function(){document.getElementById('editor-ent').focus();document.getElementById('editor-ent').select();},80);
+}
+// Auto-formato HH:MM
+['editor-ent','editor-sai'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',function(){
+    var v=this.value.replace(/[^0-9]/g,'');
+    if(v.length>=3)v=v.slice(0,2)+':'+v.slice(2,4);
+    this.value=v;
+  });
+  document.getElementById(id).addEventListener('keydown',function(e){
+    if(e.key==='Enter'){e.preventDefault();if(this.id==='editor-ent')document.getElementById('editor-sai').focus();else salvarEdicao();}
+  });
+});
 function setTipo(tipo){editorData.tipo=tipo;['turno','folga','dispensa','ferias'].forEach(function(t){var btn=document.getElementById('btn-tipo-'+t);if(t===tipo){var bgs={turno:'#1a2744',folga:'#1f1a0d',dispensa:'#1a0d2e',ferias:'#0d2010'},clrs={turno:'#63b3ed',folga:'#f6ad55',dispensa:'#c084fc',ferias:'#68d391'},bds={turno:'#2a4080',folga:'#3d3010',dispensa:'#6b21a8',ferias:'#166534'};btn.style.background=bgs[t]||'none';btn.style.color=clrs[t]||'#a0aec0';btn.style.borderColor=bds[t]||'#3d4660';}else{btn.style.background='none';btn.style.color='#a0aec0';btn.style.borderColor='#3d4660';}});document.getElementById('editor-horarios').style.display=tipo==='turno'?'block':'none';}
 function fecharEditor(){document.getElementById('editor-popup').style.display='none';document.getElementById('editor-overlay').style.display='none';}
 function copiarTurno(){clipboard={ent:document.getElementById('editor-ent').value,sai:document.getElementById('editor-sai').value,tipo:editorData.tipo};toast('Turno copiado!','#166634');fecharEditor();}
@@ -452,19 +481,27 @@ async function excluirTurno(){
 }
 document.addEventListener('keydown',function(e){
   var popupAberto=document.getElementById('editor-popup').style.display!=='none';
-  var emInput=document.activeElement.tagName==='INPUT'||document.activeElement.tagName==='SELECT'||document.activeElement.tagName==='TEXTAREA';
-  if((e.ctrlKey||e.metaKey)&&e.key==='c'&&popupAberto&&!emInput){e.preventDefault();copiarTurno();}
-  if((e.ctrlKey||e.metaKey)&&e.key==='v'&&popupAberto&&clipboard&&!emInput){
+  if(!popupAberto) return;
+  var emInput=document.activeElement&&(document.activeElement.id==='editor-ent'||document.activeElement.id==='editor-sai');
+  // Ctrl+C = copiar turno (só quando não está digitando)
+  if((e.ctrlKey||e.metaKey)&&e.key==='c'&&!emInput){e.preventDefault();copiarTurno();}
+  // Ctrl+V = colar turno (funciona mesmo com input focado)
+  if((e.ctrlKey||e.metaKey)&&e.key==='v'&&clipboard){
     e.preventDefault();
     setTipo(clipboard.tipo||'turno');
     document.getElementById('editor-ent').value=clipboard.ent||'';
     document.getElementById('editor-sai').value=clipboard.sai||'';
-    toast('Turno colado!','#166634');
+    document.getElementById('editor-sai').focus();
+    toast('Colado: '+clipboard.ent+' → '+clipboard.sai,'#166634');
   }
-  if(!popupAberto) return;
+  // Delete/Backspace = excluir (só fora dos inputs)
   if((e.key==='Delete'||e.key==='Backspace')&&!emInput){e.preventDefault();excluirTurno();}
-  else if(e.key==='Escape'){fecharEditor();}
-  else if(e.key==='Enter'&&!emInput){e.preventDefault();salvarEdicao();}
+  // Escape = fechar
+  if(e.key==='Escape'){fecharEditor();}
+  // Enter = salvar (só fora dos inputs)
+  if(e.key==='Enter'&&!emInput){e.preventDefault();salvarEdicao();}
+  // Tab = pular entrada → saída
+  if(e.key==='Tab'&&document.activeElement.id==='editor-ent'){e.preventDefault();document.getElementById('editor-sai').focus();}
 });
 </script>
 </body></html>`;
