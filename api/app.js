@@ -1834,16 +1834,32 @@ function atualizarBadgesGestor(){
   var min=bh*60+bm;
   document.querySelectorAll('[data-hora]').forEach(function(el){
     var badge=el.querySelector('.badge-realtime'); if(!badge) return;
-    // Só mostra badge em tempo real para eventos de HOJE
     if(el.dataset.isoje!=='1'){badge.innerHTML='';return;}
     var m=toMinG(el.dataset.hora); if(m===null) return;
-    var s;
-    if(f!==null){if(min>=m&&min<=f)s='aovivo';else if(min>f)s=min>f+30?'enc':'aovivo';else if(m-min<=30)s='p30';else if(m-min<=60)s='p60';else s='';}
-    else{if(m<min-30)s='enc';else if(m<=min+5&&m>=min-30)s='aovivo';else if(m-min<=30)s='p30';else if(m-min<=60)s='p60';else s='';}
-    if(s==='aovivo') badge.innerHTML='<span style="background:#166534;color:#86efac;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">● AO VIVO</span>';
-    else if(s==='p30') badge.innerHTML='<span style="background:#451a03;color:#fcd34d;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">⚡ &lt;30min</span>';
-    else if(s==='p60') badge.innerHTML='<span style="background:#431407;color:#fb923c;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">🔜 &lt;60min</span>';
-    else badge.innerHTML='';
+    var f=toMinG(el.dataset.horafim||'');
+    if(f!==null&&f<m) f+=1440; // evento atravessa meia-noite
+    var s='';
+    if(f!==null){
+      if(min>=m&&min<=f) s='aovivo';
+      else if(min>f) s=min>f+30?'enc':'aovivo';
+      else if(m-min<=30) s='p30';
+      else if(m-min<=60) s='p60';
+    } else {
+      if(m<min-30) s='enc';
+      else if(m<=min+5&&m>=min-30) s='aovivo';
+      else if(m-min<=30) s='p30';
+      else if(m-min<=60) s='p60';
+    }
+    if(s==='aovivo'){
+      badge.innerHTML='<span style="background:#166534;color:#86efac;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">● AO VIVO</span>';
+      el.style.borderColor='#22c55e';
+    } else if(s==='p30'){
+      badge.innerHTML='<span style="background:#451a03;color:#fcd34d;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">⚡ &lt;30min</span>';
+    } else if(s==='p60'){
+      badge.innerHTML='<span style="background:#431407;color:#fb923c;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">🔜 &lt;60min</span>';
+    } else {
+      badge.innerHTML='';
+    }
   });
 }
 atualizarBadgesGestor();
