@@ -150,7 +150,7 @@ Regras:
 
 export default async function handler(req, res) {
   const session = getSession(req);
-  if (!session) return res.redirect(302, '/api/app');
+  if (!session) return res.status(401).json({ error: 'Não autenticado' });
 
   const [equipeRaw, escalaRaw] = await Promise.all([
     getSheet('Equipe!A2:I50'),
@@ -158,7 +158,7 @@ export default async function handler(req, res) {
   ]);
 
   const usuario = equipeRaw.find(r=>r[0]===session.nome);
-  if (usuario?.[8] !== 'gestor') return res.redirect(302, '/api/app');
+  if (usuario?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado — não é gestor' });
 
   const hoje = getBRT();
   const inicio = new Date(hoje); inicio.setDate(hoje.getDate()+1);
