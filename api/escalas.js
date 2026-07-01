@@ -634,6 +634,7 @@ async function gerarEscalaIA(){
     toast('Erro de conexão: '+e.message,'#dc2626');
   }
 }
+async function colarDireto(cel){
   if(!clipboard||!cel.df||!cel.nome) return;
   toast('Colando...','#374151');
   try {
