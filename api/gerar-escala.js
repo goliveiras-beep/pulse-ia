@@ -310,6 +310,41 @@ Responda SOMENTE JSON (sem texto):
   const fadiga = {};
   ativos.filter(p=>turnos[p[0]]).forEach(p=>{ fadiga[p[0]] = calcularFadiga(p[0]); });
 
+  if (req.method === 'POST' && req.query.action === 'quick') {
+    try {
+      const escalaAtual = await getSheet('Escala!A2:F2000');
+      const escalaNormQ = escalaAtual.map(r => [normalizarDf(r[0]||''), r[1]||'', r[2]||'', r[3]||'', r[4]||'', r[5]||'']);
+      const existingQ = new Set(escalaNormQ.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
+      // Detecta turno de cada ativo
+      const turnosQ = {};
+      const revQ = [...escalaNormQ].reverse();
+      ativos.forEach(p => {
+        const regsP = escalaNormQ.filter(r=>r[2]===p[0]&&r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Férias').slice(-30);
+        if(!regsP.length){ const last=revQ.find(r=>r[2]===p[0]&&r[3]&&r[4]); turnosQ[p[0]]=last?{ent:last[3],sai:last[4]}:null; return; }
+        const freq={};
+        regsP.forEach(r=>{const k=r[3]+'|'+r[4];freq[k]=(freq[k]||0)+1;});
+        const best=Object.entries(freq).sort((a,b)=>b[1]-a[1])[0][0].split('|');
+        turnosQ[p[0]]={ent:best[0],sai:best[1]};
+      });
+      const linhas=[];
+      for(let i=1;i<=14;i++){
+        const d=new Date(hoje); d.setDate(hoje.getDate()+i);
+        const df=fmtData(d);
+        ativos.forEach(p=>{
+          const t=turnosQ[p[0]];
+          if(!t) return;
+          if(existingQ.has(df+'|'+p[0])) return;
+          linhas.push([df,'',p[0],t.ent,t.sai,'Gerado IA']);
+        });
+      }
+      if(linhas.length===0) return res.status(200).json({ok:true,gravadas:0,mensagem:'Todos os dias já preenchidos'});
+      await appendSheet('Escala!A:F', linhas);
+      return res.status(200).json({ok:true, gravadas:linhas.length});
+    } catch(e) {
+      return res.status(500).json({error:e.message});
+    }
+  }
+
   if (req.method === 'POST') {
     try {
       // Revalida contra a planilha mais recente no momento da gravação, para garantir que nada seja sobrescrito

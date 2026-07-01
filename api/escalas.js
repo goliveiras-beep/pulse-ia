@@ -312,7 +312,7 @@ a{text-decoration:none}
   <div><div style="font-size:14px;font-weight:600;color:#fff">Pulse - Escala</div><div style="font-size:11px;color:#666">${titulo} &middot; ${subtitulo}</div></div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
     <span style="font-size:11px;color:#555">${atualizado}</span>
-    <a href="/api/gerar-escala" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;text-decoration:none">&#10024; Gerar escala IA</a>
+    <button id="btn-gerar-ia" onclick="gerarEscalaIA()" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;cursor:pointer">&#10024; Gerar escala IA</button>
     <button id="tt" onclick="toggleTheme()" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">&#127769;</button>
     <a href="/api/app" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--btn-c)">Home</a>
   </div>
@@ -530,7 +530,25 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Tab'&&document.activeElement.id==='editor-ent'){e.preventDefault();document.getElementById('editor-sai').focus();}
 });
 
-async function colarDireto(cel) {
+async function gerarEscalaIA(){
+  var btn=document.getElementById('btn-gerar-ia');
+  btn.textContent='⏳ Gerando...';btn.disabled=true;btn.style.color='#a0aec0';
+  try{
+    var r=await fetch('/api/gerar-escala?action=quick',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    var d=await r.json();
+    if(d.ok){
+      btn.textContent='✓ '+d.gravadas+' turnos gerados!';btn.style.background='#0d2010';btn.style.color='#68d391';btn.style.borderColor='#166534';
+      toast(d.gravadas+' linhas gravadas para os próximos 14 dias','#166634');
+      setTimeout(function(){location.reload();},1500);
+    } else {
+      btn.textContent='✨ Gerar escala IA';btn.disabled=false;btn.style.color='#63b3ed';
+      toast('Erro: '+(d.error||'?'),'#dc2626');
+    }
+  }catch(e){
+    btn.textContent='✨ Gerar escala IA';btn.disabled=false;btn.style.color='#63b3ed';
+    toast('Erro de conexão: '+e.message,'#dc2626');
+  }
+}
   if(!clipboard||!cel.df||!cel.nome) return;
   toast('Colando...','#374151');
   try {
