@@ -542,17 +542,9 @@ function abrirEditor(el,data,nome,ent,sai,obs){
   popup.style.top=top+'px';popup.style.left=left+'px';
   setTimeout(function(){document.getElementById('editor-ent').focus();document.getElementById('editor-ent').select();},80);
 }
-// Auto-formato HH:MM
-['editor-ent','editor-sai'].forEach(function(id){
-  document.getElementById(id).addEventListener('input',function(){
-    var v=this.value.replace(/[^0-9]/g,'');
-    if(v.length>=3)v=v.slice(0,2)+':'+v.slice(2,4);
-    this.value=v;
-  });
-  document.getElementById(id).addEventListener('keydown',function(e){
-    if(e.key==='Enter'){e.preventDefault();if(this.id==='editor-ent')document.getElementById('editor-sai').focus();else salvarEdicao();}
-  });
-});
+// Navegação Tab/Enter entre campos
+document.getElementById('editor-ent').addEventListener('keydown',function(e){if(e.key==='Tab'||e.key==='Enter'){e.preventDefault();document.getElementById('editor-sai').focus();}});
+document.getElementById('editor-sai').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();salvarEdicao();}});
 function setTipo(tipo){editorData.tipo=tipo;['turno','folga','dispensa','ferias'].forEach(function(t){var btn=document.getElementById('btn-tipo-'+t);if(t===tipo){var bgs={turno:'#1a2744',folga:'#1f1a0d',dispensa:'#1a0d2e',ferias:'#0d2010'},clrs={turno:'#63b3ed',folga:'#f6ad55',dispensa:'#c084fc',ferias:'#68d391'},bds={turno:'#2a4080',folga:'#3d3010',dispensa:'#6b21a8',ferias:'#166534'};btn.style.background=bgs[t]||'none';btn.style.color=clrs[t]||'#a0aec0';btn.style.borderColor=bds[t]||'#3d4660';}else{btn.style.background='none';btn.style.color='#a0aec0';btn.style.borderColor='#3d4660';}});document.getElementById('editor-horarios').style.display=tipo==='turno'?'block':'none';}
 function fecharEditor(){document.getElementById('editor-popup').style.display='none';document.getElementById('editor-overlay').style.display='none';}
 function copiarTurno(){clipboard={ent:document.getElementById('editor-ent').value,sai:document.getElementById('editor-sai').value,tipo:editorData.tipo};toast('Turno copiado!','#166634');fecharEditor();}

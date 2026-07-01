@@ -1804,13 +1804,9 @@ async function gtempo() {
 grelogio();gtempo();setInterval(grelogio,1000);
 
 function abrirAjuste(data,nome,ent,sai,obs){document.getElementById('aj-data').value=data;document.getElementById('aj-nome').value=nome;document.getElementById('aj-colab').value=nome;document.getElementById('aj-data-show').value=data;document.getElementById('aj-entrada').value=ent||'';document.getElementById('aj-saida').value=sai||'';document.getElementById('aj-obs').value=obs||'';document.getElementById('aj-acao').value='horario';toggleAcao();document.getElementById('modal').classList.add('open');setTimeout(function(){document.getElementById('aj-entrada').focus();},100);}
-// Auto-formato HH:MM no modal do gestor
-['aj-entrada','aj-saida'].forEach(function(id){
-  var el=document.getElementById(id);
-  if(!el) return;
-  el.addEventListener('input',function(){var v=this.value.replace(/[^0-9]/g,'');if(v.length>=3)v=v.slice(0,2)+':'+v.slice(2,4);this.value=v;});
-  el.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();if(this.id==='aj-entrada')document.getElementById('aj-saida').focus();else salvarAjuste();}});
-});
+// Tab/Enter entre campos do modal
+document.getElementById('aj-entrada').addEventListener('keydown',function(e){if(e.key==='Tab'||e.key==='Enter'){e.preventDefault();document.getElementById('aj-saida').focus();}});
+document.getElementById('aj-saida').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();salvarAjuste();}});
 function fecharModal(){document.getElementById('modal').classList.remove('open');}
 function toggleAcao(){document.getElementById('aj-horarios').style.display=document.getElementById('aj-acao').value==='horario'?'block':'none';}
 async function salvarAjuste(){const body={acao:document.getElementById('aj-acao').value,data:document.getElementById('aj-data').value,colaborador:document.getElementById('aj-nome').value,entrada:document.getElementById('aj-entrada').value,saida:document.getElementById('aj-saida').value,obs:document.getElementById('aj-obs').value};const r=await fetch('/api/app?action=ajuste',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(d.ok){fecharModal();toast('Escala atualizada!');setTimeout(()=>location.reload(),1200);}else toast('Erro: '+d.error,'#dc2626');}
