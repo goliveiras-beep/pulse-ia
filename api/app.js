@@ -581,7 +581,23 @@ export default async function handler(req, res) {
   const ausSem = ausencias;
   const nomes = equipeRaw.map(r => r[0]);
 
-  const escHoje = escala.filter(r => r[0] === hojeStr);
+  // Para cobertura correta: incluir também turnos noturnos do dia anterior
+  // (ex: 23:00–07:00 de ontem cobre 04:00 de hoje)
+  function escalaComNoturnosAnteriores(escalaArr, dataStr) {
+    const diaAtual = escalaArr.filter(r => r[0] === dataStr);
+    const diaAnterior = escalaArr.filter(r => {
+      if(r[0] === dataStr) return false;
+      if(!r[3]||!r[4]) return false;
+      // Turno noturno: saída < entrada (ex: 23:00→07:00)
+      return toMin(r[4]) < toMin(r[3]);
+    });
+    // Só inclui do dia anterior se a pessoa não tem entrada própria hoje
+    const nomesHoje = new Set(diaAtual.map(r=>r[2]));
+    const noturnos = diaAnterior.filter(r => !nomesHoje.has(r[2]));
+    return [...diaAtual, ...noturnos];
+  }
+
+  const escHoje = escalaComNoturnosAnteriores(escala, hojeStr);
   const escD1 = escala.filter(r => r[0] === d1Str);
   const minhasSolicits = ausencias.filter(a => a[1] === nome && a[0] !== 'CANCELADO').sort((a,b) => (b[4]||'').localeCompare(a[4]||'')).slice(0,10);
   const colegasJson = JSON.stringify(nomes.filter(n => n !== nome));
@@ -980,8 +996,8 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
     ];
     const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local}))})));
     // Cruzar com escala para mostrar quem está no turno (igual à visão do gestor)
-    const escHoje2  = escala.filter(r => r[0] === hojeStr);
-    const escAmanha2 = escala.filter(r => r[0] === d1Str);
+    const escHoje2   = escalaComNoturnosAnteriores(escala, hojeStr);
+    const escAmanha2 = escalaComNoturnosAnteriores(escala, d1Str);
     const eventosHojeJson   = JSON.stringify(cruzarEventos(eventosHoje,  escHoje2,  hojeStr).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,disp:e.disp,semCob:e.semCob})));
     const eventosAmanhaJson = JSON.stringify(cruzarEventos(eventosAmanha, escAmanha2, d1Str).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,disp:e.disp,semCob:e.semCob})));
     const hojeAno = hoje.getFullYear();
@@ -1504,11 +1520,11 @@ setInterval(atualizarEventos, 60000);
   const diasNav = [
     { label: '#NossoDia', sublabel: hojeStr, eventos: eventosCruzadosHoje, total: eventosHoje.length, key: 'hoje', data: hojeStr, comOpac: true },
     { label: '#NossoDiaAmanhã', sublabel: d1Str, eventos: eventosCruzadosAmanha, total: eventosAmanha.length, key: 'amanha', data: d1Str, comOpac: false },
-    { label: fmtData(d2), sublabel: DIAS_PT[d2.getDay()], eventos: cruzarEventos(eventosD2, escala.filter(r => r[0] === fmtData(d2)), fmtData(d2)), total: eventosD2.length, key: 'd2', data: fmtData(d2), comOpac: false },
-    { label: fmtData(d3), sublabel: DIAS_PT[d3.getDay()], eventos: cruzarEventos(eventosD3, escala.filter(r => r[0] === fmtData(d3)), fmtData(d3)), total: eventosD3.length, key: 'd3', data: fmtData(d3), comOpac: false },
-    { label: fmtData(d4), sublabel: DIAS_PT[d4.getDay()], eventos: cruzarEventos(eventosD4, escala.filter(r => r[0] === fmtData(d4)), fmtData(d4)), total: eventosD4.length, key: 'd4', data: fmtData(d4), comOpac: false },
-    { label: fmtData(d5), sublabel: DIAS_PT[d5.getDay()], eventos: cruzarEventos(eventosD5, escala.filter(r => r[0] === fmtData(d5)), fmtData(d5)), total: eventosD5.length, key: 'd5', data: fmtData(d5), comOpac: false },
-    { label: fmtData(d6), sublabel: DIAS_PT[d6.getDay()], eventos: cruzarEventos(eventosD6, escala.filter(r => r[0] === fmtData(d6)), fmtData(d6)), total: eventosD6.length, key: 'd6', data: fmtData(d6), comOpac: false },
+    { label: fmtData(d2), sublabel: DIAS_PT[d2.getDay()], eventos: cruzarEventos(eventosD2, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2)), total: eventosD2.length, key: 'd2', data: fmtData(d2), comOpac: false },
+    { label: fmtData(d3), sublabel: DIAS_PT[d3.getDay()], eventos: cruzarEventos(eventosD3, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3)), total: eventosD3.length, key: 'd3', data: fmtData(d3), comOpac: false },
+    { label: fmtData(d4), sublabel: DIAS_PT[d4.getDay()], eventos: cruzarEventos(eventosD4, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4)), total: eventosD4.length, key: 'd4', data: fmtData(d4), comOpac: false },
+    { label: fmtData(d5), sublabel: DIAS_PT[d5.getDay()], eventos: cruzarEventos(eventosD5, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5)), total: eventosD5.length, key: 'd5', data: fmtData(d5), comOpac: false },
+    { label: fmtData(d6), sublabel: DIAS_PT[d6.getDay()], eventos: cruzarEventos(eventosD6, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6)), total: eventosD6.length, key: 'd6', data: fmtData(d6), comOpac: false },
   ];
 
   const semCob = eventosCruzadosAmanha.filter(e => e.semCob).length;
