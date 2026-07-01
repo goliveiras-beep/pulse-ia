@@ -10,6 +10,28 @@ const TOKEN    = process.env.IMPORT_TOKEN || 'pulse_import_2026';
 // Formato: [DD/MM, '', nome, entrada, saida, obs]
 // obs = 'Folga' para dias de folga, '' para turno normal
 const LINHAS = [
+// 29/06
+['29/06','','Bruno Dias','14:00','02:30',''],
+['29/06','','Rafael Gusmão','06:00','14:00',''],
+['29/06','','Lucas Malveira','06:00','14:00',''],
+['29/06','','Thiago Russo','08:00','16:00',''],
+['29/06','','Bernardo Oliva','10:00','18:00',''],
+['29/06','','Rodrigo Cesar de Oliveira Pinheiro','14:00','22:00',''],
+['29/06','','Matheus Ribeiro dos Santos','16:00','01:00',''],
+['29/06','','Rodrigo Alcantara da Rocha','23:59','08:00',''],
+['29/06','','Alan Veiga','18:00','00:00',''],
+['29/06','','Fabio Silva','23:59','08:00',''],
+// 30/06
+['30/06','','Bruno Dias','11:30','02:30',''],
+['30/06','','Rafael Gusmão','07:00','15:00',''],
+['30/06','','Lucas Malveira','07:00','15:00',''],
+['30/06','','Thiago Russo','08:00','16:00',''],
+['30/06','','Bernardo Oliva','','','Folga'],
+['30/06','','Rodrigo Cesar de Oliveira Pinheiro','16:00','00:00',''],
+['30/06','','Matheus Ribeiro dos Santos','18:00','02:00',''],
+['30/06','','Rodrigo Alcantara da Rocha','23:59','08:00',''],
+['30/06','','Alan Veiga','15:00','23:00',''],
+['30/06','','Fabio Silva','23:59','00:00',''],
 // 01/07
 ['01/07','','Bruno Dias','11:30','00:30',''],
 ['01/07','','Rafael Gusmão','07:00','15:00',''],
