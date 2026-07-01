@@ -302,13 +302,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div><div class="ht">Pulse <span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px">Equipe</span></div><div class="hs">${ativos.length} ativos${pendentes.length ? ` · ${pendentes.length} pendente${pendentes.length>1?'s':''}` : ''}</div></div>
   <div class="hr">
     ${solicitacoesPendentes.length ? `
-    <button onclick="document.getElementById('secao-ausencias').scrollIntoView({behavior:'smooth'})" style="background:#1f1010;border:1px solid #991b1b;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;color:#fc8181;cursor:pointer;display:flex;align-items:center;gap:6px;animation:pulsar-aus 1.5s ease-in-out infinite">
+    <a href="/api/ausencias" style="background:#1f1010;border:1px solid #991b1b;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;color:#fc8181;cursor:pointer;display:flex;align-items:center;gap:6px;animation:pulsar-aus 1.5s ease-in-out infinite;text-decoration:none">
       🔔 <span>${solicitacoesPendentes.length} ausência${solicitacoesPendentes.length>1?'s':''} pendente${solicitacoesPendentes.length>1?'s':''}</span>
-    </button>
+    </a>
     ` : `
-    <div style="background:#0d2010;border:1px solid #166534;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;color:#68d391;display:flex;align-items:center;gap:6px">
+    <a href="/api/ausencias" style="background:#0d2010;border:1px solid #166534;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;color:#68d391;display:flex;align-items:center;gap:6px;text-decoration:none">
       ✓ Sem ausências pendentes
-    </div>
+    </a>
     `}
     <a href="/api/banco-horas" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">📊 Banco de horas</a>
     <a href="/api/app" class="btn-sm">← Voltar</a>

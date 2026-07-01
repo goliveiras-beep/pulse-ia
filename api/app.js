@@ -1680,6 +1680,9 @@ setInterval(atualizarEventos, 60000);
       <span id="grelogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
     </div>
     <span id="saudacao-gestor" style="font-size:12px;color:#666">Ola, ${nome.split(' ')[0]}</span>
+    <a href="/api/ausencias" class="btn-sm btn-sm-keep m-keep" style="${pendAusenciasGestor?'background:#1f1010;border-color:#991b1b;color:#fc8181;animation:pulsar 1.5s infinite':''}">
+      🔔${pendAusenciasGestor?` ${pendAusenciasGestor}`:''} Ausências
+    </a>
     <a href="/api/escalas?v=semana" class="btn-sm btn-sm-keep m-keep">Escala</a>
     <a href="/api/equipe-view" class="btn-sm btn-sm-keep m-keep" style="display:inline-flex;align-items:center;gap:4px">Equipe${badgeEquipeGestor}</a>
     <a href="/api/repositorio" class="btn-sm">Repositorio</a>
