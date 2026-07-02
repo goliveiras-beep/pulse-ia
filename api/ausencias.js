@@ -138,9 +138,10 @@ export default async function handler(req,res){
             const isIni=aus.ini===df;
             const isFim=(aus.fim||aus.ini)===df;
             const isMiddle=!isIni&&!isFim;
+            const marcador=isIni?`<div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;gap:1px"><span title="${aus.tipo}">${ic}</span><span style="font-size:7px;font-weight:800;color:${c}">${aus.ini}</span></div>`:isFim?`<span style="font-size:8px;font-weight:800;color:${c}">${aus.fim||aus.ini}</span>`:'';
             return `<td style="padding:4px 1px;border-bottom:1px solid #2d3748;background:${bg}" title="${aus.tipo}: ${aus.ini} → ${aus.fim||aus.ini}">
               <div style="height:28px;border-radius:${isIni?'6px 0 0 6px':isFim?'0 6px 6px 0':isMiddle?'0':'4px'};background:${c}22;border-top:2px solid ${c};border-bottom:2px solid ${c};${isIni?'border-left:3px solid '+c+';':''}${isFim?'border-right:3px solid '+c+';':''}display:flex;align-items:center;justify-content:center;font-size:12px">
-                ${isIni?`<span title="${aus.tipo}">${ic}</span>`:''}
+                ${marcador}
               </div>
             </td>`;
           }
