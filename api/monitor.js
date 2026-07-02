@@ -1,11 +1,18 @@
 export const config = { maxDuration: 30 };
 
 const CANAL = "C0BB36J2ZNV";
-const BASE = "appwE9LmmTxynTGFY";
-const TABELA = "tblpibvwAIGBQXr0H";
-const VIEW = "viwrkqQ6rxT9AeNBa";
+const BASE = "appqPBoDUYfX2edOp";
+const TABELA = "tblkqT3nDu1Gw6bnf";
+const VIEW = "viwafe9za0RwsVlC9";
 const GITHUB_REPO = "goliveiras-beep/pulse-ia";
 const SNAPSHOT_PATH = "data/grade_snapshot.json";
+
+function toHoraBRT(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  d.setHours(d.getHours() - 3);
+  return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || "";
+}
 
 async function slackPost(channel, text) {
   await fetch("https://slack.com/api/chat.postMessage", {
@@ -16,7 +23,7 @@ async function slackPost(channel, text) {
 }
 
 async function getGradeDia(data) {
-  const filter = `OR(DATESTR({fldRnfbwPVzFiHMqs}) = '${data}', DATESTR({fld8hthI7oI4MY5aP}) = '${data}')`;
+  const filter = `OR(DATESTR({fldBNl8ypKaV5hFG5}) = '${data}', DATESTR({fldgNvn52DK5Yu8x9}) = '${data}')`;
   const url = `https://api.airtable.com/v0/${BASE}/${TABELA}?view=${VIEW}&filterByFormula=${encodeURIComponent(filter)}&maxRecords=100`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const d = await res.json();
@@ -25,10 +32,10 @@ async function getGradeDia(data) {
     const f = r.fields;
     snapshot[r.id] = {
       nome: f["Match ID"] || "",
-      inicio: f["Horário KO"] || f["PGM (horário)"] || "",
+      inicio: toHoraBRT(f["Início do Evento BRT"] || ""),
       tipo: f["Tipo de Conteúdo"] || "",
       status: f["Status"] || "",
-      local: (f["Name (from Padrão de Produção)"] || []).join(",")
+      local: f["Padrão de Produção"] || ""
     };
   }
   return snapshot;
