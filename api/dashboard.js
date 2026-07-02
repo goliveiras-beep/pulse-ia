@@ -2,8 +2,8 @@
 export const config = { maxDuration: 30 };
 import { sheetsRequest } from '../lib/google-auth.js';
 
-const AIRTABLE_BASE = 'appwE9LmmTxynTGFY';
-const AIRTABLE_TABLE = 'tblpibvwAIGBQXr0H';
+const AIRTABLE_BASE = 'appqPBoDUYfX2edOp';
+const AIRTABLE_TABLE = 'tblkqT3nDu1Gw6bnf';
 
 function getBRT() {
   const a = new Date();
@@ -11,6 +11,12 @@ function getBRT() {
 }
 function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`; }
 function fmtAirtable(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function toHoraBRT(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  d.setHours(d.getHours() - 3);
+  return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || '';
+}
 function iniciais(n) { return n.split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
 function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); return hh*60+(mm||0); }
 
@@ -33,16 +39,16 @@ async function getSheet(range) {
 }
 
 async function getEventos(dataStr) {
-  const filter=`OR(DATESTR({fldRnfbwPVzFiHMqs})='${dataStr}',DATESTR({fld8hthI7oI4MY5aP})='${dataStr}')`;
+  const filter=`OR(DATESTR({fldBNl8ypKaV5hFG5})='${dataStr}',DATESTR({fldgNvn52DK5Yu8x9})='${dataStr}')`;
   try {
     const r=await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=30`,
       {headers:{Authorization:`Bearer ${process.env.AIRTABLE_API_KEY}`}});
     const d=await r.json();
     return (d.records||[]).map(r=>({
       nome:r.fields['Match ID']||'Evento',
-      hora:r.fields['Horário KO']||r.fields['PGM (horário)']||'',
+      hora:toHoraBRT(r.fields['Início do Evento BRT']||''),
       tipo:r.fields['Tipo de Conteúdo']||'',
-      nucleo:Array.isArray(r.fields['Núcleo'])?r.fields['Núcleo'].join(', '):(r.fields['Núcleo']||''),
+      nucleo:r.fields['Padrão de Produção']||'',
     })).sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
   } catch { return []; }
 }
