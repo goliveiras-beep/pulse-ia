@@ -1654,17 +1654,6 @@ setInterval(atualizarEventos, 60000);
     ? ` <span style="background:#dc2626;color:#fff;border-radius:50%;min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;padding:0 3px;vertical-align:middle">${totalPendentesGestor}</span>`
     : '';
 
-  // Horizonte de publicação
-  const horizonteAtual = configMap['publicacao_horizonte']||'';
-  const horizonteData = (() => {
-    if(!horizonteAtual) return null;
-    const [dh,mh] = horizonteAtual.split('/').map(Number);
-    if(!dh||!mh) return null;
-    return new Date(hoje.getFullYear(), mh-1, dh);
-  })();
-  const hojeSemHora = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
-  const horizonteVencido = !horizonteData || horizonteData < hojeSemHora;
-
   const conteudo = `
 <div class="header">
   <div class="logo" style="background:none;padding:0;overflow:visible">
@@ -1719,18 +1708,6 @@ setInterval(atualizarEventos, 60000);
     <div class="metric ${folgAmanha > 2 ? 'amber-m' : ''}"><div class="ml">Folgas amanhã</div><div class="mv ${folgAmanha > 2 ? 'amber-v' : ''}">${folgAmanha}</div><div class="ms">${ausencias.filter(a => a[4] === d1Str).length} via Pulse</div></div>
     <div class="metric ${semCob > 0 ? 'red-m' : ''}" title="Eventos cujo intervalo início→fim não é coberto por nenhum turno escalado."><div class="ml">Sem cobertura</div><div class="mv ${semCob > 0 ? 'red-v' : ''}">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanhã</div></div>
     ${feriasAtivas > 0 ? `<div class="metric amber-m"><div class="ml">Férias em até 7 dias</div><div class="mv amber-v">${feriasAtivas}</div><div class="ms">${feriasProximas.map(a => `${a[1].split(' ')[0]} (${a[4]})`).join(', ')}</div></div>` : ''}
-    <div class="metric ${horizonteVencido ? 'red-m' : ''}" style="height:auto;min-height:96px" title="Até quando a equipe consegue ver a escala. Gestores sempre veem tudo.">
-      <div class="ml">Publicado até</div>
-      <div style="font-size:18px;font-weight:800;line-height:1.1;color:${horizonteVencido ? 'var(--red-m-v)' : 'var(--text)'}">${horizonteAtual || 'Não definido'}</div>
-      <div class="ms" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px">
-        <button onclick="publicarHorizonte('1 dia')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1d</button>
-        <button onclick="publicarHorizonte('2 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+2d</button>
-        <button onclick="publicarHorizonte('1 semana')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+7d</button>
-        <button onclick="publicarHorizonte('15 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+15d</button>
-        <button onclick="publicarHorizonte('1 mês')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1mês</button>
-        <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
-      </div>
-    </div>
   </div>
 
   <!-- Abas de navegação (só mobile) -->
@@ -1885,40 +1862,6 @@ function atualizarBadgesGestor(){
 }
 atualizarBadgesGestor();
 setInterval(atualizarBadgesGestor, 30000);
-
-async function publicarHorizonte(opcao) {
-  var hoje = new Date();
-  var d = new Date(hoje);
-  var horizonte = '';
-  if(opcao==='limpar') {
-  } else {
-    if(opcao==='1 dia') d.setDate(d.getDate()+1);
-    else if(opcao==='2 dias') d.setDate(d.getDate()+2);
-    else if(opcao==='1 semana') d.setDate(d.getDate()+7);
-    else if(opcao==='15 dias') d.setDate(d.getDate()+15);
-    else if(opcao==='1 mês') d.setMonth(d.getMonth()+1);
-    var dd=String(d.getDate()).padStart(2,'0');
-    var mm=String(d.getMonth()+1).padStart(2,'0');
-    horizonte=dd+'/'+mm;
-  mostrarToast('Salvando...','#374151');
-  }
-  try {
-    var r=await fetch('/api/publicar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({horizonte})});
-    var data=await r.json();
-    if(data.ok){
-      mostrarToast(opcao==='limpar'?'🔒 Publicação removida':'✓ Escala publicada até '+horizonte,'#166534');
-      setTimeout(function(){location.reload();},1200);
-    } else {
-      mostrarToast('Erro: '+(data.error||'?'),'#dc2626');
-    }
-  } catch(e) { mostrarToast('Erro de conexão: '+e.message,'#dc2626'); }
-}
-function mostrarToast(msg,bg){
-  var t=document.getElementById('toast');
-  if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;color:#fff;display:none';document.body.appendChild(t);}
-  t.textContent=msg;t.style.background=bg;t.style.display='block';
-  clearTimeout(t._t);t._t=setTimeout(function(){t.style.display='none';},3500);
-}
 
 // Mobile: abas de eventos
 var _gTabAtual = 0;
