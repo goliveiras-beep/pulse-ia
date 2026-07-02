@@ -78,7 +78,7 @@ export default async function handler(req,res){
   const diasTimeline=[];
   for(let i=0;i<30;i++){const d=new Date(hoje);d.setDate(hoje.getDate()+i);diasTimeline.push({d,df:fmtData(d),isFds:d.getDay()===0||d.getDay()===6,isHoje:i===0});}
 
-  const colaboradores=[...new Set(aprovadas.map(a=>a.nome))].sort();
+  const colaboradores=[...new Set(aprovadas.map(a=>a.nome))];
   const TIPO_COR={'Férias':['#1c3a0a','#4ade80','🏖️'],'Folga programada':['#0a1c3a','#60a5fa','📅'],'Atestado médico':['#3a0a0a','#f87171','🏥'],'Troca de horário':['#1c1a3a','#c084fc','🔄']};
   const TIPO_COR_LIGHT={'Férias':['#dcfce7','#166534','🏖️'],'Folga programada':['#dbeafe','#1d4ed8','📅'],'Atestado médico':['#fee2e2','#991b1b','🏥'],'Troca de horário':['#f3e8ff','#7c3aed','🔄']};
 
