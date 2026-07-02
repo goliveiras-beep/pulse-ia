@@ -16,11 +16,9 @@ function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.
 function fmtAirtable(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function iniciais(n) { return (n||'?').split(' ').slice(0,2).map(p=>p[0]||'').join('').toUpperCase() || '?'; }
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
-function toHoraBRT(isoString) {
-  if (!isoString) return '';
-  const d = new Date(isoString);
-  d.setHours(d.getHours() - 3);
-  return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || '';
+function horaDeString(s) {
+  const m = String(s||'').match(/(\d{1,2}:\d{2})$/);
+  return m ? m[1] : '';
 }
 function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); return hh*60+(mm||0); }
 function estaDeServico(ent, sai, horaEv, horaFimEv) {
@@ -70,16 +68,16 @@ async function getEventos(dataStr) {
   // fldBNl8ypKaV5hFG5 é o campo "Encerramento" (data/hora de término) — não usar para filtrar
   const filter=`AND(DATESTR({fldgNvn52DK5Yu8x9})='${dataStr}',{Status}!='Cancelado')`;
   try {
-    const r=await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=30`,
+    const r=await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=30&cellFormat=string&timeZone=America%2FSao_Paulo&userLocale=pt-BR`,
       {headers:{Authorization:`Bearer ${process.env.AIRTABLE_API_KEY}`}});
     const d=await r.json();
     return (d.records||[]).map(r=>({
       nome:r.fields['Match ID']||'Evento',
-      hora:toHoraBRT(r.fields['Início do Evento BRT']||''),
-      horaFim:toHoraBRT(r.fields['Encerramento']||''),
+      hora:horaDeString(r.fields['Início do Evento BRT']||''),
+      horaFim:horaDeString(r.fields['Encerramento']||''),
       tipo:r.fields['Tipo de Conteúdo']||'',
       local:r.fields['Padrão de Produção']||'',
-      encoder:r.fields['Encoder Auxiliar - Fórmula']||'',
+      encoder:r.fields['ENCODERS GERAL']||'',
     })).sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
   } catch { return []; }
 }
