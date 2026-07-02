@@ -60,9 +60,11 @@ export default async function handler(req,res){
     status: r[0].startsWith('APROVADO')?'aprovado':r[0]==='RECUSADO'?'recusado':r[0]==='CANCELADO'?'cancelado':'pendente'
   }));
 
-  const pendentes=ausencias.filter(a=>a.status==='pendente');
-  const aprovadas=ausencias.filter(a=>a.status==='aprovado');
-  const historico=ausencias.filter(a=>a.status==='recusado'||a.status==='cancelado');
+  const porData=lista=>[...lista].sort((a,b)=>dfParaDate(a.ini,ano)-dfParaDate(b.ini,ano));
+
+  const pendentes=porData(ausencias.filter(a=>a.status==='pendente'));
+  const aprovadas=porData(ausencias.filter(a=>a.status==='aprovado'));
+  const historico=porData(ausencias.filter(a=>a.status==='recusado'||a.status==='cancelado'));
 
   // Quem está ausente hoje e amanhã
   const d1=new Date(hoje);d1.setDate(hoje.getDate()+1);const d1Str=fmtData(d1);
