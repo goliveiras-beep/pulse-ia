@@ -48,7 +48,9 @@ function statusTurno(ent,sai,horaEv) {
   if(!ent||!sai||!horaEv) return null;
   const ev=toMin(horaEv),i=toMin(ent),f=toMin(sai);
   if(Math.abs(i-ev)<=60) return 'entrando';
-  if(Math.abs(f-ev)<=60) return 'saindo';
+  // "saindo" só vale se o turno ainda cobre o início do evento e termina até 60min depois —
+  // turno que já encerrou ANTES do evento começar não conta (pessoa já foi embora)
+  if(f>ev && f-ev<=60) return 'saindo';
   return null;
 }
 
