@@ -161,6 +161,13 @@ function hojeBrasil() {
   return new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 }
 
+function toHoraBRT(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  d.setHours(d.getHours() - 3);
+  return d.toISOString().match(/T(\d{2}:\d{2})/)?.[1] || '';
+}
+
 function normalizarTexto(s) {
   return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
@@ -557,12 +564,12 @@ export default async function handler(req, res) {
         const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
         const [d, m, a] = hoje.split('/');
         const hojeIso = `${a}-${m}-${d}`;
-        const r = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID || 'appwE9LmmTxynTGFY'}/${process.env.AIRTABLE_TABLE_ID || 'tblpibvwAIGBQXr0H'}?filterByFormula=DATESTR({fldRnfbwPVzFiHMqs})>='${hojeIso}'&maxRecords=20&sort[0][field]=Hor%C3%A1rio%20KO&sort[0][direction]=asc`, {
+        const r = await fetch(`https://api.airtable.com/v0/${process.env.AIRTABLE_BASE_ID || 'appqPBoDUYfX2edOp'}/${process.env.AIRTABLE_TABLE_ID || 'tblkqT3nDu1Gw6bnf'}?filterByFormula=DATESTR({fldBNl8ypKaV5hFG5})>='${hojeIso}'&maxRecords=20&sort[0][field]=In%C3%ADcio%20do%20Evento%20BRT&sort[0][direction]=asc`, {
           headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` }
         });
         const d2 = await r.json();
         if (d2.records) {
-          eventosCtx = d2.records.map(ev => `${ev.fields['Horário KO']||''} - ${ev.fields['Match ID']||'Evento'} (${ev.fields['Tipo de Conteúdo']||''})`).join('
+          eventosCtx = d2.records.map(ev => `${toHoraBRT(ev.fields['Início do Evento BRT']||'')} - ${ev.fields['Match ID']||'Evento'} (${ev.fields['Tipo de Conteúdo']||''})`).join('
 ');
         }
       } catch {}
