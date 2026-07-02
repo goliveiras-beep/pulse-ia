@@ -1027,12 +1027,12 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
       {label: fmtData(d5), sub: DIAS_PT[d5.getDay()], evs: eventosD5c},
       {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: eventosD6c},
     ];
-    const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local}))})));
+    const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder}))})));
     // Cruzar com escala para mostrar quem está no turno (igual à visão do gestor)
     const escHoje2   = escalaComNoturnosAnteriores(escala, hojeStr);
     const escAmanha2 = escalaComNoturnosAnteriores(escala, d1Str);
-    const eventosHojeJson   = JSON.stringify(cruzarEventos(eventosHoje,  escHoje2,  hojeStr).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,disp:e.disp,semCob:e.semCob})));
-    const eventosAmanhaJson = JSON.stringify(cruzarEventos(eventosAmanha, escAmanha2, d1Str).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,disp:e.disp,semCob:e.semCob})));
+    const eventosHojeJson   = JSON.stringify(cruzarEventos(eventosHoje,  escHoje2,  hojeStr).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,disp:e.disp,semCob:e.semCob})));
+    const eventosAmanhaJson = JSON.stringify(cruzarEventos(eventosAmanha, escAmanha2, d1Str).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,disp:e.disp,semCob:e.semCob})));
     const hojeAno = hoje.getFullYear();
     const hojeNumMes = hoje.getMonth();
 
@@ -1399,7 +1399,7 @@ function renderEventos(eventos, containerId, agora, isHoje) {
       html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
       html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">' + (ev.hora||'--') + (ev.horaFim?'<br><span style="font-size:9px;font-weight:600;opacity:.6">–'+ev.horaFim+'</span>':'') + '</div>';
       html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">' + ev.nome + '</div>';
-      html += '<div style="font-size:10px;color:var(--text3);margin-top:1px">' + ev.tipo + (ev.local ? ' · <span style="font-weight:600">' + ev.local + '</span>' : '') + '</div>';
+      html += '<div style="font-size:10px;color:var(--text3);margin-top:1px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">' + ev.tipo + (ev.local ? ' · <span style="font-weight:600">' + ev.local + '</span>' : '') + (ev.encoder ? '<span style="background:#fef3c7;border:1px solid #f59e0b;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;color:#78350f">' + ev.encoder + '</span>' : '') + '</div>';
       // Nomes de quem está de turno — com horário completo (igual gestor)
       if (ev.disp && ev.disp.length) {
         html += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.07);padding-top:5px">';
