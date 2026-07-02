@@ -23,13 +23,14 @@ function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); 
 function estaDeServico(ent, sai, horaEv) {
   if(!ent||!sai||!horaEv) return false;
   const i=toMin(ent), f=toMin(sai), e=toMin(horaEv);
-  return f>i ? e>=i&&e<=f : e>=i||e<=f;
+  return f>i ? e>=i&&e<f : e>=i||e<f;
 }
 function statusTurno(ent, sai, horaEv) {
   if(!ent||!sai||!horaEv) return null;
   const ev=toMin(horaEv), i=toMin(ent), f=toMin(sai);
   if(Math.abs(i-ev)<=60) return 'entrando';
-  if(Math.abs(f-ev)<=60) return 'saindo';
+  // "saindo" só vale se o turno ainda cobre o início do evento — turno já encerrado antes não conta
+  if(f>ev && f-ev<=60) return 'saindo';
   return null;
 }
 
