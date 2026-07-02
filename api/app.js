@@ -37,12 +37,12 @@ function estaDeServico(ent, sai, horaEv, horaFimEv) {
     if(e >= i) posNoTurno = e - i;           // evento na primeira metade (ex: 23:30 dentro de 23:00-07:00)
     else posNoTurno = (1440 - i) + e;         // evento na segunda metade (ex: 04:00 dentro de 23:00-07:00)
   } else {
-    // Turno diurno: só cobre entre ent e sai
-    if(e < i - 60 || e > f + 15) return false;
+    // Turno diurno: só cobre entre ent e sai (sem tolerância no fim — turno encerrado não cobre mais)
+    if(e < i - 60 || e >= f) return false;
     posNoTurno = e - i;
   }
-  // Pessoa está de plantão se a hora do evento está dentro do turno (com 60min de tolerância no início)
-  return posNoTurno >= -60 && posNoTurno < durTurno + 15;
+  // Pessoa está de plantão se a hora do evento está dentro do turno (com 60min de tolerância no início, sem tolerância no fim)
+  return posNoTurno >= -60 && posNoTurno < durTurno;
 }
 function statusTurno(ent,sai,horaEv) {
   if(!ent||!sai||!horaEv) return null;
