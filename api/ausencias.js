@@ -74,10 +74,7 @@ export default async function handler(req,res){
     for(let i=0;i<=7;i++){const d=new Date(hoje);d.setDate(hoje.getDate()+i);if(dentroAus(a.ini,a.fim,fmtData(d),ano))return true;}return false;
   });
 
-  // Timeline: próximos 30 dias
-  const diasTimeline=[];
-  for(let i=0;i<30;i++){const d=new Date(hoje);d.setDate(hoje.getDate()+i);diasTimeline.push({d,df:fmtData(d),isFds:d.getDay()===0||d.getDay()===6,isHoje:i===0});}
-
+  // Timeline: período completo (proporcional às datas reais, sem grade de dias pra rolar)
   const colaboradores=[...new Set(aprovadas.map(a=>a.nome))];
   const TIPO_COR={'Férias':['#1c3a0a','#4ade80','🏖️'],'Folga programada':['#0a1c3a','#60a5fa','📅'],'Atestado médico':['#3a0a0a','#f87171','🏥'],'Troca de horário':['#1c1a3a','#c084fc','🔄']};
   const TIPO_COR_LIGHT={'Férias':['#dcfce7','#166534','🏖️'],'Folga programada':['#dbeafe','#1d4ed8','📅'],'Atestado médico':['#fee2e2','#991b1b','🏥'],'Troca de horário':['#f3e8ff','#7c3aed','🔄']};
@@ -89,68 +86,110 @@ export default async function handler(req,res){
 
   // Timeline HTML
   const MESES_ABR=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const timelineHtml = colaboradores.length===0 ? `<div style="padding:32px;text-align:center;color:#718096;font-size:13px">Nenhuma ausência aprovada nos próximos 30 dias</div>` : `
-  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-  <table style="border-collapse:collapse;min-width:100%">
-    <thead>
-      <!-- Linha do mês -->
-      <tr>
-        <th style="background:#1e2230;position:sticky;left:0;z-index:2;min-width:150px;border-bottom:0"></th>
-        ${(() => {
-          let lastMes=-1, cells='';
-          diasTimeline.forEach(({d,isFds,isHoje})=>{
-            const mes=d.getMonth();
-            const bg=isHoje?'#1a2744':isFds?'#1c1206':'#1e2230';
-            if(mes!==lastMes){lastMes=mes;cells+=`<td style="padding:3px 4px;text-align:left;font-size:10px;font-weight:700;color:#f6ad55;background:${bg};border-bottom:0;white-space:nowrap">${MESES_ABR[mes].toUpperCase()}</td>`;}
-            else cells+=`<td style="background:${bg};border-bottom:0;padding:0"></td>`;
-          });
-          return cells;
-        })()}
-      </tr>
-      <!-- Linha dos dias -->
-      <tr>
-        <th style="padding:6px 12px;text-align:left;font-size:10px;font-weight:600;color:#718096;text-transform:uppercase;white-space:nowrap;background:#1e2230;position:sticky;left:0;z-index:2;min-width:150px;border-bottom:2px solid #2d3748">Colaborador</th>
-        ${diasTimeline.map(({df,d,isFds,isHoje})=>`
-          <th style="padding:4px 2px;text-align:center;background:${isHoje?'#1a2744':isFds?'#1c1206':'#1e2230'};border-bottom:2px solid ${isHoje?'#3b82f6':isFds?'#92400e':'#2d3748'};min-width:36px">
-            <div style="font-size:9px;font-weight:700;color:${isHoje?'#63b3ed':isFds?'#fb923c':'#4a5568'}">${['D','S','T','Q','Q','S','S'][d.getDay()]}</div>
-            <div style="font-size:11px;font-weight:800;color:${isHoje?'#93c5fd':isFds?'#fdba74':'#718096'}">${d.getDate()}</div>
-          </th>`).join('')}
-      </tr>
-    </thead>
-    <tbody>
-    ${colaboradores.map(nome=>{
-      const ausNome=aprovadas.filter(a=>a.nome===nome);
-      return `<tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #2d3748;background:#161920;position:sticky;left:0;z-index:1;white-space:nowrap">
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="width:28px;height:28px;border-radius:50%;background:#1a2744;color:#63b3ed;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${nome.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
-            <div>
-              <div style="font-size:12px;font-weight:600;color:#e2e8f0">${nome.split(' ').slice(0,2).join(' ')}</div>
-              ${ausNome.map(a=>`<div style="font-size:9px;color:#718096">${TIPO_COR[a.tipo]?.[2]||'📋'} ${a.ini}→${a.fim||a.ini}</div>`).join('')}
-            </div>
-          </div>
-        </td>
-        ${diasTimeline.map(({df,d,isFds,isHoje})=>{
-          const aus=ausNome.find(a=>dentroAus(a.ini,a.fim,df,ano));
-          const bgCell=isHoje?'rgba(26,39,68,.5)':isFds?'rgba(28,18,6,.5)':'';
-          if(aus){
-            const [bg,c,ic]=TIPO_COR[aus.tipo]||['#1e2230','#94a3b8','📋'];
-            const isIni=aus.ini===df;
-            const isFim=(aus.fim||aus.ini)===df;
-            const isMiddle=!isIni&&!isFim;
-            const marcador=isIni?`<div style="display:flex;flex-direction:column;align-items:center;line-height:1.1;gap:1px"><span title="${aus.tipo}">${ic}</span><span style="font-size:7px;font-weight:800;color:${c}">${aus.ini}</span></div>`:isFim?`<span style="font-size:8px;font-weight:800;color:${c}">${aus.fim||aus.ini}</span>`:'';
-            return `<td style="padding:4px 1px;border-bottom:1px solid #2d3748;background:${bg}" title="${aus.tipo}: ${aus.ini} → ${aus.fim||aus.ini}">
-              <div style="height:28px;border-radius:${isIni?'6px 0 0 6px':isFim?'0 6px 6px 0':isMiddle?'0':'4px'};background:${c}22;border-top:2px solid ${c};border-bottom:2px solid ${c};${isIni?'border-left:3px solid '+c+';':''}${isFim?'border-right:3px solid '+c+';':''}display:flex;align-items:center;justify-content:center;font-size:12px">
-                ${marcador}
-              </div>
-            </td>`;
-          }
-          return `<td style="padding:4px 1px;border-bottom:1px solid #2d3748;background:${bgCell}"><div style="height:28px;border-radius:3px"></div></td>`;
-        }).join('')}
-      </tr>`;
-    }).join('')}
-    </tbody>
-  </table></div>`;
+  const DIAS_ABR=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const DIA_MS=86400000;
+  const addDias=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
+
+  let timelineHtml;
+  if(colaboradores.length===0){
+    timelineHtml=`<div style="padding:32px;text-align:center;color:#718096;font-size:13px">Nenhuma ausência aprovada</div>`;
+  } else {
+    const comDatas=aprovadas.map(a=>({...a,iniD:dfParaDate(a.ini,ano),fimD:dfParaDate(a.fim||a.ini,ano)}));
+    const rangeInicio=new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate());
+    const fimMaisLonge=comDatas.reduce((max,a)=>a.fimD>max?a.fimD:max,addDias(rangeInicio,7));
+    const rangeFim=addDias(fimMaisLonge,2);
+    const totalMs=Math.max(rangeFim-rangeInicio,DIA_MS);
+    const pct=d=>Math.min(100,Math.max(0,(d-rangeInicio)/totalMs*100));
+
+    const marcadores=[];
+    let cursor=new Date(rangeInicio);
+    while(cursor<=rangeFim){
+      marcadores.push({label:MESES_ABR[cursor.getMonth()].toUpperCase(),pct:pct(cursor)});
+      cursor=new Date(cursor.getFullYear(),cursor.getMonth()+1,1);
+    }
+
+    // Mapa dia -> nomes ausentes, pra achar interseção entre colaboradores
+    const diaParaNomes=new Map();
+    comDatas.forEach(a=>{
+      for(let t=a.iniD.getTime();t<=a.fimD.getTime();t+=DIA_MS){
+        const key=Math.round(t/DIA_MS);
+        if(!diaParaNomes.has(key))diaParaNomes.set(key,new Set());
+        diaParaNomes.get(key).add(a.nome);
+      }
+    });
+    const diasComOverlap=[...diaParaNomes.keys()].filter(k=>diaParaNomes.get(k).size>=2).sort((x,y)=>x-y);
+    const blocos=[];
+    diasComOverlap.forEach(k=>{
+      const ultimo=blocos[blocos.length-1];
+      if(ultimo&&k===ultimo.fimKey+1)ultimo.fimKey=k;
+      else blocos.push({iniKey:k,fimKey:k});
+    });
+
+    const faixasHtml=blocos.map(b=>{
+      const iniD=new Date(b.iniKey*DIA_MS);
+      const fimD=new Date(b.fimKey*DIA_MS);
+      const left=pct(iniD);
+      const width=Math.max(pct(addDias(fimD,1))-left,1.2);
+      let maxAusentes=0;
+      for(let k=b.iniKey;k<=b.fimKey;k++)maxAusentes=Math.max(maxAusentes,diaParaNomes.get(k).size);
+      return `<div style="position:absolute;left:${left}%;width:${width}%;top:0;bottom:0;background:rgba(251,146,60,.14);border-left:1px dashed #fb923c;border-right:1px dashed #fb923c;z-index:0" title="${fmtData(iniD)}→${fmtData(fimD)} · ${maxAusentes} ausentes ao mesmo tempo"></div>
+        <div style="position:absolute;left:${left}%;top:-16px;font-size:9px;font-weight:800;color:#fb923c;white-space:nowrap;z-index:2">⚠ ${fmtData(iniD)}→${fmtData(fimD)} · ${maxAusentes} ausentes</div>`;
+    }).join('');
+
+    const detalheDiasHtml=blocos.map(b=>{
+      const dias=[];
+      for(let k=b.iniKey;k<=b.fimKey;k++){
+        const d=new Date(k*DIA_MS);
+        dias.push(`<div>
+          <div style="font-size:11px;font-weight:700;color:#e2e8f0">${DIAS_ABR[d.getDay()]} · ${fmtData(d)}</div>
+          <div style="font-size:10px;color:#a0aec0">${[...diaParaNomes.get(k)].join(', ')}</div>
+        </div>`);
+      }
+      return `<div style="background:#161920;border:1px solid #fb923c;border-radius:10px;padding:10px 14px;margin-bottom:10px">
+        <div style="font-size:10px;font-weight:800;color:#fb923c;margin-bottom:8px">⚠ Dias com mais de 1 pessoa ausente ao mesmo tempo</div>
+        <div style="display:flex;gap:18px;flex-wrap:wrap">${dias.join('')}</div>
+      </div>`;
+    }).join('');
+
+    const ROW_H=44, TICKS_H=20;
+    const linhasHtml=colaboradores.map((nome,i)=>{
+      const periodos=comDatas.filter(a=>a.nome===nome);
+      return periodos.map(a=>{
+        const [bg,c,ic]=TIPO_COR[a.tipo]||['#1e2230','#94a3b8','📋'];
+        const left=pct(a.iniD);
+        const width=Math.max(pct(addDias(a.fimD,1))-left,3);
+        return `<div style="position:absolute;left:${left}%;width:${width}%;top:${i*ROW_H+2}px;height:${ROW_H-8}px;border-radius:6px;background:${bg};border:1px solid ${c};display:flex;align-items:center;justify-content:center;padding:0 4px;overflow:hidden;z-index:1" title="${a.tipo}: ${a.ini} → ${a.fim||a.ini}">
+          <span style="font-size:9px;font-weight:800;color:${c};white-space:nowrap">${ic} ${a.ini} → ${a.fim||a.ini}</span>
+        </div>`;
+      }).join('');
+    }).join('');
+
+    const nomesHtml=colaboradores.map(nome=>{
+      const periodos=comDatas.filter(a=>a.nome===nome);
+      return `<div style="height:${ROW_H}px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #2d3748">
+        <div style="width:28px;height:28px;border-radius:50%;background:#1a2744;color:#63b3ed;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${nome.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
+        <div style="min-width:0">
+          <div style="font-size:12px;font-weight:600;color:#e2e8f0;white-space:nowrap">${nome.split(' ').slice(0,2).join(' ')}</div>
+          <div style="white-space:nowrap">${badgeTipo(periodos[0]?.tipo||'')}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    const marcadoresHtml=marcadores.map(m=>`<div style="position:absolute;left:${m.pct}%;font-size:10px;color:#4a5568;font-weight:700;white-space:nowrap">${m.label}</div>`).join('');
+
+    timelineHtml=`
+    <div style="display:flex">
+      <div style="width:160px;flex-shrink:0;padding-top:${TICKS_H}px">${nomesHtml}</div>
+      <div style="flex:1;position:relative;min-width:0">
+        <div style="position:relative;height:${TICKS_H}px">${marcadoresHtml}</div>
+        <div style="position:relative;height:${colaboradores.length*ROW_H}px">
+          ${faixasHtml}
+          ${linhasHtml}
+        </div>
+      </div>
+    </div>
+    ${detalheDiasHtml}`;
+  }
 
   function renderCards(lista, comAcoes=false){
     if(!lista.length)return `<div style="padding:24px;text-align:center;color:#718096;font-size:13px">Nenhum registro</div>`;
@@ -236,7 +275,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <!-- Timeline -->
   <div style="background:#1e2230;border:1px solid #2d3748;border-radius:12px;padding:16px;margin-bottom:24px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-      <div style="font-size:13px;font-weight:700">📅 Timeline — próximos 30 dias</div>
+      <div style="font-size:13px;font-weight:700">📅 Linha do tempo — período completo</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <span style="font-size:10px;color:#4ade80">🏖️ Férias</span>
         <span style="font-size:10px;color:#60a5fa">📅 Folga</span>
