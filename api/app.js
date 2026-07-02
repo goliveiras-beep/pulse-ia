@@ -3,8 +3,8 @@ export const config = { maxDuration: 30 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { createHash } from 'crypto';
 
-const AIRTABLE_BASE = 'appwE9LmmTxynTGFY';
-const AIRTABLE_TABLE = 'tblpibvwAIGBQXr0H';
+const AIRTABLE_BASE = 'appqPBoDUYfX2edOp';
+const AIRTABLE_TABLE = 'tblkqT3nDu1Gw6bnf';
 const COOKIE_NAME = 'pulse_session';
 const COOKIE_MAX = 60 * 60 * 24 * 7;
 
@@ -64,19 +64,19 @@ async function appendSheet(range, values) {
 }
 
 async function getEventos(dataStr) {
-  // Filtra pela data de INÍCIO do evento (campo fld8hthI7oI4MY5aP = Data de início)
-  // fldRnfbwPVzFiHMqs é o campo "Data c/ Pós" (data de término) — não usar para filtrar
-  const filter=`AND(DATESTR({fld8hthI7oI4MY5aP})='${dataStr}',{Status}!='Cancelado')`;
+  // Filtra pela data de INÍCIO do evento (campo fldgNvn52DK5Yu8x9 = Início do Evento BRT)
+  // fldBNl8ypKaV5hFG5 é o campo "Encerramento" (data/hora de término) — não usar para filtrar
+  const filter=`AND(DATESTR({fldgNvn52DK5Yu8x9})='${dataStr}',{Status}!='Cancelado')`;
   try {
     const r=await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=30`,
       {headers:{Authorization:`Bearer ${process.env.AIRTABLE_API_KEY}`}});
     const d=await r.json();
     return (d.records||[]).map(r=>({
       nome:r.fields['Match ID']||'Evento',
-      hora:r.fields['Horário KO']||r.fields['PGM (horário)']||'',
-      horaFim:toHoraBRT(r.fields['Data c/ Pós']||''),
+      hora:toHoraBRT(r.fields['Início do Evento BRT']||''),
+      horaFim:toHoraBRT(r.fields['Encerramento']||''),
       tipo:r.fields['Tipo de Conteúdo']||'',
-      local:(r.fields['Padrão de Produção aux']||r.fields['Name (from Padrão de Produção)']||(Array.isArray(r.fields['Padrão de Produção'])?r.fields['Padrão de Produção'][0]:''))||'',
+      local:r.fields['Padrão de Produção']||'',
     })).sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
   } catch { return []; }
 }
