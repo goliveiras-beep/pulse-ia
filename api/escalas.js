@@ -238,10 +238,11 @@ export default async function handler(req, res) {
     return res.status(200).json({ok:true});
   }
 
-  const [equipeRaw, escalaRaw, ausenciasRaw] = await Promise.all([
+  const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
     getSheet('Equipe!A2:I50'),
     getSheet('Escala!A2:F2000'),
     getSheet('Ausencias!A2:I500'),
+    getSheet('PulseConfig!A2:B20'),
   ]);
 
   const usuario = equipeRaw.find(r => r[0] === session.nome);
@@ -249,6 +250,18 @@ export default async function handler(req, res) {
 
   const visao = req.query.v || 'semana';
   const hoje = getBRT();
+
+  // Horizonte de publicação — até quando a equipe consegue ver a escala
+  const configMap = Object.fromEntries((configRaw||[]).filter(r=>r[0]).map(r=>[r[0],r[1]||'']));
+  const horizonteAtual = configMap['publicacao_horizonte']||'';
+  const horizonteData = (() => {
+    if(!horizonteAtual) return null;
+    const [dh,mh] = horizonteAtual.split('/').map(Number);
+    if(!dh||!mh) return null;
+    return new Date(hoje.getFullYear(), mh-1, dh);
+  })();
+  const hojeSemHora = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const horizonteVencido = !horizonteData || horizonteData < hojeSemHora;
   const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab'];
   const DIAS_FULL = ['Domingo','Segunda','Terca','Quarta','Quinta','Sexta','Sabado'];
   const MESES = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -467,11 +480,23 @@ a{text-decoration:none}
   </div>
 </div>
 <div style="max-width:1200px;margin:0 auto;padding:16px 20px">
-<div id="esc-metrics" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+<div id="esc-metrics" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Periodo</div><div style="font-size:18px;font-weight:700">${datas.length} dia${datas.length>1?'s':''}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${nomes.length} colaboradores</div></div>
     <div style="background:${totalPerigo>0?'#fef2f2':'var(--card)'};border:1px solid ${totalPerigo>0?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Alertas criticos</div><div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':'var(--text)'}">${totalPerigo}</div><div style="font-size:10px;color:#aaa;margin-top:2px">interjornada, consecutivos</div></div>
     <div style="background:${totalAtencao>0?'#fffbeb':'var(--card)'};border:1px solid ${totalAtencao>0?'#fcd34d':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Atencoes</div><div style="font-size:24px;font-weight:700;color:${totalAtencao>0?'#d97706':'var(--text)'}">${totalAtencao}</div><div style="font-size:10px;color:#aaa;margin-top:2px">descanso, 6 dia</div></div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Saude da escala</div><div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':totalAtencao>0?'#d97706':'#16a34a'}">${totalPerigo>0?'Critica':totalAtencao>0?'Atencao':'OK'}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${totalPerigo+totalAtencao} ocorrencia(s)</div></div>
+    <div style="background:${horizonteVencido?'#fef2f2':'var(--card)'};border:1px solid ${horizonteVencido?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px" title="Ate quando a equipe consegue ver a escala. Gestores sempre veem tudo.">
+      <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Publicado até</div>
+      <div style="font-size:18px;font-weight:700;color:${horizonteVencido?'#dc2626':'var(--text)'}">${horizonteAtual || 'Nao definido'}</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+        <button onclick="publicarHorizonte('1 dia')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1d</button>
+        <button onclick="publicarHorizonte('2 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+2d</button>
+        <button onclick="publicarHorizonte('1 semana')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+7d</button>
+        <button onclick="publicarHorizonte('15 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+15d</button>
+        <button onclick="publicarHorizonte('1 mês')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1mês</button>
+        <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
+      </div>
+    </div>
   </div>
   <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
     <div style="display:flex;gap:4px">
@@ -606,6 +631,33 @@ function fecharEditor(){document.getElementById('editor-popup').style.display='n
 function copiarTurno(){clipboard={ent:document.getElementById('editor-ent').value,sai:document.getElementById('editor-sai').value,tipo:editorData.tipo};toast('Turno copiado!','#166634');fecharEditor();}
 async function salvarEdicao(){var ent=document.getElementById('editor-ent').value,sai=document.getElementById('editor-sai').value,tipo=editorData.tipo||'turno';if(tipo==='turno'&&(!ent||!sai)){toast('Informe entrada e saida','#dc2626');return;}var btn=document.querySelector('#editor-popup button:last-child');btn.textContent='Salvando...';btn.disabled=true;try{var r=await fetch('/api/escalas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:editorData.data,colaborador:editorData.nome,ent,sai,tipo})});var d=await r.json();if(d.ok){fecharEditor();toast('Salvo!','#166634');setTimeout(function(){location.reload();},800);}else{toast('Erro: '+d.error,'#dc2626');btn.textContent='Salvar';btn.disabled=false;}}catch(e){toast('Erro de conexao','#dc2626');btn.textContent='Salvar';btn.disabled=false;}}
 function toast(msg,bg){var t=document.getElementById('toast-esc');t.textContent=msg;t.style.background=bg||'#1a1a1a';t.style.display='block';setTimeout(function(){t.style.display='none';},2500);}
+async function publicarHorizonte(opcao){
+  var hoje=new Date();
+  var d=new Date(hoje);
+  var horizonte='';
+  if(opcao==='limpar'){
+  } else {
+    if(opcao==='1 dia') d.setDate(d.getDate()+1);
+    else if(opcao==='2 dias') d.setDate(d.getDate()+2);
+    else if(opcao==='1 semana') d.setDate(d.getDate()+7);
+    else if(opcao==='15 dias') d.setDate(d.getDate()+15);
+    else if(opcao==='1 mês') d.setMonth(d.getMonth()+1);
+    var dd=String(d.getDate()).padStart(2,'0');
+    var mm=String(d.getMonth()+1).padStart(2,'0');
+    horizonte=dd+'/'+mm;
+    toast('Salvando...','#374151');
+  }
+  try{
+    var r=await fetch('/api/publicar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({horizonte})});
+    var data=await r.json();
+    if(data.ok){
+      toast(opcao==='limpar'?'🔒 Publicação removida':'✓ Escala publicada até '+horizonte,'#166534');
+      setTimeout(function(){location.reload();},1200);
+    } else {
+      toast('Erro: '+(data.error||'?'),'#dc2626');
+    }
+  } catch(e){ toast('Erro de conexão: '+e.message,'#dc2626'); }
+}
 async function excluirTurno(){
   var d=editorData;
   if(!d.data||!d.nome){fecharEditor();return;}
