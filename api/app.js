@@ -79,6 +79,7 @@ async function getEventos(dataStr) {
       horaFim:toHoraBRT(r.fields['Encerramento']||''),
       tipo:r.fields['Tipo de Conteúdo']||'',
       local:r.fields['Padrão de Produção']||'',
+      encoder:r.fields['Encoder Auxiliar - Fórmula']||'',
     })).sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
   } catch { return []; }
 }
@@ -1596,7 +1597,7 @@ setInterval(atualizarEventos, 60000);
       return `<div ${idAtivo} data-hora="${ev.hora||''}" data-horafim="${ev.horaFim||''}" data-isoje="${comOpacidade?1:0}" style="border:1px solid ${encerrado ? 'var(--border)' : bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado ? ';opacity:.35' : ''}">
         <div style="background:${encerrado ? 'var(--card)' : bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
           <div style="font-size:13px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--today-c)'};min-width:50px">${ev.hora || '--'}${ev.horaFim?'<br><span style="font-size:9px;font-weight:600;opacity:.6">–'+ev.horaFim+'</span>':''}</div>
-          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--text)'}">${ev.nome}</div><div style="font-size:10px;color:#aaa">${ev.tipo}${ev.local ? ' · <span style="font-weight:600;color:var(--text3)">' + ev.local + '</span>' : ''}</div></div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--text)'}">${ev.nome}</div><div style="font-size:10px;color:#aaa;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:1px">${ev.tipo}${ev.local ? ' · <span style="font-weight:600;color:var(--text3)">' + ev.local + '</span>' : ''}${!encerrado && ev.encoder ? `<span style="background:#fef3c7;border:1px solid #f59e0b;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;color:#78350f">${ev.encoder}</span>` : ''}</div></div>
           ${encerrado
           ? `<div style="font-size:10px;font-weight:600;color:#9ca3af;font-style:italic">${fraseEnc}</div>`
           : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
