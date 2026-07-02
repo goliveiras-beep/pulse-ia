@@ -1655,6 +1655,14 @@ setInterval(atualizarEventos, 60000);
 
   // Horizonte de publicação
   const horizonteAtual = configMap['publicacao_horizonte']||'';
+  const horizonteData = (() => {
+    if(!horizonteAtual) return null;
+    const [dh,mh] = horizonteAtual.split('/').map(Number);
+    if(!dh||!mh) return null;
+    return new Date(hoje.getFullYear(), mh-1, dh);
+  })();
+  const hojeSemHora = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const horizonteVencido = !horizonteData || horizonteData < hojeSemHora;
 
   const conteudo = `
 <div class="header">
@@ -1710,6 +1718,17 @@ setInterval(atualizarEventos, 60000);
     <div class="metric ${folgAmanha > 2 ? 'amber-m' : ''}"><div class="ml">Folgas amanhã</div><div class="mv ${folgAmanha > 2 ? 'amber-v' : ''}">${folgAmanha}</div><div class="ms">${ausencias.filter(a => a[4] === d1Str).length} via Pulse</div></div>
     <div class="metric ${semCob > 0 ? 'red-m' : ''}" title="Eventos cujo intervalo início→fim não é coberto por nenhum turno escalado."><div class="ml">Sem cobertura</div><div class="mv ${semCob > 0 ? 'red-v' : ''}">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanhã</div></div>
     ${feriasAtivas > 0 ? `<div class="metric amber-m"><div class="ml">Férias em até 7 dias</div><div class="mv amber-v">${feriasAtivas}</div><div class="ms">${feriasProximas.map(a => `${a[1].split(' ')[0]} (${a[4]})`).join(', ')}</div></div>` : ''}
+    <div class="metric ${horizonteVencido ? 'red-m' : ''}" style="height:auto;min-height:96px" title="Até quando a equipe consegue ver a escala. Gestores sempre veem tudo.">
+      <div class="ml">Publicado até</div>
+      <div style="font-size:18px;font-weight:800;line-height:1.1;color:${horizonteVencido ? 'var(--red-m-v)' : 'var(--text)'}">${horizonteAtual || 'Não definido'}</div>
+      <div class="ms" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px">
+        <button onclick="publicarHorizonte('1 dia')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1d</button>
+        <button onclick="publicarHorizonte('2 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+2d</button>
+        <button onclick="publicarHorizonte('1 semana')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+7d</button>
+        <button onclick="publicarHorizonte('15 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+15d</button>
+        <button onclick="publicarHorizonte('1 mês')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1mês</button>
+      </div>
+    </div>
   </div>
 
   <!-- Abas de navegação (só mobile) -->
