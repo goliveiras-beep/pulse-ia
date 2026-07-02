@@ -5,8 +5,8 @@ import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
 const COOKIE_MAX = 60 * 60 * 24 * 7;
-const AIRTABLE_BASE = 'appwE9LmmTxynTGFY';
-const AIRTABLE_TABLE = 'tblpibvwAIGBQXr0H';
+const AIRTABLE_BASE = 'appqPBoDUYfX2edOp';
+const AIRTABLE_TABLE = 'tblkqT3nDu1Gw6bnf';
 
 function getBRT() {
   const a = new Date();
@@ -49,12 +49,12 @@ async function getSheet(range) {
 }
 
 async function getEventosPeriodo(dataInicio, dataFim) {
-  const filter = `AND(DATESTR({fldRnfbwPVzFiHMqs})>='${dataInicio}',DATESTR({fldRnfbwPVzFiHMqs})<='${dataFim}')`;
+  const filter = `AND(DATESTR({fldBNl8ypKaV5hFG5})>='${dataInicio}',DATESTR({fldBNl8ypKaV5hFG5})<='${dataFim}')`;
   try {
-    const r = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=500&sort[0][field]=fldRnfbwPVzFiHMqs&sort[0][direction]=asc`,
+    const r = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=500&sort[0][field]=Encerramento&sort[0][direction]=asc`,
       { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
     const d = await r.json();
-    return (d.records||[]).map(rec => ({ data: rec.fields['fldRnfbwPVzFiHMqs']?.split('T')[0]||'' }));
+    return (d.records||[]).map(rec => ({ data: rec.fields['Encerramento']?.split('T')[0]||'' }));
   } catch { return []; }
 }
 
