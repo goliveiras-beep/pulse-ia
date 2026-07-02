@@ -1018,14 +1018,15 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
       return html;
     }
 
+    // Cruza cada dia extra com a escala (mesma lógica de hoje/amanhã), pra equipe ver quem está no turno também nesses dias
     const diasExtras = [
-      {label: fmtData(d2), sub: DIAS_PT[d2.getDay()], evs: eventosD2c},
-      {label: fmtData(d3), sub: DIAS_PT[d3.getDay()], evs: eventosD3c},
-      {label: fmtData(d4), sub: DIAS_PT[d4.getDay()], evs: eventosD4c},
-      {label: fmtData(d5), sub: DIAS_PT[d5.getDay()], evs: eventosD5c},
-      {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: eventosD6c},
+      {label: fmtData(d2), sub: DIAS_PT[d2.getDay()], evs: cruzarEventos(eventosD2c, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2))},
+      {label: fmtData(d3), sub: DIAS_PT[d3.getDay()], evs: cruzarEventos(eventosD3c, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3))},
+      {label: fmtData(d4), sub: DIAS_PT[d4.getDay()], evs: cruzarEventos(eventosD4c, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4))},
+      {label: fmtData(d5), sub: DIAS_PT[d5.getDay()], evs: cruzarEventos(eventosD5c, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5))},
+      {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: cruzarEventos(eventosD6c, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6))},
     ];
-    const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder}))})));
+    const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,disp:e.disp,semCob:e.semCob}))})));
     // Cruzar com escala para mostrar quem está no turno (igual à visão do gestor)
     const escHoje2   = escalaComNoturnosAnteriores(escala, hojeStr);
     const escAmanha2 = escalaComNoturnosAnteriores(escala, d1Str);
@@ -1727,6 +1728,7 @@ setInterval(atualizarEventos, 60000);
         <button onclick="publicarHorizonte('1 semana')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+7d</button>
         <button onclick="publicarHorizonte('15 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+15d</button>
         <button onclick="publicarHorizonte('1 mês')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1mês</button>
+        <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
       </div>
     </div>
   </div>
