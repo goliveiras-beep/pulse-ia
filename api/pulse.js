@@ -113,14 +113,14 @@ function toHoraBRT(isoString) {
 }
 
 async function getGradeData(dataStr) {
-  const filter = `OR(DATESTR({fldRnfbwPVzFiHMqs}) = '${dataStr}', DATESTR({fld8hthI7oI4MY5aP}) = '${dataStr}')`;
-  const url = `https://api.airtable.com/v0/appwE9LmmTxynTGFY/tblpibvwAIGBQXr0H?view=viwrkqQ6rxT9AeNBa&filterByFormula=${encodeURIComponent(filter)}&maxRecords=100`;
+  const filter = `OR(DATESTR({fldBNl8ypKaV5hFG5}) = '${dataStr}', DATESTR({fldgNvn52DK5Yu8x9}) = '${dataStr}')`;
+  const url = `https://api.airtable.com/v0/appqPBoDUYfX2edOp/tblkqT3nDu1Gw6bnf?view=viwafe9za0RwsVlC9&filterByFormula=${encodeURIComponent(filter)}&maxRecords=100`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
   const records = data.records || [];
   records.sort((a, b) => {
-    const ha = a.fields["Horário KO"] || a.fields["PGM (horário)"] || "";
-    const hb = b.fields["Horário KO"] || b.fields["PGM (horário)"] || "";
+    const ha = toHoraBRT(a.fields["Início do Evento BRT"] || "");
+    const hb = toHoraBRT(b.fields["Início do Evento BRT"] || "");
     return ha.localeCompare(hb);
   });
   return records;
@@ -131,17 +131,14 @@ function formatEvents(records, dataFormatada) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    const inicio = f["Horário KO"] || f["PGM (horário)"] || "";
-    const posRaw = f["Data c/ Pós"] || "";
+    const inicio = toHoraBRT(f["Início do Evento BRT"] || "");
+    const posRaw = f["Encerramento"] || "";
     const termino = posRaw ? toHoraBRT(posRaw) : "";
-    const localArr = f["Name (from Padrão de Produção)"] || [];
-    const local = Array.isArray(localArr) ? localArr.join(", ") : String(localArr);
+    const local = f["Padrão de Produção"] || "";
     const tipo = f["Tipo de Conteúdo"] || "";
-    const nucleo = Array.isArray(f["Núcleo"]) ? f["Núcleo"].join(", ") : (f["Núcleo"] || "");
     const hora = inicio && termino ? `_${inicio} → ${termino}_` : inicio ? `_${inicio}_` : "";
     let linha = `${i + 1}. ${hora} *${nome}*`;
     if (tipo) linha += ` | ${tipo}`;
-    if (nucleo) linha += ` | ${nucleo}`;
     if (local) linha += ` | 📍 ${local}`;
     return linha;
   }).join("\n");
