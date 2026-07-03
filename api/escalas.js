@@ -441,13 +441,14 @@ html.dark{--bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--border:#2d3748;--border2:#2
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 a{text-decoration:none}
+.menu-item{display:block;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
+.menu-item:hover{background:var(--bg3)}
 /* ── MOBILE ── */
 @media(max-width:640px){
   /* Header */
   #esc-header{padding:8px 12px!important;gap:8px!important}
   #esc-header-right{gap:5px!important}
   #esc-atualizado{display:none!important}
-  #esc-home-btn{display:none!important}
   /* Métricas: 2 colunas */
   #esc-metrics{grid-template-columns:repeat(2,1fr)!important;gap:8px!important}
   #esc-metrics>div{padding:10px 12px!important}
@@ -481,7 +482,21 @@ a{text-decoration:none}
     <span id="esc-atualizado" style="font-size:11px;color:#555">${atualizado}</span>
     <button id="btn-gerar-ia" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;cursor:pointer" onclick="gerarEscalaIA()">&#10024; Gerar escala IA</button>
     <button id="tt" onclick="toggleTheme()" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">&#127769;</button>
-    <a id="esc-home-btn" href="/api/app" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--btn-c)">Home</a>
+    <div style="position:relative">
+      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" style="border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:15px;background:none;cursor:pointer;color:var(--btn-c);line-height:1">&#9776;</button>
+      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:190px;overflow:hidden;z-index:200">
+        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
+        <a href="/api/repositorio" class="menu-item">&#128193; Repositorio</a>
+        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
+        <div style="height:1px;background:var(--border);margin:2px 0"></div>
+        <form method="POST" action="/api/app?action=logout" style="margin:0">
+          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 <div style="max-width:1200px;margin:0 auto;padding:16px 20px">
@@ -582,6 +597,8 @@ document.getElementById('filtro-cargo').addEventListener('change',function(){loc
   aplicarFiltros();
 })();
 function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');var btn=document.getElementById('tt');if(btn)btn.textContent=dk?'\u2600\uFE0F':'\uD83C\uDF19';}
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
 </script>
 <div id="editor-popup" style="display:none;position:fixed;z-index:500;background:#242836;border:1px solid #3d4660;border-radius:10px;padding:16px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
