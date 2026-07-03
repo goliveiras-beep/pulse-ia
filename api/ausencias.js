@@ -41,9 +41,10 @@ export default async function handler(req,res){
   const session=getSession(req);
   if(!session)return res.redirect(302,'/api/app');
 
-  const [equipeRaw,ausRaw]=await Promise.all([
+  const [equipeRaw,ausRaw,escalaRaw]=await Promise.all([
     getSheet('Equipe!A2:I200'),
     getSheet('Ausências!A2:F500'),
+    getSheet('Escala!A2:F2000'),
   ]);
 
   const usuario=equipeRaw.find(r=>r[0]===session.nome);
@@ -77,8 +78,24 @@ export default async function handler(req,res){
   // Lista de nomes pra o gestor escolher no formulário de nova ausência
   const nomesEquipe=equipeRaw.filter(r=>r[0]).map(r=>r[0]).sort((a,b)=>a.localeCompare(b,'pt-BR'));
 
+  // Classifica cada pessoa em turno diurno/noturno a partir do horário mais comum na Escala
+  function turnoDaPessoa(nome){
+    const regs=escalaRaw.filter(r=>r[2]===nome&&r[3]&&r[4]&&r[5]!=='Folga'&&r[5]!=='Folga/Ausente');
+    if(!regs.length)return 'dia';
+    const freq={};
+    regs.forEach(r=>{freq[r[3]]=(freq[r[3]]||0)+1;});
+    const entradaComum=Object.entries(freq).sort((a,b)=>b[1]-a[1])[0][0];
+    const reg=regs.find(r=>r[3]===entradaComum);
+    const [hEnt]=entradaComum.split(':').map(Number);
+    const [hSai]=(reg[4]||'').split(':').map(Number);
+    const viraNoite=!isNaN(hSai)&&hSai<hEnt; // turno cruza meia-noite
+    return (viraNoite||hEnt>=14)?'noite':'dia';
+  }
+
   // Timeline: período completo (proporcional às datas reais, sem grade de dias pra rolar)
   const colaboradores=[...new Set(aprovadas.map(a=>a.nome))];
+  const colaboradoresDia=colaboradores.filter(n=>turnoDaPessoa(n)==='dia');
+  const colaboradoresNoite=colaboradores.filter(n=>turnoDaPessoa(n)==='noite');
   const TIPO_COR={'Férias':['#1c3a0a','#4ade80','🏖️'],'Folga programada':['#0a1c3a','#60a5fa','📅'],'Atestado médico':['#3a0a0a','#f87171','🏥'],'Troca de horário':['#1c1a3a','#c084fc','🔄']};
   const TIPO_COR_LIGHT={'Férias':['#dcfce7','#166534','🏖️'],'Folga programada':['#dbeafe','#1d4ed8','📅'],'Atestado médico':['#fee2e2','#991b1b','🏥'],'Troca de horário':['#f3e8ff','#7c3aed','🔄']};
 
@@ -93,25 +110,29 @@ export default async function handler(req,res){
   const DIA_MS=86400000;
   const addDias=(d,n)=>{const r=new Date(d);r.setDate(r.getDate()+n);return r;};
 
-  let timelineHtml;
-  if(colaboradores.length===0){
-    timelineHtml=`<div style="padding:32px;text-align:center;color:#718096;font-size:13px">Nenhuma ausência aprovada</div>`;
-  } else {
-    const comDatas=aprovadas.map(a=>({...a,iniD:dfParaDate(a.ini,ano),fimD:dfParaDate(a.fim||a.ini,ano)}));
-    const rangeInicio=new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate());
-    const fimMaisLonge=comDatas.reduce((max,a)=>a.fimD>max?a.fimD:max,addDias(rangeInicio,7));
-    const rangeFim=addDias(fimMaisLonge,2);
-    const totalMs=Math.max(rangeFim-rangeInicio,DIA_MS);
-    const pct=d=>Math.min(100,Math.max(0,(d-rangeInicio)/totalMs*100));
-
-    const marcadores=[];
-    let cursor=new Date(rangeInicio);
+  // Eixo de datas compartilhado entre as visões Dia/Noite, calculado a partir de TODAS as ausências aprovadas
+  const rangeInicio=new Date(hoje.getFullYear(),hoje.getMonth(),hoje.getDate());
+  const todasComDatas=aprovadas.map(a=>({...a,iniD:dfParaDate(a.ini,ano),fimD:dfParaDate(a.fim||a.ini,ano)}));
+  const fimMaisLonge=todasComDatas.reduce((max,a)=>a.fimD>max?a.fimD:max,addDias(rangeInicio,7));
+  const rangeFim=addDias(fimMaisLonge,2);
+  const totalMs=Math.max(rangeFim-rangeInicio,DIA_MS);
+  const pct=d=>Math.min(100,Math.max(0,(d-rangeInicio)/totalMs*100));
+  const marcadores=[];
+  { let cursor=new Date(rangeInicio);
     while(cursor<=rangeFim){
       marcadores.push({label:MESES_ABR[cursor.getMonth()].toUpperCase(),pct:pct(cursor)});
       cursor=new Date(cursor.getFullYear(),cursor.getMonth()+1,1);
     }
+  }
+  const marcadoresHtml=marcadores.map(m=>`<div style="position:absolute;left:${m.pct}%;font-size:10px;color:#4a5568;font-weight:700;white-space:nowrap">${m.label}</div>`).join('');
 
-    // Mapa dia -> nomes ausentes, pra achar interseção entre colaboradores
+  function montarTimeline(colaboradoresF){
+    if(colaboradoresF.length===0){
+      return `<div style="padding:32px;text-align:center;color:#718096;font-size:13px">Nenhuma ausência aprovada nesse turno</div>`;
+    }
+    const comDatas=aprovadas.filter(a=>colaboradoresF.includes(a.nome)).map(a=>({...a,iniD:dfParaDate(a.ini,ano),fimD:dfParaDate(a.fim||a.ini,ano)}));
+
+    // Mapa dia -> nomes ausentes, pra achar interseção entre colaboradores desse turno
     const diaParaNomes=new Map();
     comDatas.forEach(a=>{
       for(let t=a.iniD.getTime();t<=a.fimD.getTime();t+=DIA_MS){
@@ -155,7 +176,7 @@ export default async function handler(req,res){
     }).join('');
 
     const ROW_H=44, TICKS_H=20;
-    const linhasHtml=colaboradores.map((nome,i)=>{
+    const linhasHtml=colaboradoresF.map((nome,i)=>{
       const periodos=comDatas.filter(a=>a.nome===nome);
       return periodos.map(a=>{
         const [bg,c,ic]=TIPO_COR[a.tipo]||['#1e2230','#94a3b8','📋'];
@@ -167,7 +188,7 @@ export default async function handler(req,res){
       }).join('');
     }).join('');
 
-    const nomesHtml=colaboradores.map(nome=>{
+    const nomesHtml=colaboradoresF.map(nome=>{
       const periodos=comDatas.filter(a=>a.nome===nome);
       return `<div style="height:${ROW_H}px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #2d3748">
         <div style="width:28px;height:28px;border-radius:50%;background:#1a2744;color:#63b3ed;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${nome.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>
@@ -178,14 +199,12 @@ export default async function handler(req,res){
       </div>`;
     }).join('');
 
-    const marcadoresHtml=marcadores.map(m=>`<div style="position:absolute;left:${m.pct}%;font-size:10px;color:#4a5568;font-weight:700;white-space:nowrap">${m.label}</div>`).join('');
-
-    timelineHtml=`
+    return `
     <div style="display:flex">
       <div style="width:160px;flex-shrink:0;padding-top:${TICKS_H}px">${nomesHtml}</div>
       <div style="flex:1;position:relative;min-width:0">
         <div style="position:relative;height:${TICKS_H}px">${marcadoresHtml}</div>
-        <div style="position:relative;height:${colaboradores.length*ROW_H}px">
+        <div style="position:relative;height:${colaboradoresF.length*ROW_H}px">
           ${faixasHtml}
           ${linhasHtml}
         </div>
@@ -193,6 +212,9 @@ export default async function handler(req,res){
     </div>
     ${detalheDiasHtml}`;
   }
+
+  const timelineHtmlDia=montarTimeline(colaboradoresDia);
+  const timelineHtmlNoite=montarTimeline(colaboradoresNoite);
 
   function renderCards(lista, comAcoes=false){
     if(!lista.length)return `<div style="padding:24px;text-align:center;color:#718096;font-size:13px">Nenhum registro</div>`;
@@ -318,17 +340,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 
   <!-- Timeline -->
-  <div style="background:#1e2230;border:1px solid #2d3748;border-radius:12px;padding:16px;margin-bottom:24px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-      <div style="font-size:13px;font-weight:700">📅 Linha do tempo — período completo</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <span style="font-size:10px;color:#4ade80">🏖️ Férias</span>
-        <span style="font-size:10px;color:#60a5fa">📅 Folga</span>
-        <span style="font-size:10px;color:#f87171">🏥 Atestado</span>
-        <span style="font-size:10px;color:#c084fc">🔄 Troca</span>
-      </div>
+  <div style="background:#1e2230;border:1px solid #2d3748;border-radius:12px;overflow:hidden;margin-bottom:24px">
+    <div style="display:flex;align-items:center;border-bottom:1px solid #2d3748;padding:0 16px">
+      <button class="tab-btn turno-btn ativo" onclick="mostrarTurno('dia',this)">☀️ Dia <span style="color:#4a5568;font-size:11px">(${colaboradoresDia.length})</span></button>
+      <button class="tab-btn turno-btn" onclick="mostrarTurno('noite',this)">🌙 Noite <span style="color:#4a5568;font-size:11px">(${colaboradoresNoite.length})</span></button>
     </div>
-    ${timelineHtml}
+    <div style="padding:16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="font-size:13px;font-weight:700">📅 Linha do tempo — período completo</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-left:auto">
+          <span style="font-size:10px;color:#4ade80">🏖️ Férias</span>
+          <span style="font-size:10px;color:#60a5fa">📅 Folga</span>
+          <span style="font-size:10px;color:#f87171">🏥 Atestado</span>
+          <span style="font-size:10px;color:#c084fc">🔄 Troca</span>
+        </div>
+      </div>
+      <div style="font-size:10px;color:#718096;margin-bottom:10px">Classificado pelo horário mais comum de cada colaborador na Escala — entrada até às 14h e sem virar a noite conta como turno diurno.</div>
+      <div id="turno-dia">${timelineHtmlDia}</div>
+      <div id="turno-noite" style="display:none">${timelineHtmlNoite}</div>
+    </div>
   </div>
 
   <!-- Abas -->
@@ -356,7 +386,13 @@ function abrirAba(id,btn){
   ['pendentes','aprovadas','historico'].forEach(function(t){
     document.getElementById('aba-'+t).style.display=t===id?'block':'none';
   });
-  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('ativo');});
+  document.querySelectorAll('.tab-btn:not(.turno-btn)').forEach(function(b){b.classList.remove('ativo');});
+  btn.classList.add('ativo');
+}
+function mostrarTurno(turno,btn){
+  document.getElementById('turno-dia').style.display=turno==='dia'?'block':'none';
+  document.getElementById('turno-noite').style.display=turno==='noite'?'block':'none';
+  document.querySelectorAll('.turno-btn').forEach(function(b){b.classList.remove('ativo');});
   btn.classList.add('ativo');
 }
 function toast(msg,bg){var t=document.getElementById('toast');t.textContent=msg;t.style.background=bg||'#1a1a1a';t.style.display='block';setTimeout(function(){t.style.display='none';},2800);}
