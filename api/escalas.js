@@ -408,7 +408,7 @@ export default async function handler(req, res) {
         const temAlerta=a?.alertas?.length>0;
         const escRegMes=escalaIndex.get(`${df}|${nome}`);
         const _mEnt=escRegMes?.[3]||'';const _mSai=escRegMes?.[4]||'';const _mObs=(escRegMes?.[5]||'').replace(/['"]/g,'');
-        cal+=`<div style="background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;cursor:pointer" data-df="${df}" data-nome="${nome}" data-ent="${_mEnt}" data-sai="${_mSai}" data-obs="${_mObs}" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
+        cal+=`<div style="min-width:0;background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;cursor:pointer;overflow:hidden" data-df="${df}" data-nome="${nome}" data-ent="${_mEnt}" data-sai="${_mSai}" data-obs="${_mObs}" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
           <div style="font-size:9px;font-weight:${isHoje?700:500};color:${c.txt}">${d}</div>
           ${a?.status&&a.tipo!=='livre'?(_mEnt&&_mSai?`<div style="font-size:7px;line-height:1.15;color:${c.txt}">${_mEnt}<br>${_mSai}</div>`:`<div style="font-size:7px;color:${c.txt};overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${a.status}">${a.status}</div>`):''}
           ${temAlerta?`<div style="width:5px;height:5px;border-radius:50%;background:${c.dot};margin:1px auto 0"></div>`:''}
