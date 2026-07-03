@@ -108,6 +108,8 @@ export default async function handler(req, res) {
   const ano = baseMes.getFullYear(), mes = baseMes.getMonth();
   const ultimoDia = new Date(ano, mes + 1, 0).getDate();
   const nomeMes = baseMes.toLocaleString('pt-BR', { month: 'long' });
+  const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const anosSelect = [...new Set([hoje.getFullYear()-1, hoje.getFullYear(), hoje.getFullYear()+1, ano])].sort();
 
   const ativos = equipeRaw.filter(r => r[0] && (r[10]||'ativo').toLowerCase() === 'ativo');
   const equipe = ativos.map(r => ({ nome: r[0], cargo: r[1]||'', tipoContrato: r[12]||'' }))
@@ -300,7 +302,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
 .menu-item:hover{background:var(--bg3)}
 .bh-txt-short{display:none}
-.bh-mes-atual{display:inline-flex}
 /* ── MOBILE ── */
 @media(max-width:640px){
   #bh-header{padding:8px 12px!important;gap:8px!important;flex-wrap:wrap!important}
@@ -309,6 +310,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   #bh-header-right{gap:5px!important;margin-left:0!important;width:100%!important;justify-content:flex-end!important}
   .bh-txt-full{display:none!important}
   .bh-txt-short{display:inline!important}
+  #bh-sel-mes{max-width:90px}
+  #bh-sel-ano{max-width:68px}
   #bh-metrics{grid-template-columns:1fr!important;gap:8px!important}
   #bh-filtros{flex-wrap:wrap!important;gap:6px!important}
   #bh-insight-cols{grid-template-columns:1fr!important}
@@ -320,9 +323,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div style="width:28px;height:28px;background:#e53e3e;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0">P</div>
   <div style="min-width:0"><div id="bh-title" style="font-size:14px;font-weight:600;color:#fff">Pulse — Banco de horas &amp; Horas extras</div><div id="bh-sub" style="font-size:11px;color:#999;text-transform:capitalize">${nomeMes} ${ano} · baseado na escala planejada</div></div>
   <div id="bh-header-right" style="margin-left:auto;display:flex;align-items:center;gap:6px">
-    <a href="/api/banco-horas?offset=${offset-1}" class="btn-sm"><span class="bh-txt-full">&#8249; mês anterior</span><span class="bh-txt-short">&#8249;</span></a>
-    <span class="bh-mes-atual" style="font-size:11px;font-weight:600;color:#e2e8f0;text-transform:capitalize;white-space:nowrap">${nomeMes} ${ano}</span>
-    <a href="/api/banco-horas?offset=${offset+1}" class="btn-sm"><span class="bh-txt-full">próximo mês &#8250;</span><span class="bh-txt-short">&#8250;</span></a>
+    <a href="/api/banco-horas?offset=${offset-1}" class="btn-sm" title="Mês anterior"><span class="bh-txt-full">&#8249; mês anterior</span><span class="bh-txt-short">&#8249;</span></a>
+    <select id="bh-sel-mes" onchange="irParaMes()" style="border:1px solid var(--btn-border);border-radius:5px;padding:4px 6px;font-size:11px;font-weight:600;background:var(--header);color:#e2e8f0;cursor:pointer">
+      ${MESES_PT.map((m,i) => `<option value="${i}" ${i===mes?'selected':''}>${m}</option>`).join('')}
+    </select>
+    <select id="bh-sel-ano" onchange="irParaMes()" style="border:1px solid var(--btn-border);border-radius:5px;padding:4px 6px;font-size:11px;font-weight:600;background:var(--header);color:#e2e8f0;cursor:pointer">
+      ${anosSelect.map(a => `<option value="${a}" ${a===ano?'selected':''}>${a}</option>`).join('')}
+    </select>
+    <a href="/api/banco-horas?offset=${offset+1}" class="btn-sm" title="Próximo mês"><span class="bh-txt-full">próximo mês &#8250;</span><span class="bh-txt-short">&#8250;</span></a>
     <a href="/api/banco-horas?offset=${offset}" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed"><span class="bh-txt-full">&#128202; Gerar relatório</span><span class="bh-txt-short">&#128202;</span></a>
     <button id="tt" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" class="btn-sm" style="font-size:14px;padding:3px 8px">&#127769;</button>
     <div style="position:relative">
@@ -360,6 +368,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script>
 function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
 document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
+var HOJE_ANO=${hoje.getFullYear()}, HOJE_MES=${hoje.getMonth()};
+function irParaMes(){
+  var mesSel=parseInt(document.getElementById('bh-sel-mes').value);
+  var anoSel=parseInt(document.getElementById('bh-sel-ano').value);
+  var offsetCalc=(anoSel-HOJE_ANO)*12+(mesSel-HOJE_MES);
+  location.href='/api/banco-horas?offset='+offsetCalc;
+}
 function fmtHJs(h){
   if (h===0) return '0h';
   var inteiro=Math.floor(h), min=Math.round((h-inteiro)*60);
