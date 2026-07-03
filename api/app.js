@@ -624,9 +624,11 @@ export default async function handler(req, res) {
   function escalaComNoturnosAnteriores(escalaArr, dataStr) {
     const ontem = diaAnteriorStr(dataStr);
     const diaAtual = escalaArr.filter(r => r[0] === dataStr);
-    // Turnos noturnos do dia anterior (saída < entrada = virou meia-noite)
+    // Turnos noturnos do dia anterior que realmente ultrapassam a meia-noite
+    // (saída < entrada = virou o dia, e saída > 00:00 = sobrou tempo depois da virada;
+    // um turno que termina EXATAMENTE às 00:00 não cobre nenhum minuto de hoje)
     const noturnos = escalaArr.filter(r =>
-      r[0] === ontem && r[3] && r[4] && toMin(r[4]) < toMin(r[3])
+      r[0] === ontem && r[3] && r[4] && toMin(r[4]) < toMin(r[3]) && toMin(r[4]) > 0
     );
     // Combina: hoje + noturnos de ontem (podem haver duplicatas de nome, tudo bem)
     return [...diaAtual, ...noturnos];
