@@ -262,7 +262,7 @@ export default async function handler(req, res) {
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:4px">📈 Fluxo de trabalho por dia da semana</div>
     <div style="font-size:11px;color:var(--text2);margin-bottom:12px">Compara eventos médios (roxo) com a quantidade média de gente escalada (azul) por dia da semana, neste mês. Dias com mais gente escalada do que evento têm sobra de equipe — bons candidatos pra folga. Dias com pouca gente pra muito evento são os pontos mais sensíveis da operação.</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:14px">${diaBarHtml}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div id="bh-insight-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div style="background:#0d2010;border:1px solid #166534;border-radius:8px;padding:10px 12px">
         <div style="font-size:11px;font-weight:700;color:#68d391;margin-bottom:4px">🟢 Melhores dias para conceder folga</div>
         <div style="font-size:12px;color:#a7f3d0">${melhoresParaFolga.map(d=>d.nome).join(' e ')} — mais gente escalada do que demanda de eventos nesses dias.</div>
@@ -276,7 +276,7 @@ export default async function handler(req, res) {
   </div>` : '';
 
   const filtrosHtml = `
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+  <div id="bh-filtros" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
     <span style="font-size:11px;color:var(--text3);font-weight:600">Filtrar por tipo:</span>
     <button class="filtro-btn ativo" data-filtro="todos" data-cor="var(--text)" onclick="filtrarTipo('todos',this)" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:var(--card);color:var(--text);cursor:pointer">Todos</button>
     <button class="filtro-btn" data-filtro="CLT" data-cor="#166534" onclick="filtrarTipo('CLT',this)" style="border:1px solid #166534;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#166534;cursor:pointer">CLT</button>
@@ -297,18 +297,49 @@ html.dark{--bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--border:#2d3748;--text:#e2e8
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
 .btn-sm{background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--btn-c);text-decoration:none;cursor:pointer;display:inline-flex;align-items:center}
+.menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
+.menu-item:hover{background:var(--bg3)}
+.bh-txt-short{display:none}
+.bh-mes-atual{display:inline-flex}
+/* ── MOBILE ── */
+@media(max-width:640px){
+  #bh-header{padding:8px 12px!important;gap:8px!important;flex-wrap:wrap!important}
+  #bh-title{font-size:12px!important;white-space:normal!important}
+  #bh-sub{display:none!important}
+  #bh-header-right{gap:5px!important;margin-left:0!important;width:100%!important;justify-content:flex-end!important}
+  .bh-txt-full{display:none!important}
+  .bh-txt-short{display:inline!important}
+  #bh-metrics{grid-template-columns:1fr!important;gap:8px!important}
+  #bh-filtros{flex-wrap:wrap!important;gap:6px!important}
+  #bh-insight-cols{grid-template-columns:1fr!important}
+}
 </style>
 </head>
 <body>
-<div style="background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100">
+<div id="bh-header" style="background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100">
   <div style="width:28px;height:28px;background:#e53e3e;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0">P</div>
-  <div><div style="font-size:14px;font-weight:600;color:#fff">Pulse — Banco de horas &amp; Horas extras</div><div style="font-size:11px;color:#999;text-transform:capitalize">${nomeMes} ${ano} · baseado na escala planejada</div></div>
-  <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-    <a href="/api/banco-horas?offset=${offset-1}" class="btn-sm">&#8249; mês anterior</a>
-    <a href="/api/banco-horas?offset=${offset+1}" class="btn-sm">próximo mês &#8250;</a>
-    <a href="/api/banco-horas?offset=${offset}" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">&#128202; Gerar relatório</a>
+  <div style="min-width:0"><div id="bh-title" style="font-size:14px;font-weight:600;color:#fff">Pulse — Banco de horas &amp; Horas extras</div><div id="bh-sub" style="font-size:11px;color:#999;text-transform:capitalize">${nomeMes} ${ano} · baseado na escala planejada</div></div>
+  <div id="bh-header-right" style="margin-left:auto;display:flex;align-items:center;gap:6px">
+    <a href="/api/banco-horas?offset=${offset-1}" class="btn-sm"><span class="bh-txt-full">&#8249; mês anterior</span><span class="bh-txt-short">&#8249;</span></a>
+    <span class="bh-mes-atual" style="font-size:11px;font-weight:600;color:#e2e8f0;text-transform:capitalize;white-space:nowrap">${nomeMes} ${ano}</span>
+    <a href="/api/banco-horas?offset=${offset+1}" class="btn-sm"><span class="bh-txt-full">próximo mês &#8250;</span><span class="bh-txt-short">&#8250;</span></a>
+    <a href="/api/banco-horas?offset=${offset}" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed"><span class="bh-txt-full">&#128202; Gerar relatório</span><span class="bh-txt-short">&#128202;</span></a>
     <button id="tt" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" class="btn-sm" style="font-size:14px;padding:3px 8px">&#127769;</button>
-    <a href="/api/equipe-view" class="btn-sm">← Equipe</a>
+    <div style="position:relative">
+      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-sm" style="font-size:15px;padding:4px 10px;line-height:1">&#9776;</button>
+      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
+        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
+        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
+        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
+        <div style="height:1px;background:var(--border);margin:2px 0"></div>
+        <form method="POST" action="/api/app?action=logout" style="margin:0">
+          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 <div style="max-width:1300px;margin:0 auto;padding:18px 20px">
@@ -317,7 +348,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <span style="color:#1d4ed8;font-weight:600;margin-left:8px">CLT e PJ (8h/dia):</span> toda hora excedente vai para o banco de horas.
     ${totalSemTipo>0?`<div style="margin-top:4px;color:#d97706">⚠ ${totalSemTipo} colaborador${totalSemTipo>1?'es':''} ativo${totalSemTipo>1?'s':''} sem tipo de contrato definido — não entra neste relatório até ser configurado na aba Equipe.</div>`:''}
   </div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">
+  <div id="bh-metrics" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Colaboradores no relatório</div><div style="font-size:24px;font-weight:700" id="tot-colab">${resultado.length}</div></div>
     <div style="background:var(--card);border:1px solid #2a4080;border-radius:8px;padding:14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Banco de horas total</div><div style="font-size:24px;font-weight:700;color:#1d4ed8" id="tot-banco">${fmtH(totalGeralBanco)}</div></div>
     <div style="background:var(--card);border:1px solid #3d3010;border-radius:8px;padding:14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Hora extra 100% total</div><div style="font-size:24px;font-weight:700;color:#d97706" id="tot-extra">${fmtH(totalGeralExtra)}</div></div>
@@ -327,6 +358,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="grid" id="grid-colabs">${cardsHtml}</div>
 </div>
 <script>
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
 function fmtHJs(h){
   if (h===0) return '0h';
   var inteiro=Math.floor(h), min=Math.round((h-inteiro)*60);
