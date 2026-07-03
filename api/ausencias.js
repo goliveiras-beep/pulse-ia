@@ -262,7 +262,14 @@ html.dark{--bg:#1c1f26;--header:#161920;--card:#1e2230;--border:#2d3748;--text:#
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 .tab-btn{padding:8px 16px;font-size:13px;font-weight:600;background:none;border:none;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
 .tab-btn.ativo{color:#63b3ed;border-bottom-color:#3b82f6}
-@media(max-width:640px){.hdr-btns .extra{display:none}}
+@media(max-width:640px){
+  .hdr-btns .extra{display:none}
+  .hdr-btns>*{display:none!important}
+  .hdr-btns>.m-keep{display:flex!important;align-items:center}
+  #abas-header-aus{flex-wrap:wrap;padding:8px 12px!important}
+  #abas-header-aus .tab-btn{padding:6px 10px;font-size:12px}
+  #metricas-aus{grid-template-columns:repeat(2,1fr)!important}
+}
 </style></head>
 <body>
 <div style="background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;border-bottom:1px solid var(--border)">
@@ -272,10 +279,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="font-size:10px;color:#718096">${ausentesHoje.length} hoje · ${pendentes.length} pendente${pendentes.length!==1?'s':''}</div>
   </div>
   <div class="hdr-btns" style="margin-left:auto;display:flex;align-items:center;gap:6px">
-    <button onclick="abrirNovaAusencia()" style="border:1px solid #166534;background:#0d2010;border-radius:6px;padding:5px 12px;font-size:11px;color:#86efac;cursor:pointer;font-weight:600">+ Nova ausência</button>
+    <button onclick="abrirNovaAusencia()" class="m-keep" style="border:1px solid #166534;background:#0d2010;border-radius:6px;padding:5px 12px;font-size:11px;color:#86efac;cursor:pointer;font-weight:600">+ Nova ausência</button>
     <a href="/api/equipe-view" style="border:1px solid var(--btn-border);border-radius:6px;padding:5px 12px;font-size:11px;color:#a0aec0;text-decoration:none" class="extra">← Equipe</a>
-    <a href="/api/app" style="border:1px solid var(--btn-border);border-radius:6px;padding:5px 12px;font-size:11px;color:#a0aec0;text-decoration:none">Home</a>
-    <button id="tt" onclick="toggleTheme()" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">🌙</button>
+    <a href="/api/app" class="m-keep" style="border:1px solid var(--btn-border);border-radius:6px;padding:5px 12px;font-size:11px;color:#a0aec0;text-decoration:none">Home</a>
+    <button id="tt" onclick="toggleTheme()" class="m-keep" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">🌙</button>
   </div>
 </div>
 
@@ -323,7 +330,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div style="max-width:1100px;margin:0 auto;padding:20px 16px">
 
   <!-- Métricas -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px">
+  <div id="metricas-aus" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px">
     <div style="background:var(--card);border:1px solid ${pendentes.length?'#991b1b':'var(--border)'};border-radius:10px;padding:14px 16px">
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:600;margin-bottom:6px">Pendentes</div>
       <div style="font-size:28px;font-weight:800;color:${pendentes.length?'#fc8181':'var(--text)'}">${pendentes.length}</div>
@@ -362,7 +369,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
   <!-- Abas -->
   <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-    <div style="display:flex;align-items:center;border-bottom:1px solid var(--border);padding:0 16px">
+    <div id="abas-header-aus" style="display:flex;align-items:center;border-bottom:1px solid var(--border);padding:0 16px">
       <button class="tab-btn ativo" onclick="abrirAba('pendentes',this)">
         Pendentes ${pendentes.length?`<span style="background:#991b1b;color:#fca5a5;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-left:4px">${pendentes.length}</span>`:''}
       </button>
