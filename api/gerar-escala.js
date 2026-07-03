@@ -152,13 +152,34 @@ export default async function handler(req, res) {
   const session = getSession(req);
   if (!session) return res.status(401).json({ error: 'Não autenticado' });
 
-  const [equipeRaw, escalaRaw] = await Promise.all([
+  const [equipeRaw, escalaRaw, ausenciasRaw] = await Promise.all([
     getSheet('Equipe!A2:I50'),
     getSheet('Escala!A2:F2000'),
+    getSheet('Ausências!A2:I500'),
   ]);
 
   const usuario = equipeRaw.find(r=>r[0]===session.nome);
   if (usuario?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado — não é gestor' });
+
+  // Nunca gerar turno por cima de Férias/Folga programada/Atestado/etc já aprovados —
+  // essas informações são sempre mais importantes que uma escala gerada automaticamente
+  function statusAusencia(id) {
+    if (!id) return 'pendente';
+    if (id.startsWith('APROVADO')) return 'aprovado';
+    if (id === 'RECUSADO') return 'recusado';
+    if (id === 'CANCELADO') return 'cancelado';
+    return 'pendente';
+  }
+  function dentroPeriodoAus(ini, fim, df) {
+    if (!ini) return false;
+    const toNum = s => { const p = s.split('/'); return parseInt(p[1]) * 100 + parseInt(p[0]); };
+    const n = toNum(df), i = toNum(ini), f = toNum(fim || ini);
+    if (f >= i) return n >= i && n <= f;
+    return n >= i || n <= f;
+  }
+  function temAusenciaAprovada(df, nome) {
+    return ausenciasRaw.some(a => a[1]===nome && statusAusencia(a[0])==='aprovado' && dentroPeriodoAus(a[4], a[5], df));
+  }
 
   const hoje = getBRT();
   const inicio = new Date(hoje); inicio.setDate(hoje.getDate()+1);
@@ -334,6 +355,7 @@ Responda SOMENTE JSON (sem texto):
           const t=turnosQ[p[0]];
           if(!t) return;
           if(existingQ.has(df+'|'+p[0])) return;
+          if(temAusenciaAprovada(df,p[0])) return;
           linhas.push([df,'',p[0],t.ent,t.sai,'Gerado IA']);
         });
       }
@@ -359,6 +381,7 @@ Responda SOMENTE JSON (sem texto):
           const t=turnos[p[0]];
           if(!t) return;
           if (existingKeysAgora.has(`${df}|${p[0]}`)) return;
+          if (temAusenciaAprovada(df,p[0])) return;
           const key = `${df}|${p[0]}`;
           const aj = body.ajustes?.[key];
           // Verificar se é uma folga sugerida pela IA
@@ -402,9 +425,9 @@ Responda SOMENTE JSON (sem texto):
       .filter(r => r[0]===df && r[2] && ativos.some(p=>p[0]===r[2]))
       .map(r => ({ nome:r[2], ent:r[3]||'', sai:r[4]||'', obs:r[5]||'', existente:true }));
 
-    // Pendentes: ativos com turno identificado e que ainda NÃO têm nada na planilha para este dia
+    // Pendentes: ativos com turno identificado, sem nada na planilha e sem ausência aprovada nesse dia
     const escalaPendente = ativos
-      .filter(p=>turnos[p[0]] && !jaPreenchido(df, p[0]))
+      .filter(p=>turnos[p[0]] && !jaPreenchido(df, p[0]) && !temAusenciaAprovada(df, p[0]))
       .map(p=>({nome:p[0], ent:turnos[p[0]].ent, sai:turnos[p[0]].sai, existente:false}));
 
     const escalaCompleta = [...escalaExistente, ...escalaPendente];
