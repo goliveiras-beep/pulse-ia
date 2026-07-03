@@ -1,7 +1,6 @@
 // api/ausencias.js — Central de ausências com timeline visual
 export const config = { maxDuration: 30 };
 import { sheetsRequest } from '../lib/google-auth.js';
-import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -74,6 +73,9 @@ export default async function handler(req,res){
   const proximosSete=aprovadas.filter(a=>{
     for(let i=0;i<=7;i++){const d=new Date(hoje);d.setDate(hoje.getDate()+i);if(dentroAus(a.ini,a.fim,fmtData(d),ano))return true;}return false;
   });
+
+  // Lista de nomes pra o gestor escolher no formulário de nova ausência
+  const nomesEquipe=equipeRaw.filter(r=>r[0]).map(r=>r[0]).sort((a,b)=>a.localeCompare(b,'pt-BR'));
 
   // Timeline: período completo (proporcional às datas reais, sem grade de dias pra rolar)
   const colaboradores=[...new Set(aprovadas.map(a=>a.nome))];
@@ -179,15 +181,13 @@ export default async function handler(req,res){
     const marcadoresHtml=marcadores.map(m=>`<div style="position:absolute;left:${m.pct}%;font-size:10px;color:#4a5568;font-weight:700;white-space:nowrap">${m.label}</div>`).join('');
 
     timelineHtml=`
-    <div id="aus-timeline-scroll" style="overflow-x:auto">
-      <div style="display:flex;min-width:600px">
-        <div style="width:160px;flex-shrink:0;padding-top:${TICKS_H}px">${nomesHtml}</div>
-        <div style="flex:1;position:relative;min-width:0">
-          <div style="position:relative;height:${TICKS_H}px">${marcadoresHtml}</div>
-          <div style="position:relative;height:${colaboradores.length*ROW_H}px">
-            ${faixasHtml}
-            ${linhasHtml}
-          </div>
+    <div style="display:flex">
+      <div style="width:160px;flex-shrink:0;padding-top:${TICKS_H}px">${nomesHtml}</div>
+      <div style="flex:1;position:relative;min-width:0">
+        <div style="position:relative;height:${TICKS_H}px">${marcadoresHtml}</div>
+        <div style="position:relative;height:${colaboradores.length*ROW_H}px">
+          ${faixasHtml}
+          ${linhasHtml}
         </div>
       </div>
     </div>
@@ -202,7 +202,7 @@ export default async function handler(req,res){
       const anexoUrl=hasAnexo?a.motivo.split('Anexo:')[1].trim():'';
       const motivoTxt=hasAnexo?a.motivo.split('Anexo:')[0].trim():a.motivo;
       const periodo=a.ini+(a.fim&&a.fim!==a.ini?' → '+a.fim:'');
-      return `<div class="aus-card" style="background:#1e2230;border:1px solid ${comAcoes?c:'#2d3748'};border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:14px;margin-bottom:8px">
+      return `<div style="background:#1e2230;border:1px solid ${comAcoes?c:'#2d3748'};border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:14px;margin-bottom:8px">
         <div style="font-size:22px">${ic}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
@@ -214,7 +214,7 @@ export default async function handler(req,res){
           ${hasAnexo?`<a href="${anexoUrl}" target="_blank" style="font-size:11px;color:#60a5fa">📎 Ver atestado</a>`:''}
           ${comAcoes?`<div style="font-size:10px;color:#4a5568;margin-top:3px">ID: ${a.id}</div>`:''}
         </div>
-        <div class="aus-card-acoes" style="flex-shrink:0;display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        <div style="flex-shrink:0;display:flex;flex-direction:column;gap:6px;align-items:flex-end">
           ${comAcoes?`
             <button onclick="aprovar('${a.id}')" style="background:#166534;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:700;color:#86efac;cursor:pointer">✓ Aprovar</button>
             <button onclick="recusar('${a.id}')" style="background:none;border:1px solid #991b1b;border-radius:6px;padding:5px 12px;font-size:12px;color:#fc8181;cursor:pointer">✕ Recusar</button>
@@ -230,59 +230,63 @@ export default async function handler(req,res){
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse — Ausências</title>
 <style>
-:root{--card:#242836;--header:#161920;--border:#2d3748;--border2:#2d3748;--bg2:#2d3140;--bg3:#2d3140;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--blue-m-bg:#1a2744;--blue-m-border:#2a4080;--blue-m-v:#63b3ed;}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1c1f26;color:#e2e8f0;min-height:100vh}
 .tab-btn{padding:8px 16px;font-size:13px;font-weight:600;background:none;border:none;color:#718096;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
 .tab-btn.ativo{color:#63b3ed;border-bottom-color:#3b82f6}
-.menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:#e2e8f0;text-decoration:none;white-space:nowrap}
-.menu-item:hover{background:#2d3140}
-@media(max-width:640px){
-  #aus-tempo-widget{display:none!important}
-  #aus-header{padding:8px 12px!important;gap:8px!important}
-  #aus-title{font-size:13px!important}
-  #aus-header-right{gap:5px!important}
-  #aus-metrics{grid-template-columns:repeat(2,1fr)!important;gap:8px!important}
-  #aus-tabs{padding:0 8px!important;overflow-x:auto!important}
-  .tab-btn{padding:8px 10px!important;font-size:12px!important;white-space:nowrap}
-  .aus-card{flex-wrap:wrap!important;gap:10px!important}
-  .aus-card-acoes{flex-direction:row!important;align-items:center!important;width:100%;justify-content:flex-end}
-}
+@media(max-width:640px){.hdr-btns .extra{display:none}}
 </style></head>
 <body>
-<div id="aus-header" style="background:#161920;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;border-bottom:1px solid #2d3748">
+<div style="background:#161920;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;border-bottom:1px solid #2d3748">
   <div style="width:28px;height:28px;border-radius:6px;background:#e53e3e;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0">P</div>
-  <div style="min-width:0">
-    <div id="aus-title" style="font-size:14px;font-weight:700">Ausências</div>
-    <div id="aus-sub" style="font-size:10px;color:#718096">${ausentesHoje.length} hoje · ${pendentes.length} pendente${pendentes.length!==1?'s':''}</div>
+  <div>
+    <div style="font-size:14px;font-weight:700">Ausências</div>
+    <div style="font-size:10px;color:#718096">${ausentesHoje.length} hoje · ${pendentes.length} pendente${pendentes.length!==1?'s':''}</div>
   </div>
-  <div class="hdr-btns" id="aus-header-right" style="margin-left:auto;display:flex;align-items:center;gap:6px">
-    <div id="aus-tempo-widget" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 10px;font-size:12px;color:#e2e8f0">
-      <span id="aus-tempo-icone">&#9203;</span>
-      <span id="aus-tempo-temp" style="font-weight:700">--&deg;C</span>
-      <span id="aus-tempo-cidade" style="color:#718096;font-size:10px"></span>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
-      <div style="display:flex;align-items:center;gap:5px">
-        <span style="font-size:9px;color:#718096">BRT</span>
-        <span id="aus-relogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
+  <div class="hdr-btns" style="margin-left:auto;display:flex;gap:6px">
+    <button onclick="abrirNovaAusencia()" style="border:1px solid #166534;background:#0d2010;border-radius:6px;padding:5px 12px;font-size:11px;color:#86efac;cursor:pointer;font-weight:600">+ Nova ausência</button>
+    <a href="/api/equipe-view" style="border:1px solid #3d4660;border-radius:6px;padding:5px 12px;font-size:11px;color:#a0aec0;text-decoration:none" class="extra">← Equipe</a>
+    <a href="/api/app" style="border:1px solid #3d4660;border-radius:6px;padding:5px 12px;font-size:11px;color:#a0aec0;text-decoration:none">Home</a>
+  </div>
+</div>
+
+<div id="modal-nova-aus-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:998;align-items:center;justify-content:center" onclick="if(event.target===this)fecharNovaAusencia()">
+  <div style="background:#1e2230;border:1px solid #2d3748;border-radius:12px;padding:20px;width:340px;max-width:90vw">
+    <div style="font-size:14px;font-weight:700;margin-bottom:14px">Nova ausência (já aprovada)</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <label style="font-size:10px;color:#718096;text-transform:uppercase;font-weight:600">Colaborador</label>
+        <select id="na-colaborador" style="width:100%;margin-top:4px;background:#161920;border:1px solid #2d3748;border-radius:6px;padding:8px;color:#e2e8f0;font-size:13px">
+          ${nomesEquipe.map(n=>`<option value="${n}">${n}</option>`).join('')}
+        </select>
       </div>
-      <span id="aus-relogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
-    </div>
-    <div style="position:relative">
-      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" style="border:1px solid #3d4660;border-radius:6px;padding:4px 10px;font-size:15px;color:#a0aec0;background:none;cursor:pointer;line-height:1">&#9776;</button>
-      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:#242836;border:1px solid #2d3748;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
-        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
-        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
-        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
-        <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
-        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
-        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
-        <div style="height:1px;background:#2d3748;margin:2px 0"></div>
-        <form method="POST" action="/api/app?action=logout" style="margin:0">
-          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#fc8181">&#128682; Sair</button>
-        </form>
+      <div>
+        <label style="font-size:10px;color:#718096;text-transform:uppercase;font-weight:600">Tipo</label>
+        <select id="na-tipo" style="width:100%;margin-top:4px;background:#161920;border:1px solid #2d3748;border-radius:6px;padding:8px;color:#e2e8f0;font-size:13px">
+          <option value="Férias">🏖️ Férias</option>
+          <option value="Folga programada">📅 Folga programada</option>
+          <option value="Atestado médico">🏥 Atestado médico</option>
+          <option value="Troca de horário">🔄 Troca de horário</option>
+        </select>
       </div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1">
+          <label style="font-size:10px;color:#718096;text-transform:uppercase;font-weight:600">Início</label>
+          <input type="date" id="na-inicio" style="width:100%;margin-top:4px;background:#161920;border:1px solid #2d3748;border-radius:6px;padding:8px;color:#e2e8f0;font-size:13px">
+        </div>
+        <div style="flex:1">
+          <label style="font-size:10px;color:#718096;text-transform:uppercase;font-weight:600">Fim</label>
+          <input type="date" id="na-fim" style="width:100%;margin-top:4px;background:#161920;border:1px solid #2d3748;border-radius:6px;padding:8px;color:#e2e8f0;font-size:13px">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:10px;color:#718096;text-transform:uppercase;font-weight:600">Motivo (opcional)</label>
+        <textarea id="na-motivo" rows="2" style="width:100%;margin-top:4px;background:#161920;border:1px solid #2d3748;border-radius:6px;padding:8px;color:#e2e8f0;font-size:13px;resize:none;font-family:inherit"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button onclick="fecharNovaAusencia()" style="flex:1;background:none;border:1px solid #3d4660;border-radius:6px;padding:8px;font-size:12px;color:#a0aec0;cursor:pointer">Cancelar</button>
+      <button onclick="criarAusenciaGestor()" style="flex:1;background:#166534;border:none;border-radius:6px;padding:8px;font-size:12px;font-weight:700;color:#86efac;cursor:pointer">Criar</button>
     </div>
   </div>
 </div>
@@ -290,7 +294,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div style="max-width:1100px;margin:0 auto;padding:20px 16px">
 
   <!-- Métricas -->
-  <div id="aus-metrics" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px">
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px">
     <div style="background:#1e2230;border:1px solid ${pendentes.length?'#991b1b':'#2d3748'};border-radius:10px;padding:14px 16px">
       <div style="font-size:10px;color:#718096;text-transform:uppercase;font-weight:600;margin-bottom:6px">Pendentes</div>
       <div style="font-size:28px;font-weight:800;color:${pendentes.length?'#fc8181':'#e2e8f0'}">${pendentes.length}</div>
@@ -329,7 +333,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
   <!-- Abas -->
   <div style="background:#1e2230;border:1px solid #2d3748;border-radius:12px;overflow:hidden">
-    <div id="aus-tabs" style="display:flex;border-bottom:1px solid #2d3748;padding:0 16px">
+    <div style="display:flex;border-bottom:1px solid #2d3748;padding:0 16px">
       <button class="tab-btn ativo" onclick="abrirAba('pendentes',this)">
         Pendentes ${pendentes.length?`<span style="background:#991b1b;color:#fca5a5;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-left:4px">${pendentes.length}</span>`:''}
       </button>
@@ -348,29 +352,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div id="toast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:999"></div>
 
 <script>
-function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
-document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
-function atualizarRelogio(){
-  var now=new Date();
-  var p=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(now);
-  var bh=p.find(function(x){return x.type==='hour';}).value,bm=p.find(function(x){return x.type==='minute';}).value,bs=p.find(function(x){return x.type==='second';}).value;
-  var elBrt=document.getElementById('aus-relogio-brt');if(elBrt)elBrt.textContent=bh+':'+bm+':'+bs;
-  var elGmt=document.getElementById('aus-relogio-gmt');if(elGmt)elGmt.textContent=String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0')+':'+String(now.getUTCSeconds()).padStart(2,'0');
-}
-async function carregarTempo(){
-  try{
-    var loc=null;
-    try{var r1=await fetch('https://ipapi.co/json/');var j1=await r1.json();if(j1.latitude)loc={lat:j1.latitude,lon:j1.longitude,city:j1.city};}catch(e){}
-    if(!loc)loc={lat:-22.9068,lon:-43.1729,city:'Rio de Janeiro'};
-    var wd=await(await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America%2FSao_Paulo')).json();
-    var temp=wd.current&&wd.current.temperature_2m!==undefined?Math.round(wd.current.temperature_2m):'--';
-    var icons={0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',99:'⛈️'};
-    document.getElementById('aus-tempo-icone').textContent=icons[wd.current&&wd.current.weathercode||0]||'🌡️';
-    document.getElementById('aus-tempo-temp').textContent=temp+'°C';
-    document.getElementById('aus-tempo-cidade').textContent=loc.city||'';
-  }catch(e){document.getElementById('aus-tempo-temp').textContent='--°C';}
-}
-atualizarRelogio();carregarTempo();setInterval(atualizarRelogio,1000);
 function abrirAba(id,btn){
   ['pendentes','aprovadas','historico'].forEach(function(t){
     document.getElementById('aba-'+t).style.display=t===id?'block':'none';
@@ -395,11 +376,26 @@ async function recusar(id){
     else toast('Erro: '+(d.error||'?'),'#991b1b');
   }catch(e){toast('Erro de conexão','#991b1b');}
 }
+function abrirNovaAusencia(){document.getElementById('modal-nova-aus-overlay').style.display='flex';}
+function fecharNovaAusencia(){document.getElementById('modal-nova-aus-overlay').style.display='none';}
+function fmtDtNA(s){if(!s)return '';var p=s.split('-');return p[2]+'/'+p[1];}
+async function criarAusenciaGestor(){
+  var colaborador=document.getElementById('na-colaborador').value;
+  var tipo=document.getElementById('na-tipo').value;
+  var inicio=fmtDtNA(document.getElementById('na-inicio').value);
+  var fim=fmtDtNA(document.getElementById('na-fim').value)||inicio;
+  var motivo=document.getElementById('na-motivo').value;
+  if(!colaborador||!tipo||!inicio){toast('Preencha colaborador, tipo e data de início','#991b1b');return;}
+  try{
+    var r=await fetch('/api/equipe-view',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({acao:'criar-ausencia-gestor',colaborador:colaborador,tipo:tipo,motivo:motivo,dataInicio:inicio,dataFim:fim})});
+    var d=await r.json();
+    if(d.ok){toast('✓ Ausência criada e aprovada!','#166534');setTimeout(function(){location.reload();},1000);}
+    else toast('Erro: '+(d.error||'?'),'#991b1b');
+  }catch(e){toast('Erro de conexão','#991b1b');}
+}
 </script>
 </body></html>`;
 
-  const solicitarHtml = await solicitarBtn(session.nome);
-
   res.setHeader('Content-Type','text/html; charset=utf-8');
-  return res.status(200).send(html + solicitarHtml);
+  return res.status(200).send(html);
 }
