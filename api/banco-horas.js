@@ -300,7 +300,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
 .menu-item:hover{background:var(--bg3)}
 .bh-txt-short{display:none}
-.bh-mes-atual{display:none}
+.bh-mes-atual{display:inline-flex}
 /* ── MOBILE ── */
 @media(max-width:640px){
   #bh-header{padding:8px 12px!important;gap:8px!important;flex-wrap:wrap!important}
@@ -309,7 +309,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   #bh-header-right{gap:5px!important;margin-left:0!important;width:100%!important;justify-content:flex-end!important}
   .bh-txt-full{display:none!important}
   .bh-txt-short{display:inline!important}
-  .bh-mes-atual{display:inline-flex!important}
   #bh-metrics{grid-template-columns:1fr!important;gap:8px!important}
   #bh-filtros{flex-wrap:wrap!important;gap:6px!important}
   #bh-insight-cols{grid-template-columns:1fr!important}
