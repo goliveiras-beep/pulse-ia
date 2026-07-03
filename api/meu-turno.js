@@ -28,9 +28,7 @@ async function getSheet(range) {
   catch { return []; }
 }
 async function getEventosDia(dataStr) {
-  // Filtra só pela data de INÍCIO (fldgNvn52DK5Yu8x9) — fldBNl8ypKaV5hFG5 é o Encerramento
-  // e não deve entrar no filtro, senão evento de outro dia vaza para a lista de hoje.
-  const filter=`DATESTR({fldgNvn52DK5Yu8x9})='${dataStr}'`;
+  const filter=`OR(DATESTR({fldBNl8ypKaV5hFG5})='${dataStr}',DATESTR({fldgNvn52DK5Yu8x9})='${dataStr}')`;
   try {
     const r=await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${AIRTABLE_TABLE}?filterByFormula=${encodeURIComponent(filter)}&maxRecords=20`,
       {headers:{Authorization:`Bearer ${process.env.AIRTABLE_API_KEY}`}});
