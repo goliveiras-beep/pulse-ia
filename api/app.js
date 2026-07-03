@@ -78,6 +78,7 @@ async function getEventos(dataStr) {
       tipo:r.fields['Tipo de Conteúdo']||'',
       local:r.fields['Padrão de Produção']||'',
       encoder:r.fields['ENCODERS GERAL']||'',
+      prime:r.fields['PRIME VIDEO']||'',
     })).sort((a,b)=>(a.hora||'').localeCompare(b.hora||''));
   } catch { return []; }
 }
@@ -1028,12 +1029,12 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
       {label: fmtData(d5), sub: DIAS_PT[d5.getDay()], evs: cruzarEventos(eventosD5c, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5))},
       {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: cruzarEventos(eventosD6c, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6))},
     ];
-    const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,disp:e.disp,semCob:e.semCob}))})));
+    const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob}))})));
     // Cruzar com escala para mostrar quem está no turno (igual à visão do gestor)
     const escHoje2   = escalaComNoturnosAnteriores(escala, hojeStr);
     const escAmanha2 = escalaComNoturnosAnteriores(escala, d1Str);
-    const eventosHojeJson   = JSON.stringify(cruzarEventos(eventosHoje,  escHoje2,  hojeStr).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,disp:e.disp,semCob:e.semCob})));
-    const eventosAmanhaJson = JSON.stringify(cruzarEventos(eventosAmanha, escAmanha2, d1Str).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,disp:e.disp,semCob:e.semCob})));
+    const eventosHojeJson   = JSON.stringify(cruzarEventos(eventosHoje,  escHoje2,  hojeStr).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob})));
+    const eventosAmanhaJson = JSON.stringify(cruzarEventos(eventosAmanha, escAmanha2, d1Str).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob})));
     const hojeAno = hoje.getFullYear();
     const hojeNumMes = hoje.getMonth();
 
@@ -1403,7 +1404,7 @@ function renderEventos(eventos, containerId, agora, isHoje) {
       html += '<div style="padding:8px 12px;display:flex;align-items:center;gap:10px">';
       html += '<div style="font-size:13px;font-weight:800;min-width:48px;color:var(--text);font-variant-numeric:tabular-nums">' + (ev.hora||'--') + (ev.horaFim?'<br><span style="font-size:9px;font-weight:600;opacity:.6">–'+ev.horaFim+'</span>':'') + '</div>';
       html += '<div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--text)">' + ev.nome + '</div>';
-      html += '<div style="font-size:10px;color:var(--text3);margin-top:1px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">' + ev.tipo + (ev.local ? ' · <span style="font-weight:600">' + ev.local + '</span>' : '') + (ev.encoder ? '<span style="background:#fef3c7;border:1px solid #f59e0b;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;color:#78350f">' + ev.encoder + '</span>' : '') + '</div>';
+      html += '<div style="font-size:10px;color:var(--text3);margin-top:1px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">' + ev.tipo + (ev.local ? ' · <span style="font-weight:600">' + ev.local + '</span>' : '') + (ev.encoder ? '<span style="background:#fef3c7;border:1px solid #f59e0b;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;color:#78350f">' + ev.encoder + '</span>' : '') + (ev.prime ? '<span style="background:#e0f2fe;border:1px solid #0284c7;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;color:#075985">Prime: ' + ev.prime + '</span>' : '') + '</div>';
       // Nomes de quem está de turno — com horário completo (igual gestor)
       if (ev.disp && ev.disp.length) {
         html += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.07);padding-top:5px">';
@@ -1601,7 +1602,7 @@ setInterval(atualizarEventos, 60000);
       return `<div ${idAtivo} data-hora="${ev.hora||''}" data-horafim="${ev.horaFim||''}" data-isoje="${comOpacidade?1:0}" style="border:1px solid ${encerrado ? 'var(--border)' : bb};border-radius:8px;margin-bottom:10px;overflow:hidden${encerrado ? ';opacity:.35' : ''}">
         <div style="background:${encerrado ? 'var(--card)' : bc};padding:8px 12px;display:flex;align-items:center;gap:10px">
           <div style="font-size:13px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--today-c)'};min-width:50px">${ev.hora || '--'}${ev.horaFim?'<br><span style="font-size:9px;font-weight:600;opacity:.6">–'+ev.horaFim+'</span>':''}</div>
-          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--text)'}">${ev.nome}</div><div style="font-size:10px;color:#aaa;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:1px">${ev.tipo}${ev.local ? ' · <span style="font-weight:600;color:var(--text3)">' + ev.local + '</span>' : ''}${!encerrado && ev.encoder ? `<span style="background:#fef3c7;border:1px solid #f59e0b;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;color:#78350f">${ev.encoder}</span>` : ''}</div></div>
+          <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${encerrado ? 'var(--text3)' : 'var(--text)'}">${ev.nome}</div><div style="font-size:10px;color:#aaa;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:1px">${ev.tipo}${ev.local ? ' · <span style="font-weight:600;color:var(--text3)">' + ev.local + '</span>' : ''}${!encerrado && ev.encoder ? `<span style="background:#fef3c7;border:1px solid #f59e0b;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;color:#78350f">${ev.encoder}</span>` : ''}${!encerrado && ev.prime ? `<span style="background:#e0f2fe;border:1px solid #0284c7;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800;color:#075985">Prime: ${ev.prime}</span>` : ''}</div></div>
           ${encerrado
           ? `<div style="font-size:10px;font-weight:600;color:#9ca3af;font-style:italic">${fraseEnc}</div>`
           : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
