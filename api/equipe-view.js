@@ -273,6 +273,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .ht{font-size:14px;font-weight:700;color:#fff}.hs{font-size:11px;color:#666}
 .hr{margin-left:auto;display:flex;gap:6px;align-items:center}
 .btn-sm{border:1px solid #3d4660;border-radius:5px;padding:4px 10px;font-size:11px;color:#a0aec0;background:none;cursor:pointer;text-decoration:none}
+.menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
+.menu-item:hover{background:var(--bg2)}
 .wrap{max-width:960px;margin:0 auto;padding:20px}
 .section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:20px 0 10px;display:flex;align-items:center;gap:8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;transition:all .2s}
@@ -310,9 +312,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       ✓ Sem ausências pendentes
     </a>
     `}
-    <a href="/api/banco-horas" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">📊 Banco de horas</a>
-    <a href="/api/app" class="btn-sm">← Voltar</a>
     <button id="tt" class="btn-sm" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" style="font-size:14px;padding:3px 8px">🌙</button>
+    <div style="position:relative">
+      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-sm" style="font-size:15px;padding:4px 10px;line-height:1">&#9776;</button>
+      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
+        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
+        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
+        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
+        <div style="height:1px;background:var(--border);margin:2px 0"></div>
+        <form method="POST" action="/api/app?action=logout" style="margin:0">
+          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -397,6 +412,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="toast" id="toast"></div>
 
 <script>
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
 var _membrosData = ${membrosDataJson};
 function abrirEditorById(linha){
   var m=_membrosData[linha];

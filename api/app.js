@@ -295,6 +295,8 @@ a{text-decoration:none;color:inherit}
 .hr{margin-left:auto;display:flex;gap:6px;align-items:center}
 .btn-sm{border:1px solid #3d4660;border-radius:5px;padding:4px 10px;font-size:11px;color:#a0aec0;background:none;cursor:pointer;text-decoration:none}
 .btn-sm:hover{border-color:#6b7280;color:#e2e8f0}
+.menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
+.menu-item:hover{background:var(--bg3)}
 .wrap{max-width:1200px;margin:0 auto;padding:16px 20px}
 /* ── Métricas ────────────────────────────────────────────────────────────── */
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
@@ -1679,15 +1681,23 @@ setInterval(atualizarEventos, 60000);
       <span id="grelogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
     </div>
     <span id="saudacao-gestor" style="font-size:12px;color:#666">Ola, ${nome.split(' ')[0]}</span>
-    <a href="/api/ausencias" class="btn-sm btn-sm-keep m-keep" style="${pendAusenciasGestor?'background:#1f1010;border-color:#991b1b;color:#fc8181;animation:pulsar 1.5s infinite':''}">
-      🔔${pendAusenciasGestor?` ${pendAusenciasGestor}`:''} Ausências
-    </a>
-    <a href="/api/escalas?v=semana" class="btn-sm btn-sm-keep m-keep">Escala</a>
-    <a href="/api/equipe-view" class="btn-sm btn-sm-keep m-keep" style="display:inline-flex;align-items:center;gap:4px">Equipe${badgeEquipeGestor}</a>
-    <a href="/api/repositorio" class="btn-sm">Repositorio</a>
     <button class="btn-sm" onclick="location.reload()">&#8635;</button>
     <button id="tt" class="btn-sm btn-sm-keep m-keep" onclick="(function(){var h=document.documentElement;var dk=h.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;'})()" style="font-size:14px;padding:3px 8px;display:flex">&#127769;</button>
-    <form method="POST" action="/api/app?action=logout" class="m-keep" style="display:inline"><button type="submit" class="btn-sm" style="display:inline-block">Sair</button></form>
+    <div class="m-keep" style="position:relative">
+      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-sm" style="font-size:15px;padding:4px 10px;line-height:1">&#9776;</button>
+      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
+        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe${badgeEquipeGestor}</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausências${pendAusenciasGestor?` <span style="background:#dc2626;color:#fff;border-radius:50%;min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;padding:0 3px">${pendAusenciasGestor}</span>`:''}</a>
+        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
+        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
+        <div style="height:1px;background:var(--border);margin:2px 0"></div>
+        <form method="POST" action="/api/app?action=logout" style="margin:0">
+          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 <div class="wrap">
@@ -1897,6 +1907,8 @@ function initMobileGestor() {
 }
 window.addEventListener('load', initMobileGestor);
 window.addEventListener('resize', initMobileGestor);
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
 </script>`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');

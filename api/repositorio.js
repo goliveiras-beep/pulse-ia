@@ -1,4 +1,4 @@
-// api/repositorio.js – Central Técnica — Gestão completa de documentos
+// api/repositorio.js – Central de Conhecimento — Gestão completa de documentos
 export const config = { maxDuration: 30 };
 import { createSign, createHash } from 'crypto';
 import { sheetsRequest } from '../lib/google-auth.js';
@@ -9,7 +9,7 @@ const SHEET_ID     = process.env.GOOGLE_SHEET_ID;
 const REPO_ROOT    = process.env.PULSE_REPOSITORY_FOLDER_ID || '1dZkR61MTm8oaHq-Ycxs53bU8fJlb7x_f';
 const CFG_RANGE    = 'RepositorioConfig!A2:B50';
 
-// Pastas raiz da Central Técnica
+// Pastas raiz da Central de Conhecimento
 const PASTA_DEFS = [
   { id: REPO_ROOT,                            label: 'Raiz',                       slack: '#docs-geral'       },
   { id: '1I7hi9lszj4q6lfIz3pdy0VOSbD7IXt26', label: 'Diagramacao',                slack: '#docs-diagramacao' },
@@ -118,7 +118,7 @@ async function buildBreadcrumb(folderId, token) {
   const crumbs = [];
   let cur = folderId;
   for(let i=0; i<8; i++) {
-    if(!cur || cur===REPO_ROOT) { crumbs.unshift({id:REPO_ROOT,nome:'Central Técnica'}); break; }
+    if(!cur || cur===REPO_ROOT) { crumbs.unshift({id:REPO_ROOT,nome:'Central de Conhecimento'}); break; }
     const meta = await driveGetMeta(cur, token);
     if(meta.error) break;
     crumbs.unshift({id:meta.id,nome:meta.name});
@@ -208,7 +208,7 @@ function renderPage({ session, arquivos, breadcrumb, currentId, isGestor, pastaD
 <head>
 <script>(function(){var d=localStorage.getItem("pulse-theme");if(d==="dark")document.documentElement.classList.add("dark");})()</script>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Central Técnica — Pulse</title>
+<title>Central de Conhecimento — Pulse</title>
 <style>
 :root{--bg:#f5f5f5;--bg2:#fff;--card:#fff;--text:#1a1a1a;--muted:#777;--border:#e5e5e5;--header:#161920;--blue:#1d4ed8;--chip-bg:#fff;--chip-c:#555;--chip-border:#e5e5e5;--doc-hover:#f8fafc;--input-bg:#fff;--input-border:#e0e0e0;}
 html.dark{--bg:#1c1f26;--bg2:#242836;--card:#242836;--text:#e2e8f0;--muted:#718096;--border:#2d3748;--header:#0f1117;--blue:#63b3ed;--chip-bg:#242836;--chip-c:#a0aec0;--chip-border:#2d3748;--doc-hover:#2d3140;--input-bg:#2d3140;--input-border:#3d4660;}
@@ -263,25 +263,43 @@ a{text-decoration:none;color:inherit}
 .btn-ok{background:var(--blue);color:#fff}
 .btn-danger{background:#dc2626;color:#fff}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:300;display:none}
+.menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
+.menu-item:hover{background:var(--bg2)}
 @media(max-width:700px){.search-form{min-width:100%;margin-left:0}.doc-date{display:none}.wrap{padding:14px 12px}.top-bar{flex-direction:column}}
 </style>
 </head>
 <body>
 <div class="header">
   <a class="logo" href="/api/app">P</a>
-  <div><div class="ht">Central Técnica</div><div class="hs">Documentos · Fluxos · Procedimentos</div></div>
+  <div><div class="ht">Central de Conhecimento</div><div class="hs">Documentos · Fluxos · Procedimentos</div></div>
   <div class="hr">
     <span class="hs" style="color:#aaa">Olá, ${esc(session.nome.split(' ')[0])}</span>
     ${isGestor ? `<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">Gestor</span>` : ''}
     <button id="tt" class="btn-header" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'☀️':'🌙';})()" title="Tema">🌙</button>
-    <a class="btn-header" href="/api/app">← Home</a>
+    <div style="position:relative">
+      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-header" style="font-size:15px;line-height:1">&#9776;</button>
+      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
+        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
+        ${isGestor ? `
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
+        ` : ''}
+        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
+        ${isGestor ? `<a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>` : ''}
+        <div style="height:1px;background:var(--border);margin:2px 0"></div>
+        <form method="POST" action="/api/app?action=logout" style="margin:0">
+          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
 <div class="wrap">
   <div class="top-bar">
     <div class="top-info">
-      <div class="title">Central Técnica</div>
+      <div class="title">Central de Conhecimento</div>
       <div class="sub">Documentos oficiais, fluxos operacionais e procedimentos da equipe.</div>
     </div>
     <form class="search-form" method="GET" action="/api/repositorio">
@@ -347,6 +365,8 @@ a{text-decoration:none;color:inherit}
 <div class="toast" id="toast"></div>
 
 <script>
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
 var currentFid = '${esc(currentId||'')}';
 
 // ── Modais ───────────────────────────────────────────────────────────────────

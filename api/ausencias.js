@@ -231,7 +231,8 @@ export default async function handler(req,res){
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1c1f26;color:#e2e8f0;min-height:100vh}
 .tab-btn{padding:8px 16px;font-size:13px;font-weight:600;background:none;border:none;color:#718096;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
 .tab-btn.ativo{color:#63b3ed;border-bottom-color:#3b82f6}
-@media(max-width:640px){.hdr-btns .extra{display:none}}
+.menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:#e2e8f0;text-decoration:none;white-space:nowrap}
+.menu-item:hover{background:#2d3140}
 </style></head>
 <body>
 <div style="background:#161920;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;border-bottom:1px solid #2d3748">
@@ -241,8 +242,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="font-size:10px;color:#718096">${ausentesHoje.length} hoje · ${pendentes.length} pendente${pendentes.length!==1?'s':''}</div>
   </div>
   <div class="hdr-btns" style="margin-left:auto;display:flex;gap:6px">
-    <a href="/api/equipe-view" style="border:1px solid #3d4660;border-radius:6px;padding:5px 12px;font-size:11px;color:#a0aec0;text-decoration:none" class="extra">← Equipe</a>
-    <a href="/api/app" style="border:1px solid #3d4660;border-radius:6px;padding:5px 12px;font-size:11px;color:#a0aec0;text-decoration:none">Home</a>
+    <div style="position:relative">
+      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" style="border:1px solid #3d4660;border-radius:6px;padding:4px 10px;font-size:15px;color:#a0aec0;background:none;cursor:pointer;line-height:1">&#9776;</button>
+      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:#242836;border:1px solid #2d3748;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
+        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
+        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
+        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
+        <div style="height:1px;background:#2d3748;margin:2px 0"></div>
+        <form method="POST" action="/api/app?action=logout" style="margin:0">
+          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#fc8181">&#128682; Sair</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -307,6 +321,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div id="toast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:999"></div>
 
 <script>
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
 function abrirAba(id,btn){
   ['pendentes','aprovadas','historico'].forEach(function(t){
     document.getElementById('aba-'+t).style.display=t===id?'block':'none';
