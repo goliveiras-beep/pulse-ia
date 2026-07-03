@@ -1,6 +1,7 @@
 // api/banco-horas.js — Banco de horas e horas extras por tipo de contrato
 export const config = { maxDuration: 30 };
 import { sheetsRequest } from '../lib/google-auth.js';
+import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -317,8 +318,8 @@ export default async function handler(req, res) {
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse — Banco de horas</title>
 <style>
-:root{--bg:#f5f5f5;--bg2:#fff;--bg3:#fafafa;--border:#e5e5e5;--text:#1a1a1a;--text2:#555;--text3:#888;--header:#1a1a1a;--card:#fff;--btn-border:#444;--btn-c:#ccc;}
-html.dark{--bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--border:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--header:#161920;--card:#242836;--btn-border:#3d4660;--btn-c:#a0aec0;}
+:root{--bg:#f5f5f5;--bg2:#fff;--bg3:#fafafa;--border:#e5e5e5;--border2:#f0f0f0;--text:#1a1a1a;--text2:#555;--text3:#888;--header:#1a1a1a;--card:#fff;--btn-border:#444;--btn-c:#ccc;--blue-m-bg:#eff6ff;--blue-m-border:#dbeafe;--blue-m-v:#1d4ed8;}
+html.dark{--bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--border:#2d3748;--border2:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--header:#161920;--card:#242836;--btn-border:#3d4660;--btn-c:#a0aec0;--blue-m-bg:#1a2744;--blue-m-border:#2a4080;--blue-m-v:#63b3ed;}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
@@ -464,7 +465,9 @@ function filtrarTipo(tipo, btn){
 </script>
 </body></html>`;
 
+  const solicitarHtml = await solicitarBtn(session.nome);
+
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
-  return res.status(200).send(html);
+  return res.status(200).send(html + solicitarHtml);
 }
