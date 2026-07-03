@@ -263,6 +263,8 @@ a{text-decoration:none;color:inherit}
 .btn-ok{background:var(--blue);color:#fff}
 .btn-danger{background:#dc2626;color:#fff}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:300;display:none}
+.menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
+.menu-item:hover{background:var(--bg2)}
 @media(max-width:700px){.search-form{min-width:100%;margin-left:0}.doc-date{display:none}.wrap{padding:14px 12px}.top-bar{flex-direction:column}}
 </style>
 </head>
@@ -274,7 +276,23 @@ a{text-decoration:none;color:inherit}
     <span class="hs" style="color:#aaa">Olá, ${esc(session.nome.split(' ')[0])}</span>
     ${isGestor ? `<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">Gestor</span>` : ''}
     <button id="tt" class="btn-header" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'☀️':'🌙';})()" title="Tema">🌙</button>
-    <a class="btn-header" href="/api/app">← Home</a>
+    <div style="position:relative">
+      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-header" style="font-size:15px;line-height:1">&#9776;</button>
+      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
+        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
+        ${isGestor ? `
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
+        ` : ''}
+        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
+        ${isGestor ? `<a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>` : ''}
+        <div style="height:1px;background:var(--border);margin:2px 0"></div>
+        <form method="POST" action="/api/app?action=logout" style="margin:0">
+          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -347,6 +365,8 @@ a{text-decoration:none;color:inherit}
 <div class="toast" id="toast"></div>
 
 <script>
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
 var currentFid = '${esc(currentId||'')}';
 
 // ── Modais ───────────────────────────────────────────────────────────────────
