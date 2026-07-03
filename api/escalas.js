@@ -2,7 +2,6 @@
 export const config = { maxDuration: 60 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { analisarEscala, duracaoTurno } from '../lib/escalas-engine.js';
-import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -242,7 +241,7 @@ export default async function handler(req, res) {
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
     getSheet('Equipe!A2:I50'),
     getSheet('Escala!A2:F2000'),
-    getSheet('Ausencias!A2:I500'),
+    getSheet('Ausências!A2:I500'),
     getSheet('PulseConfig!A2:B20'),
   ]);
 
@@ -442,38 +441,31 @@ html.dark{--bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--border:#2d3748;--border2:#2
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 a{text-decoration:none}
-.menu-item{display:block;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
-.menu-item:hover{background:var(--bg3)}
 /* ── MOBILE ── */
 @media(max-width:640px){
   /* Header */
   #esc-header{padding:8px 12px!important;gap:8px!important}
   #esc-header-right{gap:5px!important}
   #esc-atualizado{display:none!important}
-  #esc-tempo-widget{display:none!important}
+  #esc-home-btn{display:none!important}
   /* Métricas: 2 colunas */
   #esc-metrics{grid-template-columns:repeat(2,1fr)!important;gap:8px!important}
   #esc-metrics>div{padding:10px 12px!important}
-  #esc-metrics .mv{font-size:15px!important}
-  /* Controles (Dia/Semana/Mes + Anterior/Atual/Proximo): empilhar em vez de embolar numa linha só */
-  #esc-controls{flex-direction:column!important;align-items:stretch!important;gap:8px!important;padding:8px 10px!important}
-  #esc-controls .ctrl-views{width:100%;display:flex}
-  #esc-controls .ctrl-views a{flex:1;text-align:center}
-  #esc-controls .ctrl-nav{width:100%;display:flex;justify-content:space-between;gap:6px!important}
-  #esc-controls .ctrl-nav a{flex:1;text-align:center;padding:5px 6px!important}
-  #esc-controls .ctrl-divider{display:none!important}
+  #esc-metrics .mv{font-size:20px!important}
+  /* Controles: quebrar em 2 linhas */
+  #esc-controls{gap:6px!important;padding:8px 10px!important}
+  #esc-controls .ctrl-nav{order:2;width:100%;justify-content:space-between}
+  #esc-controls .ctrl-views{order:1}
   #esc-controls .ctrl-titulo{display:none!important}
-  /* Filtros: empilhar, busca e cargo ocupam a linha toda */
-  #esc-filtros{flex-wrap:wrap!important;gap:6px!important;padding:8px 10px!important}
-  #esc-filtros #filtro-cargo{flex:1 1 100%!important;min-width:0!important}
-  #esc-filtros #busca{flex:1 1 100%!important;min-width:0!important}
+  /* Filtros: esconder cargo dropdown no mobile */
+  #esc-filtros{padding:6px 10px!important;gap:6px!important;flex-wrap:wrap!important}
+  #esc-cargo-filter{font-size:11px!important;padding:4px 6px!important;max-width:120px}
   /* Tabela: scroll horizontal */
   #esc-tabela-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}
   #esc-tabela-wrap table{min-width:600px}
   #esc-tabela-wrap td,#esc-tabela-wrap th{padding:3px!important;font-size:10px!important}
   /* Regras: compactar */
-  #esc-regras{padding:10px 12px!important}
-  #esc-regras>div:last-child{font-size:10px!important;gap:6px!important}
+  #esc-regras{font-size:10px!important;padding:8px!important;flex-wrap:wrap!important;gap:4px!important}
 }
 </style>
 </head><body>
@@ -481,47 +473,21 @@ a{text-decoration:none}
   <a href="/api/app" style="width:28px;height:28px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#1a1a1a;font-size:12px;font-weight:700;flex-shrink:0;text-decoration:none">P</a>
   <div><div style="font-size:14px;font-weight:600;color:#fff">Pulse - Escala</div><div style="font-size:11px;color:#666">${titulo} &middot; ${subtitulo}</div></div>
   <div id="esc-header-right" style="margin-left:auto;display:flex;align-items:center;gap:6px">
-    <div id="esc-tempo-widget" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 10px;font-size:12px;color:#e2e8f0">
-      <span id="esc-tempo-icone">&#9203;</span>
-      <span id="esc-tempo-temp" style="font-weight:700">--&deg;C</span>
-      <span id="esc-tempo-cidade" style="color:#718096;font-size:10px"></span>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
-      <div style="display:flex;align-items:center;gap:5px">
-        <span style="font-size:9px;color:#718096">BRT</span>
-        <span id="esc-relogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
-      </div>
-      <span id="esc-relogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
-    </div>
     <span id="esc-atualizado" style="font-size:11px;color:#555">${atualizado}</span>
     <button id="btn-gerar-ia" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;cursor:pointer" onclick="gerarEscalaIA()">&#10024; Gerar escala IA</button>
     <button id="tt" onclick="toggleTheme()" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">&#127769;</button>
-    <div style="position:relative">
-      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" style="border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:15px;background:none;cursor:pointer;color:var(--btn-c);line-height:1">&#9776;</button>
-      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:190px;overflow:hidden;z-index:200">
-        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
-        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
-        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
-        <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
-        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
-        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
-        <div style="height:1px;background:var(--border);margin:2px 0"></div>
-        <form method="POST" action="/api/app?action=logout" style="margin:0">
-          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
-        </form>
-      </div>
-    </div>
+    <a id="esc-home-btn" href="/api/app" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--btn-c)">Home</a>
   </div>
 </div>
 <div style="max-width:1200px;margin:0 auto;padding:16px 20px">
 <div id="esc-metrics" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Periodo</div><div class="mv" style="font-size:18px;font-weight:700">${datas.length} dia${datas.length>1?'s':''}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${nomes.length} colaboradores</div></div>
-    <div style="background:${totalPerigo>0?'#fef2f2':'var(--card)'};border:1px solid ${totalPerigo>0?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Alertas criticos</div><div class="mv" style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':'var(--text)'}">${totalPerigo}</div><div style="font-size:10px;color:#aaa;margin-top:2px">interjornada, consecutivos</div></div>
-    <div style="background:${totalAtencao>0?'#fffbeb':'var(--card)'};border:1px solid ${totalAtencao>0?'#fcd34d':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Atencoes</div><div class="mv" style="font-size:24px;font-weight:700;color:${totalAtencao>0?'#d97706':'var(--text)'}">${totalAtencao}</div><div style="font-size:10px;color:#aaa;margin-top:2px">descanso, 6 dia</div></div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Saude da escala</div><div class="mv" style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':totalAtencao>0?'#d97706':'#16a34a'}">${totalPerigo>0?'Critica':totalAtencao>0?'Atencao':'OK'}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${totalPerigo+totalAtencao} ocorrencia(s)</div></div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Periodo</div><div style="font-size:18px;font-weight:700">${datas.length} dia${datas.length>1?'s':''}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${nomes.length} colaboradores</div></div>
+    <div style="background:${totalPerigo>0?'#fef2f2':'var(--card)'};border:1px solid ${totalPerigo>0?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Alertas criticos</div><div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':'var(--text)'}">${totalPerigo}</div><div style="font-size:10px;color:#aaa;margin-top:2px">interjornada, consecutivos</div></div>
+    <div style="background:${totalAtencao>0?'#fffbeb':'var(--card)'};border:1px solid ${totalAtencao>0?'#fcd34d':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Atencoes</div><div style="font-size:24px;font-weight:700;color:${totalAtencao>0?'#d97706':'var(--text)'}">${totalAtencao}</div><div style="font-size:10px;color:#aaa;margin-top:2px">descanso, 6 dia</div></div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Saude da escala</div><div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':totalAtencao>0?'#d97706':'#16a34a'}">${totalPerigo>0?'Critica':totalAtencao>0?'Atencao':'OK'}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${totalPerigo+totalAtencao} ocorrencia(s)</div></div>
     <div style="background:${horizonteVencido?'#fef2f2':'var(--card)'};border:1px solid ${horizonteVencido?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px" title="Ate quando a equipe consegue ver a escala. Gestores sempre veem tudo.">
       <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Publicado até</div>
-      <div class="mv" style="font-size:18px;font-weight:700;color:${horizonteVencido?'#dc2626':'var(--text)'}">${horizonteAtual || 'Nao definido'}</div>
+      <div style="font-size:18px;font-weight:700;color:${horizonteVencido?'#dc2626':'var(--text)'}">${horizonteAtual || 'Nao definido'}</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
         <button onclick="publicarHorizonte('1 dia')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1d</button>
         <button onclick="publicarHorizonte('2 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+2d</button>
@@ -532,21 +498,19 @@ a{text-decoration:none}
       </div>
     </div>
   </div>
-  <div id="esc-controls" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-    <div class="ctrl-views" style="display:flex;gap:4px">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <div style="display:flex;gap:4px">
       <a href="/api/escalas?v=dia&offset=0" style="background:${visao==='dia'?'#1a1a1a':'none'};color:${visao==='dia'?'#fff':'#555'};border:1px solid ${visao==='dia'?'#1a1a1a':'#e5e5e5'};border-radius:6px;padding:5px 14px;font-size:12px">Dia</a>
       <a href="/api/escalas?v=semana&offset=0" style="background:${visao==='semana'?'#1a1a1a':'none'};color:${visao==='semana'?'#fff':'#555'};border:1px solid ${visao==='semana'?'#1a1a1a':'#e5e5e5'};border-radius:6px;padding:5px 14px;font-size:12px">Semana</a>
       <a href="/api/escalas?v=mes&offset=0" style="background:${visao==='mes'?'#1a1a1a':'none'};color:${visao==='mes'?'#fff':'#555'};border:1px solid ${visao==='mes'?'#1a1a1a':'#e5e5e5'};border-radius:6px;padding:5px 14px;font-size:12px">Mes</a>
     </div>
-    <div class="ctrl-divider" style="width:1px;height:20px;background:#e5e5e5"></div>
-    <div class="ctrl-nav" style="display:flex;gap:8px">
-      <a href="/api/escalas?v=${visao}&offset=${offset-1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Anterior</a>
-      <a href="/api/escalas?v=${visao}&offset=0" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)${offset===0?';background:var(--bg3)':''}">Atual</a>
-      <a href="/api/escalas?v=${visao}&offset=${offset+1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Proximo</a>
-    </div>
-    <div class="ctrl-titulo" style="margin-left:auto;font-size:11px;color:#888;font-weight:600">${titulo}</div>
+    <div style="width:1px;height:20px;background:#e5e5e5"></div>
+    <a href="/api/escalas?v=${visao}&offset=${offset-1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Anterior</a>
+    <a href="/api/escalas?v=${visao}&offset=0" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)${offset===0?';background:var(--bg3)':''}">Atual</a>
+    <a href="/api/escalas?v=${visao}&offset=${offset+1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Proximo</a>
+    <div style="margin-left:auto;font-size:11px;color:#888;font-weight:600">${titulo}</div>
   </div>
-  <div id="esc-filtros" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
     <div style="display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:3px">
       <button id="view-grid" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">&#x229E;</button>
       <button id="view-list" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">&#9776;</button>
@@ -564,7 +528,7 @@ a{text-decoration:none}
   </div>
   ${legendaHTML}
   <div style="margin-top:10px" id="container-grid">${conteudoGrid}</div>
-  <div id="esc-regras" style="margin-top:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
+  <div style="margin-top:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
     <div style="font-size:10px;font-weight:600;text-transform:uppercase;color:#888;margin-bottom:8px">Regras aplicadas</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text2)">
       <span>Interjornada minima: 11h</span><span>Jornada maxima: 10h</span><span>Acima de 8h: 1h descanso</span><span>7 dia consecutivo sem folga</span><span>6 dia: aviso preventivo</span>
@@ -611,29 +575,6 @@ document.getElementById('filtro-cargo').addEventListener('change',function(){loc
   aplicarFiltros();
 })();
 function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');var btn=document.getElementById('tt');if(btn)btn.textContent=dk?'\u2600\uFE0F':'\uD83C\uDF19';}
-function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
-document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
-function atualizarRelogio(){
-  var now=new Date();
-  var p=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(now);
-  var bh=p.find(function(x){return x.type==='hour';}).value,bm=p.find(function(x){return x.type==='minute';}).value,bs=p.find(function(x){return x.type==='second';}).value;
-  var elBrt=document.getElementById('esc-relogio-brt');if(elBrt)elBrt.textContent=bh+':'+bm+':'+bs;
-  var elGmt=document.getElementById('esc-relogio-gmt');if(elGmt)elGmt.textContent=String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0')+':'+String(now.getUTCSeconds()).padStart(2,'0');
-}
-async function carregarTempo(){
-  try{
-    var loc=null;
-    try{var r1=await fetch('https://ipapi.co/json/');var j1=await r1.json();if(j1.latitude)loc={lat:j1.latitude,lon:j1.longitude,city:j1.city};}catch(e){}
-    if(!loc)loc={lat:-22.9068,lon:-43.1729,city:'Rio de Janeiro'};
-    var wd=await(await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America%2FSao_Paulo')).json();
-    var temp=wd.current&&wd.current.temperature_2m!==undefined?Math.round(wd.current.temperature_2m):'--';
-    var icons={0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',99:'⛈️'};
-    document.getElementById('esc-tempo-icone').textContent=icons[wd.current&&wd.current.weathercode||0]||'🌡️';
-    document.getElementById('esc-tempo-temp').textContent=temp+'°C';
-    document.getElementById('esc-tempo-cidade').textContent=loc.city||'';
-  }catch(e){document.getElementById('esc-tempo-temp').textContent='--°C';}
-}
-atualizarRelogio();carregarTempo();setInterval(atualizarRelogio,1000);
 </script>
 <div id="editor-popup" style="display:none;position:fixed;z-index:500;background:#242836;border:1px solid #3d4660;border-radius:10px;padding:16px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -814,9 +755,7 @@ async function colarDireto(cel){
 </script>
 </body></html>`;
 
-  const solicitarHtml = await solicitarBtn(session.nome);
-
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Cache-Control','no-cache');
-  return res.status(200).send(html + solicitarHtml + CHAT_IA_ESC);
+  return res.status(200).send(html + CHAT_IA_ESC);
 }
