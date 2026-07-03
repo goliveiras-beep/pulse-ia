@@ -23,7 +23,9 @@ async function slackPost(channel, text) {
 }
 
 async function getGradeDia(data) {
-  const filter = `OR(DATESTR({fldBNl8ypKaV5hFG5}) = '${data}', DATESTR({fldgNvn52DK5Yu8x9}) = '${data}')`;
+  // Filtra pela data de INÍCIO do evento (fldgNvn52DK5Yu8x9). fldBNl8ypKaV5hFG5 é o
+  // Encerramento e não deve entrar no filtro, senão evento de outro dia vaza para a grade.
+  const filter = `DATESTR({fldgNvn52DK5Yu8x9}) = '${data}'`;
   const url = `https://api.airtable.com/v0/${BASE}/${TABELA}?view=${VIEW}&filterByFormula=${encodeURIComponent(filter)}&maxRecords=100`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const d = await res.json();

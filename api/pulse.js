@@ -113,7 +113,10 @@ function toHoraBRT(isoString) {
 }
 
 async function getGradeData(dataStr) {
-  const filter = `OR(DATESTR({fldBNl8ypKaV5hFG5}) = '${dataStr}', DATESTR({fldgNvn52DK5Yu8x9}) = '${dataStr}')`;
+  // Filtra pela data de INÍCIO do evento (fldgNvn52DK5Yu8x9). fldBNl8ypKaV5hFG5 é o
+  // Encerramento e não deve entrar no filtro — um OR com ele fazia o evento de amanhã
+  // (que termina, ou já registra a data de conclusão, em outro dia) aparecer na grade de hoje.
+  const filter = `DATESTR({fldgNvn52DK5Yu8x9}) = '${dataStr}'`;
   const url = `https://api.airtable.com/v0/appqPBoDUYfX2edOp/tblkqT3nDu1Gw6bnf?view=viwafe9za0RwsVlC9&filterByFormula=${encodeURIComponent(filter)}&maxRecords=100`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${process.env.AIRTABLE_API_KEY}` } });
   const data = await res.json();
