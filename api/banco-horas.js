@@ -69,7 +69,10 @@ function duracaoHoras(ent, sai) {
 // ── Regras por tipo de contrato ──────────────────────────────────────────
 // Temporário (LET) — jornada 6x1, 6h/dia. Seg-Sáb: até 2h extras vão pro banco; depois disso é hora extra.
 // Domingo: sem banco de horas, qualquer hora extra é paga a 100%.
-// CLT e PJ — jornada padrão 8h/dia (turno de 9h com 1h de intervalo). Tudo que exceder vai pro banco de horas.
+// CLT e PJ — jornada padrão 8h/dia (turno de 9h com 1h de intervalo). Até 2h excedentes por dia vão para o
+// banco de horas (limite do art. 59 da CLT); acima disso é hora extra 100% — regra provisória, ajustar o
+// limite de LIMITE_BANCO_CLT_PJ abaixo se o acordo real da empresa usar outro valor.
+const LIMITE_BANCO_CLT_PJ = 2;
 function jornadaContratada(tipo) { return tipo === 'Temporário' ? 6 : 8; }
 function horasEfetivas(durBruta, tipo) {
   if (tipo === 'Temporário') return durBruta; // turno de 6h, sem intervalo
@@ -83,7 +86,8 @@ function calcularDia(durBruta, tipo, isDomingo) {
     if (isDomingo) { extra100 = excedente; }
     else { banco = Math.min(excedente, 2); extra100 = Math.max(0, excedente - 2); }
   } else {
-    banco = excedente; // PJ e CLT: tudo vai para banco de horas
+    banco = Math.min(excedente, LIMITE_BANCO_CLT_PJ);
+    extra100 = Math.max(0, excedente - LIMITE_BANCO_CLT_PJ);
   }
   return { trabalhadas, excedente, banco, extra100 };
 }
@@ -108,6 +112,8 @@ export default async function handler(req, res) {
   const ano = baseMes.getFullYear(), mes = baseMes.getMonth();
   const ultimoDia = new Date(ano, mes + 1, 0).getDate();
   const nomeMes = baseMes.toLocaleString('pt-BR', { month: 'long' });
+  const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const anosSelect = [...new Set([hoje.getFullYear()-1, hoje.getFullYear(), hoje.getFullYear()+1, ano])].sort();
 
   const ativos = equipeRaw.filter(r => r[0] && (r[10]||'ativo').toLowerCase() === 'ativo');
   const equipe = ativos.map(r => ({ nome: r[0], cargo: r[1]||'', tipoContrato: r[12]||'' }))
@@ -183,6 +189,7 @@ export default async function handler(req, res) {
   }
 
   const tipoCores = { 'CLT':['#dcfce7','#166534'], 'PJ':['#f3e8ff','#7c3aed'], 'Temporário':['#fef3c7','#92400e'] };
+  const tipoLabels = { 'CLT':'Live Mode', 'PJ':'PJ', 'Temporário':'LET' };
 
   const maiorValor = Math.max(1, ...resultado.map(p => Math.max(p.bancoTotal, p.extraTotal)));
 
@@ -207,7 +214,7 @@ export default async function handler(req, res) {
           <div style="font-size:13px;font-weight:700;color:var(--text)">${esc(p.nome)}</div>
           <div style="font-size:10px;color:var(--text3)">${esc(p.cargo)||'—'}</div>
         </div>
-        <span style="background:${tbg};color:${tc};border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700">${esc(p.tipoContrato)}</span>
+        <span style="background:${tbg};color:${tc};border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700">${esc(tipoLabels[p.tipoContrato] || p.tipoContrato)}</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
         <div style="background:var(--bg2);border-radius:8px;padding:8px 10px">
@@ -229,7 +236,7 @@ export default async function handler(req, res) {
       </div>
       ${diasDetalheHtml}
     </div>`;
-  }).join('') : '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Nenhum colaborador com tipo de contrato definido (CLT, PJ ou Temporário). Defina o tipo de contrato em cada colaborador na aba Equipe.</div>';
+  }).join('') : '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Nenhum colaborador com tipo de contrato definido (Live Mode, PJ ou LET). Defina o tipo de contrato em cada colaborador na aba Equipe.</div>';
 
   const diaBarHtml = weekdayAnalise.map(w => {
     const pctEventos = Math.round((w.mediaEventos / maiorEventos) * 100);
@@ -279,9 +286,9 @@ export default async function handler(req, res) {
   <div id="bh-filtros" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
     <span style="font-size:11px;color:var(--text3);font-weight:600">Filtrar por tipo:</span>
     <button class="filtro-btn ativo" data-filtro="todos" data-cor="var(--text)" onclick="filtrarTipo('todos',this)" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:var(--card);color:var(--text);cursor:pointer">Todos</button>
-    <button class="filtro-btn" data-filtro="CLT" data-cor="#166534" onclick="filtrarTipo('CLT',this)" style="border:1px solid #166534;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#166534;cursor:pointer">CLT</button>
+    <button class="filtro-btn" data-filtro="CLT" data-cor="#166534" onclick="filtrarTipo('CLT',this)" style="border:1px solid #166534;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#166534;cursor:pointer">Live Mode</button>
     <button class="filtro-btn" data-filtro="PJ" data-cor="#7c3aed" onclick="filtrarTipo('PJ',this)" style="border:1px solid #7c3aed;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#7c3aed;cursor:pointer">PJ</button>
-    <button class="filtro-btn" data-filtro="Temporário" data-cor="#92400e" onclick="filtrarTipo('Temporário',this)" style="border:1px solid #92400e;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#92400e;cursor:pointer">Temporário</button>
+    <button class="filtro-btn" data-filtro="Temporário" data-cor="#92400e" onclick="filtrarTipo('Temporário',this)" style="border:1px solid #92400e;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#92400e;cursor:pointer">LET</button>
   </div>`;
 
   const html = `<!DOCTYPE html>
@@ -300,7 +307,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
 .menu-item:hover{background:var(--bg3)}
 .bh-txt-short{display:none}
-.bh-mes-atual{display:inline-flex}
 /* ── MOBILE ── */
 @media(max-width:640px){
   #bh-header{padding:8px 12px!important;gap:8px!important;flex-wrap:wrap!important}
@@ -309,6 +315,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   #bh-header-right{gap:5px!important;margin-left:0!important;width:100%!important;justify-content:flex-end!important}
   .bh-txt-full{display:none!important}
   .bh-txt-short{display:inline!important}
+  #bh-sel-mes{max-width:90px}
+  #bh-sel-ano{max-width:68px}
   #bh-metrics{grid-template-columns:1fr!important;gap:8px!important}
   #bh-filtros{flex-wrap:wrap!important;gap:6px!important}
   #bh-insight-cols{grid-template-columns:1fr!important}
@@ -320,9 +328,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div style="width:28px;height:28px;background:#e53e3e;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0">P</div>
   <div style="min-width:0"><div id="bh-title" style="font-size:14px;font-weight:600;color:#fff">Pulse — Banco de horas &amp; Horas extras</div><div id="bh-sub" style="font-size:11px;color:#999;text-transform:capitalize">${nomeMes} ${ano} · baseado na escala planejada</div></div>
   <div id="bh-header-right" style="margin-left:auto;display:flex;align-items:center;gap:6px">
-    <a href="/api/banco-horas?offset=${offset-1}" class="btn-sm"><span class="bh-txt-full">&#8249; mês anterior</span><span class="bh-txt-short">&#8249;</span></a>
-    <span class="bh-mes-atual" style="font-size:11px;font-weight:600;color:#e2e8f0;text-transform:capitalize;white-space:nowrap">${nomeMes} ${ano}</span>
-    <a href="/api/banco-horas?offset=${offset+1}" class="btn-sm"><span class="bh-txt-full">próximo mês &#8250;</span><span class="bh-txt-short">&#8250;</span></a>
+    <a href="/api/banco-horas?offset=${offset-1}" class="btn-sm" title="Mês anterior"><span class="bh-txt-full">&#8249; mês anterior</span><span class="bh-txt-short">&#8249;</span></a>
+    <select id="bh-sel-mes" onchange="irParaMes()" style="border:1px solid var(--btn-border);border-radius:5px;padding:4px 6px;font-size:11px;font-weight:600;background:var(--header);color:#e2e8f0;cursor:pointer">
+      ${MESES_PT.map((m,i) => `<option value="${i}" ${i===mes?'selected':''}>${m}</option>`).join('')}
+    </select>
+    <select id="bh-sel-ano" onchange="irParaMes()" style="border:1px solid var(--btn-border);border-radius:5px;padding:4px 6px;font-size:11px;font-weight:600;background:var(--header);color:#e2e8f0;cursor:pointer">
+      ${anosSelect.map(a => `<option value="${a}" ${a===ano?'selected':''}>${a}</option>`).join('')}
+    </select>
+    <a href="/api/banco-horas?offset=${offset+1}" class="btn-sm" title="Próximo mês"><span class="bh-txt-full">próximo mês &#8250;</span><span class="bh-txt-short">&#8250;</span></a>
     <a href="/api/banco-horas?offset=${offset}" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed"><span class="bh-txt-full">&#128202; Gerar relatório</span><span class="bh-txt-short">&#128202;</span></a>
     <button id="tt" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" class="btn-sm" style="font-size:14px;padding:3px 8px">&#127769;</button>
     <div style="position:relative">
@@ -344,8 +357,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 <div style="max-width:1300px;margin:0 auto;padding:18px 20px">
   <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:11px;color:var(--text2);line-height:1.6">
-    <b>Regras aplicadas</b> · <span style="color:#7c3aed;font-weight:600">Temporário (LET, 6x1, 6h/dia):</span> seg–sáb, até 2h excedentes vão para o banco de horas; depois disso é hora extra (100%). Domingo: sem banco — toda hora excedente é hora extra (100%).
-    <span style="color:#1d4ed8;font-weight:600;margin-left:8px">CLT e PJ (8h/dia):</span> toda hora excedente vai para o banco de horas.
+    <b>Regras aplicadas</b> · <span style="color:#7c3aed;font-weight:600">LET (6x1, 6h/dia):</span> seg–sáb, até 2h excedentes vão para o banco de horas; depois disso é hora extra (100%). Domingo: sem banco — toda hora excedente é hora extra (100%).
+    <span style="color:#1d4ed8;font-weight:600;margin-left:8px">Live Mode e PJ (8h/dia):</span> até ${LIMITE_BANCO_CLT_PJ}h excedentes por dia vão para o banco de horas; depois disso é hora extra (100%).
     ${totalSemTipo>0?`<div style="margin-top:4px;color:#d97706">⚠ ${totalSemTipo} colaborador${totalSemTipo>1?'es':''} ativo${totalSemTipo>1?'s':''} sem tipo de contrato definido — não entra neste relatório até ser configurado na aba Equipe.</div>`:''}
   </div>
   <div id="bh-metrics" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">
@@ -360,6 +373,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script>
 function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
 document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
+var HOJE_ANO=${hoje.getFullYear()}, HOJE_MES=${hoje.getMonth()};
+function irParaMes(){
+  var mesSel=parseInt(document.getElementById('bh-sel-mes').value);
+  var anoSel=parseInt(document.getElementById('bh-sel-ano').value);
+  var offsetCalc=(anoSel-HOJE_ANO)*12+(mesSel-HOJE_MES);
+  location.href='/api/banco-horas?offset='+offsetCalc;
+}
 function fmtHJs(h){
   if (h===0) return '0h';
   var inteiro=Math.floor(h), min=Math.round((h-inteiro)*60);
