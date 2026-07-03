@@ -292,6 +292,8 @@ export default async function handler(req, res) {
     subtitulo = 'Visao do mes';
   }
 
+  const dfRepresentativo = datas.includes(fmtData(hoje)) ? fmtData(hoje) : datas[0];
+
   const nomes = equipeRaw.map(r => r[0]);
   const analise = analisarEscala(escalaRaw, ausenciasRaw, nomes, datas);
 
@@ -359,7 +361,8 @@ export default async function handler(req, res) {
     const linhas = nomes.map((nome,idx) => {
       const cargo = equipeRaw.find(r=>r[0]===nome)?.[1]||'';
       const {perigo,atencao}=resumoPessoa[nome];
-      return `<tr data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}">
+      const entRepresentativa = escalaIndex.get(`${dfRepresentativo}|${nome}`)?.[3]||'';
+      return `<tr data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-ent="${entRepresentativa}">
         <td style="padding:6px 10px;border-bottom:1px solid #f5f5f5">
           <div style="display:flex;align-items:center;gap:6px">
             <div style="width:24px;height:24px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
@@ -415,7 +418,8 @@ export default async function handler(req, res) {
         </div>`;
       }
       cal+=`</div>`;
-      return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" style="background:var(--card);border:1px solid ${perigo>0?'var(--red-m-border)':atencao>0?'var(--amber-m-border)':'var(--border)'};border-radius:10px;padding:12px 14px">
+      const entRepresentativaMes = escalaIndex.get(`${dfRepresentativo}|${nome}`)?.[3]||'';
+      return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-ent="${entRepresentativaMes}" style="background:var(--card);border:1px solid ${perigo>0?'var(--red-m-border)':atencao>0?'var(--amber-m-border)':'var(--border)'};border-radius:10px;padding:12px 14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
           <div style="width:28px;height:28px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
           <div style="flex:1"><div style="font-size:12px;font-weight:600">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
@@ -523,6 +527,7 @@ a{text-decoration:none}
       <button id="sort-default" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Padrao</button>
       <button id="sort-alpha" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">A-Z</button>
       <button id="sort-alerta" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Alertas</button>
+      <button id="sort-horario" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Horario</button>
     </div>
     <select id="filtro-cargo" style="border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;background:var(--card);color:var(--text);outline:none;cursor:pointer;min-width:140px">
       <option value="">▾ Todos os cargos</option>
@@ -554,17 +559,19 @@ function aplicarFiltros(){
   var visiveis=itens.filter(function(el){return el.style.display!=='none';});
   if(sortAtual==='alpha')visiveis.sort(function(a,b){return a.getAttribute('data-nome-busca').localeCompare(b.getAttribute('data-nome-busca'),'pt-BR');});
   else if(sortAtual==='alerta')visiveis.sort(function(a,b){var pa=parseInt(a.getAttribute('data-perigo')||0),pb=parseInt(b.getAttribute('data-perigo')||0),aa=parseInt(a.getAttribute('data-atencao')||0),ab=parseInt(b.getAttribute('data-atencao')||0);return(pb*10+ab)-(pa*10+aa);});
+  else if(sortAtual==='horario')visiveis.sort(function(a,b){function m(el){var h=el.getAttribute('data-ent');if(!h)return 9999;var p=h.split(':');return parseInt(p[0])*60+parseInt(p[1]||0);}return m(a)-m(b);});
   else visiveis.sort(function(a,b){return parseInt(a.getAttribute('data-ordem'))-parseInt(b.getAttribute('data-ordem'));});
   var parent=visiveis.length>0?visiveis[0].parentNode:null;
   if(parent)visiveis.forEach(function(el){parent.appendChild(el);});
   if(visaoAtual!=='semana'){var grid=document.getElementById('grid-principal');if(grid){if(viewAtual==='grid'){grid.style.display='grid';grid.style.gridTemplateColumns=visaoAtual==='mes'?'repeat(auto-fit,minmax(280px,1fr))':'repeat(auto-fit,minmax(220px,1fr))';grid.style.gap='12px';}else{grid.style.display='flex';grid.style.flexDirection='column';grid.style.gap='6px';}}}
 }
-function setBtn(id){['sort-default','sort-alpha','sort-alerta','view-grid','view-list'].forEach(function(bid){var b=document.getElementById(bid);if(!b)return;if(bid===id){b.style.background='var(--text)';b.style.color='var(--bg)';}else if(bid.startsWith(id.split('-')[0])){b.style.background='none';b.style.color='var(--text3)';}});}
+function setBtn(id){['sort-default','sort-alpha','sort-alerta','sort-horario','view-grid','view-list'].forEach(function(bid){var b=document.getElementById(bid);if(!b)return;if(bid===id){b.style.background='var(--text)';b.style.color='var(--bg)';}else if(bid.startsWith(id.split('-')[0])){b.style.background='none';b.style.color='var(--text3)';}});}
 document.getElementById('view-grid').addEventListener('click',function(){viewAtual='grid';localStorage.setItem('esc-view','grid');setBtn('view-grid');aplicarFiltros();});
 document.getElementById('view-list').addEventListener('click',function(){viewAtual='list';localStorage.setItem('esc-view','list');setBtn('view-list');aplicarFiltros();});
 document.getElementById('sort-default').addEventListener('click',function(){sortAtual='default';localStorage.setItem('esc-sort','default');setBtn('sort-default');aplicarFiltros();});
 document.getElementById('sort-alpha').addEventListener('click',function(){sortAtual='alpha';localStorage.setItem('esc-sort','alpha');setBtn('sort-alpha');aplicarFiltros();});
 document.getElementById('sort-alerta').addEventListener('click',function(){sortAtual='alerta';localStorage.setItem('esc-sort','alerta');setBtn('sort-alerta');aplicarFiltros();});
+document.getElementById('sort-horario').addEventListener('click',function(){sortAtual='horario';localStorage.setItem('esc-sort','horario');setBtn('sort-horario');aplicarFiltros();});
 document.getElementById('busca').addEventListener('input',function(){localStorage.setItem('esc-busca',this.value);aplicarFiltros();});
 document.getElementById('filtro-cargo').addEventListener('change',function(){localStorage.setItem('esc-cargo',this.value);aplicarFiltros();});
 // Restaurar filtros ao carregar a página
