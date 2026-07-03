@@ -224,6 +224,32 @@ export default async function handler(req,res){
     }).join('');
   }
 
+  function renderTabela(lista, comAcoes=false){
+    if(!lista.length)return `<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Nenhum registro</div>`;
+    const linhas=lista.map(a=>{
+      const periodo=a.ini+(a.fim&&a.fim!==a.ini?' → '+a.fim:'');
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text);font-weight:600;white-space:nowrap">${a.nome}</td>
+        <td style="padding:8px;white-space:nowrap">${badgeTipo(a.tipo)}</td>
+        <td style="padding:8px;color:#63b3ed;font-weight:600;white-space:nowrap">${periodo}</td>
+        <td style="padding:8px">${comAcoes?`
+          <div style="display:flex;gap:6px">
+            <button onclick="aprovar('${a.id}')" style="background:#166534;border:none;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700;color:#86efac;cursor:pointer">✓</button>
+            <button onclick="recusar('${a.id}')" style="background:none;border:1px solid #991b1b;border-radius:5px;padding:3px 9px;font-size:11px;color:#fc8181;cursor:pointer">✕</button>
+          </div>`:`<span style="font-size:10px;font-weight:600;text-transform:uppercase;color:${a.status==='aprovado'?'#4ade80':a.status==='recusado'?'#fc8181':'var(--text3)'}">${a.status==='aprovado'?'✓ Aprovado':a.status==='recusado'?'✕ Recusado':'Cancelado'}</span>`}</td>
+      </tr>`;
+    }).join('');
+    return `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text3);text-transform:uppercase">Nome</th>
+        <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text3);text-transform:uppercase">Tipo</th>
+        <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text3);text-transform:uppercase">Período</th>
+        <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text3);text-transform:uppercase">${comAcoes?'Ações':'Status'}</th>
+      </tr></thead>
+      <tbody>${linhas}</tbody>
+    </table></div>`;
+  }
+
   const html=`<!DOCTYPE html>
 <html lang="pt-BR"><head>
 <script>(function(){var d=localStorage.getItem("pulse-theme");if(d==="dark")document.documentElement.classList.add("dark");})()</script>
@@ -336,17 +362,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
   <!-- Abas -->
   <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden">
-    <div style="display:flex;border-bottom:1px solid var(--border);padding:0 16px">
+    <div style="display:flex;align-items:center;border-bottom:1px solid var(--border);padding:0 16px">
       <button class="tab-btn ativo" onclick="abrirAba('pendentes',this)">
         Pendentes ${pendentes.length?`<span style="background:#991b1b;color:#fca5a5;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-left:4px">${pendentes.length}</span>`:''}
       </button>
       <button class="tab-btn" onclick="abrirAba('aprovadas',this)">Aprovadas <span style="color:var(--text4);font-size:11px">(${aprovadas.length})</span></button>
       <button class="tab-btn" onclick="abrirAba('historico',this)">Histórico <span style="color:var(--text4);font-size:11px">(${historico.length})</span></button>
+      <div style="display:flex;gap:4px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:3px;margin-left:auto">
+        <button id="view-grade-aus" onclick="setViewAus('grade')" title="Tabela" style="background:none;color:var(--text3);border:none;border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer">&#9638;</button>
+        <button id="view-lista-aus" onclick="setViewAus('lista')" title="Lista" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer">&#9776;</button>
+      </div>
     </div>
     <div style="padding:16px">
-      <div id="aba-pendentes">${renderCards(pendentes,true)}</div>
-      <div id="aba-aprovadas" style="display:none">${renderCards(aprovadas)}</div>
-      <div id="aba-historico" style="display:none">${renderCards(historico)}</div>
+      <div id="aba-pendentes">
+        <div id="aba-pendentes-lista">${renderCards(pendentes,true)}</div>
+        <div id="aba-pendentes-grade" style="display:none">${renderTabela(pendentes,true)}</div>
+      </div>
+      <div id="aba-aprovadas" style="display:none">
+        <div id="aba-aprovadas-lista">${renderCards(aprovadas)}</div>
+        <div id="aba-aprovadas-grade" style="display:none">${renderTabela(aprovadas)}</div>
+      </div>
+      <div id="aba-historico" style="display:none">
+        <div id="aba-historico-lista">${renderCards(historico)}</div>
+        <div id="aba-historico-grade" style="display:none">${renderTabela(historico)}</div>
+      </div>
     </div>
   </div>
 
@@ -362,6 +401,21 @@ function abrirAba(id,btn){
   document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('ativo');});
   btn.classList.add('ativo');
 }
+var _viewAus=localStorage.getItem('aus-view')||'lista';
+function aplicarViewAus(){
+  ['pendentes','aprovadas','historico'].forEach(function(t){
+    var l=document.getElementById('aba-'+t+'-lista'), g=document.getElementById('aba-'+t+'-grade');
+    if(l)l.style.display=_viewAus==='lista'?'block':'none';
+    if(g)g.style.display=_viewAus==='grade'?'block':'none';
+  });
+  var bg=document.getElementById('view-grade-aus'), bl=document.getElementById('view-lista-aus');
+  if(bg&&bl){
+    bg.style.background=_viewAus==='grade'?'#1a1a1a':'none'; bg.style.color=_viewAus==='grade'?'#fff':'var(--text3)';
+    bl.style.background=_viewAus==='lista'?'#1a1a1a':'none'; bl.style.color=_viewAus==='lista'?'#fff':'var(--text3)';
+  }
+}
+function setViewAus(mode){_viewAus=mode;localStorage.setItem('aus-view',mode);aplicarViewAus();}
+aplicarViewAus();
 function toast(msg,bg){var t=document.getElementById('toast');t.textContent=msg;t.style.background=bg||'#1a1a1a';t.style.display='block';setTimeout(function(){t.style.display='none';},2800);}
 function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');var btn=document.getElementById('tt');if(btn)btn.textContent=dk?'☀️':'🌙';}
 async function aprovar(id){
