@@ -2,6 +2,7 @@
 export const config = { maxDuration: 60 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { analisarEscala, duracaoTurno } from '../lib/escalas-engine.js';
+import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -128,9 +129,18 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET' && req.query.debug === '1') {
     const raw = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/Escala!A2:F2000`);
-    const rows = (raw.values||[]).slice(0,20);
-    const total = (raw.values||[]).length;
-    const julho = (raw.values||[]).filter(r=>String(r[0]).includes('07'));
+    const todasLinhas = raw.values || [];
+    const { nome: filtroNome, data: filtroData } = req.query;
+    if (filtroNome || filtroData) {
+      const nomeNorm = (filtroNome||'').toLowerCase();
+      const linhas = todasLinhas
+        .map((r, i) => ({ linhaSheet: i + 2, df: r[0], nome: r[2], entrada: r[3], saida: r[4], obs: r[5] }))
+        .filter(r => (!filtroNome || (r.nome||'').toLowerCase().includes(nomeNorm)) && (!filtroData || r.df === filtroData));
+      return res.status(200).json({ totalEncontrado: linhas.length, linhas });
+    }
+    const rows = todasLinhas.slice(0,20);
+    const total = todasLinhas.length;
+    const julho = todasLinhas.filter(r=>String(r[0]).includes('07'));
     return res.status(200).json({ total, primeiras20: rows, linhasJulho: julho.slice(0,20) });
   }
 
@@ -814,5 +824,6 @@ async function colarDireto(cel){
 
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Cache-Control','no-cache');
-  return res.status(200).send(isGestor ? html + CHAT_IA_ESC : html);
+  const solicitarHtml = await solicitarBtn(session.nome);
+  return res.status(200).send(isGestor ? html + solicitarHtml + CHAT_IA_ESC : html + solicitarHtml);
 }
