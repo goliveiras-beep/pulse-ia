@@ -265,7 +265,7 @@ a{text-decoration:none;color:inherit}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:300;display:none}
 .menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
 .menu-item:hover{background:var(--bg2)}
-@media(max-width:700px){.search-form{min-width:100%;margin-left:0}.doc-date{display:none}.wrap{padding:14px 12px}.top-bar{flex-direction:column}}
+@media(max-width:700px){.search-form{min-width:100%;margin-left:0}.doc-date{display:none}.wrap{padding:14px 12px}.top-bar{flex-direction:column}#repo-tempo-widget{display:none!important}}
 </style>
 </head>
 <body>
@@ -275,6 +275,18 @@ a{text-decoration:none;color:inherit}
   <div class="hr">
     <span class="hs" style="color:#aaa">Olá, ${esc(session.nome.split(' ')[0])}</span>
     ${isGestor ? `<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">Gestor</span>` : ''}
+    <div id="repo-tempo-widget" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 10px;font-size:12px;color:#e2e8f0">
+      <span id="repo-tempo-icone">&#9203;</span>
+      <span id="repo-tempo-temp" style="font-weight:700">--&deg;C</span>
+      <span id="repo-tempo-cidade" style="color:#718096;font-size:10px"></span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:9px;color:#718096">BRT</span>
+        <span id="repo-relogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
+      </div>
+      <span id="repo-relogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
+    </div>
     <button id="tt" class="btn-header" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'☀️':'🌙';})()" title="Tema">🌙</button>
     <div style="position:relative">
       <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-header" style="font-size:15px;line-height:1">&#9776;</button>
@@ -367,6 +379,27 @@ a{text-decoration:none;color:inherit}
 <script>
 function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
 document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
+function atualizarRelogio(){
+  var now=new Date();
+  var p=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(now);
+  var bh=p.find(function(x){return x.type==='hour';}).value,bm=p.find(function(x){return x.type==='minute';}).value,bs=p.find(function(x){return x.type==='second';}).value;
+  var elBrt=document.getElementById('repo-relogio-brt');if(elBrt)elBrt.textContent=bh+':'+bm+':'+bs;
+  var elGmt=document.getElementById('repo-relogio-gmt');if(elGmt)elGmt.textContent=String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0')+':'+String(now.getUTCSeconds()).padStart(2,'0');
+}
+async function carregarTempo(){
+  try{
+    var loc=null;
+    try{var r1=await fetch('https://ipapi.co/json/');var j1=await r1.json();if(j1.latitude)loc={lat:j1.latitude,lon:j1.longitude,city:j1.city};}catch(e){}
+    if(!loc)loc={lat:-22.9068,lon:-43.1729,city:'Rio de Janeiro'};
+    var wd=await(await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America%2FSao_Paulo')).json();
+    var temp=wd.current&&wd.current.temperature_2m!==undefined?Math.round(wd.current.temperature_2m):'--';
+    var icons={0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',99:'⛈️'};
+    document.getElementById('repo-tempo-icone').textContent=icons[wd.current&&wd.current.weathercode||0]||'🌡️';
+    document.getElementById('repo-tempo-temp').textContent=temp+'°C';
+    document.getElementById('repo-tempo-cidade').textContent=loc.city||'';
+  }catch(e){document.getElementById('repo-tempo-temp').textContent='--°C';}
+}
+atualizarRelogio();carregarTempo();setInterval(atualizarRelogio,1000);
 var currentFid = '${esc(currentId||'')}';
 
 // ── Modais ───────────────────────────────────────────────────────────────────

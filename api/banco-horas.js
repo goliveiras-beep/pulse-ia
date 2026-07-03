@@ -332,6 +332,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   #bh-title{font-size:12px!important;white-space:normal!important}
   #bh-sub{display:none!important}
   #bh-header-right{gap:5px!important;margin-left:0!important;width:100%!important;justify-content:flex-end!important}
+  #bh-tempo-widget,#bh-relogio-widget{display:none!important}
   .bh-txt-full{display:none!important}
   .bh-txt-short{display:inline!important}
   #bh-sel-mes{max-width:90px}
@@ -347,6 +348,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div style="width:28px;height:28px;background:#e53e3e;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0">P</div>
   <div style="min-width:0"><div id="bh-title" style="font-size:14px;font-weight:600;color:#fff">Pulse — Banco de horas &amp; Horas extras</div><div id="bh-sub" style="font-size:11px;color:#999;text-transform:capitalize">${nomeMes} ${ano} · baseado na escala planejada</div></div>
   <div id="bh-header-right" style="margin-left:auto;display:flex;align-items:center;gap:6px">
+    <div id="bh-tempo-widget" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 10px;font-size:12px;color:#e2e8f0">
+      <span id="bh-tempo-icone">&#9203;</span>
+      <span id="bh-tempo-temp" style="font-weight:700">--&deg;C</span>
+      <span id="bh-tempo-cidade" style="color:#718096;font-size:10px"></span>
+    </div>
+    <div id="bh-relogio-widget" style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:9px;color:#718096">BRT</span>
+        <span id="bh-relogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
+      </div>
+      <span id="bh-relogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
+    </div>
     <a href="/api/banco-horas?offset=${offset-1}" class="btn-sm" title="Mês anterior"><span class="bh-txt-full">&#8249; mês anterior</span><span class="bh-txt-short">&#8249;</span></a>
     <select id="bh-sel-mes" onchange="irParaMes()" style="border:1px solid var(--btn-border);border-radius:5px;padding:4px 6px;font-size:11px;font-weight:600;background:var(--header);color:#e2e8f0;cursor:pointer">
       ${MESES_PT.map((m,i) => `<option value="${i}" ${i===mes?'selected':''}>${m}</option>`).join('')}
@@ -392,6 +405,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script>
 function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
 document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
+function atualizarRelogio(){
+  var now=new Date();
+  var p=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(now);
+  var bh=p.find(function(x){return x.type==='hour';}).value,bm=p.find(function(x){return x.type==='minute';}).value,bs=p.find(function(x){return x.type==='second';}).value;
+  var elBrt=document.getElementById('bh-relogio-brt');if(elBrt)elBrt.textContent=bh+':'+bm+':'+bs;
+  var elGmt=document.getElementById('bh-relogio-gmt');if(elGmt)elGmt.textContent=String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0')+':'+String(now.getUTCSeconds()).padStart(2,'0');
+}
+async function carregarTempo(){
+  try{
+    var loc=null;
+    try{var r1=await fetch('https://ipapi.co/json/');var j1=await r1.json();if(j1.latitude)loc={lat:j1.latitude,lon:j1.longitude,city:j1.city};}catch(e){}
+    if(!loc)loc={lat:-22.9068,lon:-43.1729,city:'Rio de Janeiro'};
+    var wd=await(await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America%2FSao_Paulo')).json();
+    var temp=wd.current&&wd.current.temperature_2m!==undefined?Math.round(wd.current.temperature_2m):'--';
+    var icons={0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',99:'⛈️'};
+    document.getElementById('bh-tempo-icone').textContent=icons[wd.current&&wd.current.weathercode||0]||'🌡️';
+    document.getElementById('bh-tempo-temp').textContent=temp+'°C';
+    document.getElementById('bh-tempo-cidade').textContent=loc.city||'';
+  }catch(e){document.getElementById('bh-tempo-temp').textContent='--°C';}
+}
+atualizarRelogio();carregarTempo();setInterval(atualizarRelogio,1000);
 var HOJE_ANO=${hoje.getFullYear()}, HOJE_MES=${hoje.getMonth()};
 function irParaMes(){
   var mesSel=parseInt(document.getElementById('bh-sel-mes').value);

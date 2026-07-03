@@ -233,6 +233,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .tab-btn.ativo{color:#63b3ed;border-bottom-color:#3b82f6}
 .menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:#e2e8f0;text-decoration:none;white-space:nowrap}
 .menu-item:hover{background:#2d3140}
+@media(max-width:640px){#aus-tempo-widget{display:none!important}}
 </style></head>
 <body>
 <div style="background:#161920;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;border-bottom:1px solid #2d3748">
@@ -241,7 +242,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="font-size:14px;font-weight:700">Ausências</div>
     <div style="font-size:10px;color:#718096">${ausentesHoje.length} hoje · ${pendentes.length} pendente${pendentes.length!==1?'s':''}</div>
   </div>
-  <div class="hdr-btns" style="margin-left:auto;display:flex;gap:6px">
+  <div class="hdr-btns" style="margin-left:auto;display:flex;align-items:center;gap:6px">
+    <div id="aus-tempo-widget" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 10px;font-size:12px;color:#e2e8f0">
+      <span id="aus-tempo-icone">&#9203;</span>
+      <span id="aus-tempo-temp" style="font-weight:700">--&deg;C</span>
+      <span id="aus-tempo-cidade" style="color:#718096;font-size:10px"></span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:9px;color:#718096">BRT</span>
+        <span id="aus-relogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
+      </div>
+      <span id="aus-relogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
+    </div>
     <div style="position:relative">
       <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" style="border:1px solid #3d4660;border-radius:6px;padding:4px 10px;font-size:15px;color:#a0aec0;background:none;cursor:pointer;line-height:1">&#9776;</button>
       <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:#242836;border:1px solid #2d3748;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
@@ -323,6 +336,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script>
 function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
 document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
+function atualizarRelogio(){
+  var now=new Date();
+  var p=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(now);
+  var bh=p.find(function(x){return x.type==='hour';}).value,bm=p.find(function(x){return x.type==='minute';}).value,bs=p.find(function(x){return x.type==='second';}).value;
+  var elBrt=document.getElementById('aus-relogio-brt');if(elBrt)elBrt.textContent=bh+':'+bm+':'+bs;
+  var elGmt=document.getElementById('aus-relogio-gmt');if(elGmt)elGmt.textContent=String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0')+':'+String(now.getUTCSeconds()).padStart(2,'0');
+}
+async function carregarTempo(){
+  try{
+    var loc=null;
+    try{var r1=await fetch('https://ipapi.co/json/');var j1=await r1.json();if(j1.latitude)loc={lat:j1.latitude,lon:j1.longitude,city:j1.city};}catch(e){}
+    if(!loc)loc={lat:-22.9068,lon:-43.1729,city:'Rio de Janeiro'};
+    var wd=await(await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America%2FSao_Paulo')).json();
+    var temp=wd.current&&wd.current.temperature_2m!==undefined?Math.round(wd.current.temperature_2m):'--';
+    var icons={0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',99:'⛈️'};
+    document.getElementById('aus-tempo-icone').textContent=icons[wd.current&&wd.current.weathercode||0]||'🌡️';
+    document.getElementById('aus-tempo-temp').textContent=temp+'°C';
+    document.getElementById('aus-tempo-cidade').textContent=loc.city||'';
+  }catch(e){document.getElementById('aus-tempo-temp').textContent='--°C';}
+}
+atualizarRelogio();carregarTempo();setInterval(atualizarRelogio,1000);
 function abrirAba(id,btn){
   ['pendentes','aprovadas','historico'].forEach(function(t){
     document.getElementById('aba-'+t).style.display=t===id?'block':'none';
