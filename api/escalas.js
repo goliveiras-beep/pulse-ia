@@ -82,18 +82,27 @@ const NIVEL_COR = {
   folga:   { bg: 'var(--today-bg)',   border: 'var(--today-border)',   txt: 'var(--today-c)',   dot: '#63b3ed' },
   ausencia:{ bg: 'var(--purple-m-bg)', border: 'var(--purple-m-border)', txt: 'var(--purple-m-v)', dot: 'var(--purple-m-v)' },
   livre:   { bg: 'var(--card)',       border: 'var(--border)',         txt: 'var(--text3)',     dot: 'var(--border)' },
+  neutro:  { bg: 'var(--card)',       border: 'var(--border)',         txt: 'var(--text)',      dot: 'var(--border)' },
 };
+
+// Colaborador nao ve alerta trabalhista (perigo/atencao) nem status "ok" coloridos — so o horario, neutro
+function tipoParaExibicao(tipo, isGestor) {
+  if (isGestor) return tipo;
+  if (tipo === 'perigo' || tipo === 'atencao' || tipo === 'ok') return 'neutro';
+  return tipo;
+}
 
 function alertaBadge(alerta) {
   const c = NIVEL_COR[alerta.nivel] || NIVEL_COR.warning;
   return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:4px;padding:2px 6px;font-size:9px;color:${c.txt};font-weight:600;margin-top:2px;line-height:1.3">${alerta.msg}</div>`;
 }
 
-function celulaAnalise(analise, turno, compacto=false) {
+function celulaAnalise(analise, turno, compacto=false, isGestor=true) {
   if (!analise) return `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px;text-align:center;color:#d1d5db;font-size:11px">--</div>`;
-  const { tipo, status, alertas, durHoras } = analise;
+  const { status, alertas, durHoras } = analise;
+  const tipo = tipoParaExibicao(analise.tipo, isGestor);
   const c = NIVEL_COR[tipo] || NIVEL_COR.livre;
-  const temAlerta = alertas && alertas.length > 0;
+  const temAlerta = isGestor && alertas && alertas.length > 0;
   const dot = temAlerta ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${c.dot};margin-left:4px;vertical-align:middle"></span>` : '';
   if (compacto) {
     return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:6px;padding:5px 6px;min-height:52px">
@@ -107,7 +116,7 @@ function celulaAnalise(analise, turno, compacto=false) {
       <span style="font-size:12px;font-weight:700;color:${c.txt}">${status||'--'}</span>
       ${durHoras ? `<span style="font-size:10px;color:${c.txt};opacity:.8">${durHoras.toFixed(1)}h</span>` : ''}
     </div>
-    ${alertas ? alertas.map(a=>alertaBadge(a)).join('') : ''}
+    ${isGestor && alertas ? alertas.map(a=>alertaBadge(a)).join('') : ''}
   </div>`;
 }
 
@@ -246,7 +255,8 @@ export default async function handler(req, res) {
   ]);
 
   const usuario = equipeRaw.find(r => r[0] === session.nome);
-  if (usuario?.[8] !== 'gestor') return res.redirect(302, '/api/app');
+  if (!usuario) return res.redirect(302, '/api/app');
+  const isGestor = usuario[8] === 'gestor';
 
   // Índice df|nome -> linha da escala, evita varrer escalaRaw inteira a cada célula do grid
   const escalaIndex = new Map();
@@ -266,6 +276,13 @@ export default async function handler(req, res) {
   })();
   const hojeSemHora = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
   const horizonteVencido = !horizonteData || horizonteData < hojeSemHora;
+  function dentroHorizonte(df) {
+    if (isGestor || !horizonteData) return true;
+    const [dd,mm] = df.split('/').map(Number);
+    const dataEvento = new Date(hoje.getFullYear(), mm-1, dd);
+    if (dataEvento < hojeSemHora) return true; // passado sempre visivel
+    return dataEvento <= horizonteData;
+  }
   const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab'];
   const DIAS_FULL = ['Domingo','Segunda','Terca','Quarta','Quinta','Sexta','Sabado'];
   const MESES = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -292,7 +309,10 @@ export default async function handler(req, res) {
     subtitulo = 'Visao do mes';
   }
 
-  const dfRepresentativo = datas.includes(fmtData(hoje)) ? fmtData(hoje) : datas[0];
+  const foraDoHorizonte = !isGestor && datas.every(df => !dentroHorizonte(df));
+  if (!isGestor) datas = datas.filter(dentroHorizonte);
+
+  const dfRepresentativo = datas.length ? (datas.includes(fmtData(hoje)) ? fmtData(hoje) : datas[0]) : fmtData(hoje);
 
   const nomes = equipeRaw.map(r => r[0]);
   const analise = analisarEscala(escalaRaw, ausenciasRaw, nomes, datas);
@@ -322,21 +342,24 @@ export default async function handler(req, res) {
 
   let conteudoGrid = '';
 
-  if (visao === 'dia') {
+  if (foraDoHorizonte) {
+    conteudoGrid = `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;text-align:center;color:var(--text2);font-size:13px">Essa data ainda nao foi publicada pelo gestor.</div>`;
+  } else if (visao === 'dia') {
     conteudoGrid = nomes.map((nome,idx) => {
       const df = datas[0];
       const a = analise[nome]?.[df];
       const cargo = equipeRaw.find(r=>r[0]===nome)?.[1]||'';
       const { perigo, atencao } = resumoPessoa[nome];
       const escRegDia=escalaIndex.get(`${df}|${nome}`);
-      return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-df="${df}" data-nome2="${nome}" data-ent="${escRegDia?.[3]||''}" data-sai="${escRegDia?.[4]||''}" data-obs="${escRegDia?.[5]||''}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome2,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
+      const editAttrs = isGestor ? ` onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome2,e.dataset.ent,e.dataset.sai,e.dataset.obs)"` : '';
+      return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-df="${df}" data-nome2="${nome}" data-ent="${escRegDia?.[3]||''}" data-sai="${escRegDia?.[4]||''}" data-obs="${escRegDia?.[5]||''}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;${isGestor?'cursor:pointer':''}"${editAttrs}>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <div style="width:32px;height:32px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
           <div style="flex:1"><div style="font-size:13px;font-weight:600">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
-          ${perigo>0?`<span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">${perigo} critico</span>`:''}
-          ${atencao>0?`<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">${atencao} atencao</span>`:''}
+          ${isGestor && perigo>0?`<span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">${perigo} critico</span>`:''}
+          ${isGestor && atencao>0?`<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">${atencao} atencao</span>`:''}
         </div>
-        ${celulaAnalise(a, null)}
+        ${celulaAnalise(a, null, false, isGestor)}
       </div>`;
     }).join('');
     conteudoGrid = `<div id="grid-principal" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">${conteudoGrid}</div>`;
@@ -369,8 +392,8 @@ export default async function handler(req, res) {
             <div>
               <div style="font-size:11px;font-weight:600;white-space:nowrap;color:var(--text)">${nome}</div>
               <div style="display:flex;gap:3px;margin-top:1px">
-                ${perigo>0?`<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 4px;font-size:9px;font-weight:700">${perigo}</span>`:''}
-                ${atencao>0?`<span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:0 4px;font-size:9px;font-weight:700">${atencao}</span>`:''}
+                ${isGestor && perigo>0?`<span style="background:#fee2e2;color:#991b1b;border-radius:3px;padding:0 4px;font-size:9px;font-weight:700">${perigo}</span>`:''}
+                ${isGestor && atencao>0?`<span style="background:#fef3c7;color:#92400e;border-radius:3px;padding:0 4px;font-size:9px;font-weight:700">${atencao}</span>`:''}
               </div>
             </div>
           </div>
@@ -385,7 +408,8 @@ export default async function handler(req, res) {
           const escReg=escalaIndex.get(`${df}|${nome}`);
           const _ent=(escReg?.[3]||'');const _sai=(escReg?.[4]||'');const _obs=(escReg?.[5]||'');
           const cellBg = isHoje ? 'var(--today-bg)' : isFds2 ? 'var(--fds-bg)' : '';
-          return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${cellBg};cursor:pointer${isFds2?';border-left:2px solid var(--fds-border)':''}" data-df="${df}" data-nome="${nome}" data-ent="${_ent}" data-sai="${_sai}" data-obs="${_obs}" onclick="var el=this;abrirEditor(el,el.dataset.df,el.dataset.nome,el.dataset.ent,el.dataset.sai,el.dataset.obs)">${celulaAnalise(a,null,true)}</td>`;
+          const editAttrsCel = isGestor ? ` onclick="var el=this;abrirEditor(el,el.dataset.df,el.dataset.nome,el.dataset.ent,el.dataset.sai,el.dataset.obs)"` : '';
+          return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${cellBg};${isGestor?'cursor:pointer':''}${isFds2?';border-left:2px solid var(--fds-border)':''}" data-df="${df}" data-nome="${nome}" data-ent="${_ent}" data-sai="${_sai}" data-obs="${_obs}"${editAttrsCel}>${celulaAnalise(a,null,true,isGestor)}</td>`;
         }).join('')}
       </tr>`;
     }).join('');
@@ -407,11 +431,13 @@ export default async function handler(req, res) {
         const df=fmtData(dataObj);
         const a=analise[nome]?.[df];
         const isHoje=df===fmtData(hoje);
-        const c=NIVEL_COR[a?.tipo||'livre']||NIVEL_COR.livre;
-        const temAlerta=a?.alertas?.length>0;
+        const tipoMes=tipoParaExibicao(a?.tipo||'livre', isGestor);
+        const c=NIVEL_COR[tipoMes]||NIVEL_COR.livre;
+        const temAlerta=isGestor && a?.alertas?.length>0;
         const escRegMes=escalaIndex.get(`${df}|${nome}`);
         const _mEnt=escRegMes?.[3]||'';const _mSai=escRegMes?.[4]||'';const _mObs=(escRegMes?.[5]||'').replace(/['"]/g,'');
-        cal+=`<div style="min-width:0;background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;cursor:pointer;overflow:hidden" data-df="${df}" data-nome="${nome}" data-ent="${_mEnt}" data-sai="${_mSai}" data-obs="${_mObs}" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
+        const editAttrsMes = isGestor ? ` onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome,e.dataset.ent,e.dataset.sai,e.dataset.obs)"` : '';
+        cal+=`<div style="min-width:0;background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;${isGestor?'cursor:pointer':''}overflow:hidden" data-df="${df}" data-nome="${nome}" data-ent="${_mEnt}" data-sai="${_mSai}" data-obs="${_mObs}"${editAttrsMes}>
           <div style="font-size:9px;font-weight:${isHoje?700:500};color:${c.txt}">${d}</div>
           ${a?.status&&a.tipo!=='livre'?(_mEnt&&_mSai?`<div style="font-size:7px;line-height:1.15;color:${c.txt}">${_mEnt}<br>${_mSai}</div>`:`<div style="font-size:7px;color:${c.txt};overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${a.status}">${a.status}</div>`):''}
           ${temAlerta?`<div style="width:5px;height:5px;border-radius:50%;background:${c.dot};margin:1px auto 0"></div>`:''}
@@ -419,15 +445,15 @@ export default async function handler(req, res) {
       }
       cal+=`</div>`;
       const entRepresentativaMes = escalaIndex.get(`${dfRepresentativo}|${nome}`)?.[3]||'';
-      return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-ent="${entRepresentativaMes}" style="background:var(--card);border:1px solid ${perigo>0?'var(--red-m-border)':atencao>0?'var(--amber-m-border)':'var(--border)'};border-radius:10px;padding:12px 14px">
+      return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-ent="${entRepresentativaMes}" style="background:var(--card);border:1px solid ${isGestor && perigo>0?'var(--red-m-border)':isGestor && atencao>0?'var(--amber-m-border)':'var(--border)'};border-radius:10px;padding:12px 14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
           <div style="width:28px;height:28px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
           <div style="flex:1"><div style="font-size:12px;font-weight:600">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
-          <div style="display:flex;gap:4px">
+          ${isGestor ? `<div style="display:flex;gap:4px">
             ${perigo>0?`<span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">${perigo} critico</span>`:''}
             ${atencao>0?`<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">${atencao} atencao</span>`:''}
             ${perigo===0&&atencao===0?`<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">OK</span>`:''}
-          </div>
+          </div>` : ''}
         </div>
         ${cal}
       </div>`;
@@ -449,13 +475,14 @@ html.dark{--bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--border:#2d3748;--border2:#2
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 a{text-decoration:none}
+.menu-item{display:block;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
+.menu-item:hover{background:var(--bg3)}
 /* ── MOBILE ── */
 @media(max-width:640px){
   /* Header */
   #esc-header{padding:8px 12px!important;gap:8px!important}
   #esc-header-right{gap:5px!important}
   #esc-atualizado{display:none!important}
-  #esc-home-btn{display:none!important}
   /* Métricas: 2 colunas */
   #esc-metrics{grid-template-columns:repeat(2,1fr)!important;gap:8px!important}
   #esc-metrics>div{padding:10px 12px!important}
@@ -479,16 +506,31 @@ a{text-decoration:none}
 </head><body>
 <div id="esc-header" style="background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100">
   <a href="/api/app" style="width:28px;height:28px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#1a1a1a;font-size:12px;font-weight:700;flex-shrink:0;text-decoration:none">P</a>
-  <div><div style="font-size:14px;font-weight:600;color:#fff">Pulse - Escala</div><div style="font-size:11px;color:#666">${titulo} &middot; ${subtitulo}</div></div>
+  <div><div style="font-size:14px;font-weight:600;color:#fff">${isGestor ? 'Pulse - Escala' : 'Pulse - Escala da equipe'}</div><div style="font-size:11px;color:#666">${titulo} &middot; ${subtitulo}</div></div>
   <div id="esc-header-right" style="margin-left:auto;display:flex;align-items:center;gap:6px">
     <span id="esc-atualizado" style="font-size:11px;color:#555">${atualizado}</span>
-    <button id="btn-gerar-ia" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;cursor:pointer" onclick="gerarEscalaIA()">&#10024; Gerar escala IA</button>
+    ${isGestor ? `<button id="btn-gerar-ia" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;cursor:pointer" onclick="gerarEscalaIA()">&#10024; Gerar escala IA</button>` : ''}
     <button id="tt" onclick="toggleTheme()" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">&#127769;</button>
-    <a id="esc-home-btn" href="/api/app" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--btn-c)">Home</a>
+    ${isGestor ? `
+    <div style="position:relative">
+      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" style="border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:15px;background:none;cursor:pointer;color:var(--btn-c);line-height:1">&#9776;</button>
+      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:190px;overflow:hidden;z-index:200">
+        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
+        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
+        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
+        <div style="height:1px;background:var(--border);margin:2px 0"></div>
+        <form method="POST" action="/api/app?action=logout" style="margin:0">
+          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
+        </form>
+      </div>
+    </div>` : `<a href="/api/app" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--btn-c)">Voltar</a>`}
   </div>
 </div>
 <div style="max-width:1200px;margin:0 auto;padding:16px 20px">
-<div id="esc-metrics" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">
+${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Periodo</div><div style="font-size:18px;font-weight:700">${datas.length} dia${datas.length>1?'s':''}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${nomes.length} colaboradores</div></div>
     <div style="background:${totalPerigo>0?'#fef2f2':'var(--card)'};border:1px solid ${totalPerigo>0?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Alertas criticos</div><div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':'var(--text)'}">${totalPerigo}</div><div style="font-size:10px;color:#aaa;margin-top:2px">interjornada, consecutivos</div></div>
     <div style="background:${totalAtencao>0?'#fffbeb':'var(--card)'};border:1px solid ${totalAtencao>0?'#fcd34d':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Atencoes</div><div style="font-size:24px;font-weight:700;color:${totalAtencao>0?'#d97706':'var(--text)'}">${totalAtencao}</div><div style="font-size:10px;color:#aaa;margin-top:2px">descanso, 6 dia</div></div>
@@ -505,7 +547,9 @@ a{text-decoration:none}
         <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
       </div>
     </div>
-  </div>
+  </div>` : `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-size:11px;color:var(--text2);margin-bottom:16px;display:flex;align-items:center;gap:6px">
+    Somente leitura &middot; mostra a escala publicada até <b style="color:var(--text)">${horizonteAtual || 'data nao definida'}</b>
+  </div>`}
   <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
     <div style="display:flex;gap:4px">
       <a href="/api/escalas?v=dia&offset=0" style="background:${visao==='dia'?'#1a1a1a':'none'};color:${visao==='dia'?'#fff':'#555'};border:1px solid ${visao==='dia'?'#1a1a1a':'#e5e5e5'};border-radius:6px;padding:5px 14px;font-size:12px">Dia</a>
@@ -526,7 +570,7 @@ a{text-decoration:none}
     <div style="display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:3px">
       <button id="sort-default" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Padrao</button>
       <button id="sort-alpha" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">A-Z</button>
-      <button id="sort-alerta" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Alertas</button>
+      ${isGestor ? `<button id="sort-alerta" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Alertas</button>` : ''}
       <button id="sort-horario" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Horario</button>
     </div>
     <select id="filtro-cargo" style="border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;background:var(--card);color:var(--text);outline:none;cursor:pointer;min-width:140px">
@@ -535,14 +579,14 @@ a{text-decoration:none}
     </select>
     <input id="busca" placeholder="Buscar colaborador..." style="flex:1;min-width:160px;border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;outline:none;background:var(--input);color:var(--text)">
   </div>
-  ${legendaHTML}
+  ${isGestor ? legendaHTML : ''}
   <div style="margin-top:10px" id="container-grid">${conteudoGrid}</div>
-  <div style="margin-top:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
+  ${!isGestor ? '' : `<div style="margin-top:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
     <div style="font-size:10px;font-weight:600;text-transform:uppercase;color:#888;margin-bottom:8px">Regras aplicadas</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text2)">
       <span>Interjornada minima: 11h</span><span>Jornada maxima: 10h</span><span>Acima de 8h: 1h descanso</span><span>7 dia consecutivo sem folga</span><span>6 dia: aviso preventivo</span>
     </div>
-  </div>
+  </div>`}
 </div>
 <script>
 var viewAtual=localStorage.getItem('esc-view')||'grid',sortAtual=localStorage.getItem('esc-sort')||'default',visaoAtual='${visao}';
@@ -570,7 +614,7 @@ document.getElementById('view-grid').addEventListener('click',function(){viewAtu
 document.getElementById('view-list').addEventListener('click',function(){viewAtual='list';localStorage.setItem('esc-view','list');setBtn('view-list');aplicarFiltros();});
 document.getElementById('sort-default').addEventListener('click',function(){sortAtual='default';localStorage.setItem('esc-sort','default');setBtn('sort-default');aplicarFiltros();});
 document.getElementById('sort-alpha').addEventListener('click',function(){sortAtual='alpha';localStorage.setItem('esc-sort','alpha');setBtn('sort-alpha');aplicarFiltros();});
-document.getElementById('sort-alerta').addEventListener('click',function(){sortAtual='alerta';localStorage.setItem('esc-sort','alerta');setBtn('sort-alerta');aplicarFiltros();});
+if(document.getElementById('sort-alerta'))document.getElementById('sort-alerta').addEventListener('click',function(){sortAtual='alerta';localStorage.setItem('esc-sort','alerta');setBtn('sort-alerta');aplicarFiltros();});
 document.getElementById('sort-horario').addEventListener('click',function(){sortAtual='horario';localStorage.setItem('esc-sort','horario');setBtn('sort-horario');aplicarFiltros();});
 document.getElementById('busca').addEventListener('input',function(){localStorage.setItem('esc-busca',this.value);aplicarFiltros();});
 document.getElementById('filtro-cargo').addEventListener('change',function(){localStorage.setItem('esc-cargo',this.value);aplicarFiltros();});
@@ -586,6 +630,8 @@ document.getElementById('filtro-cargo').addEventListener('change',function(){loc
   aplicarFiltros();
 })();
 function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');var btn=document.getElementById('tt');if(btn)btn.textContent=dk?'\u2600\uFE0F':'\uD83C\uDF19';}
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');if(d)d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
 </script>
 <div id="editor-popup" style="display:none;position:fixed;z-index:500;background:#242836;border:1px solid #3d4660;border-radius:10px;padding:16px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -768,5 +814,5 @@ async function colarDireto(cel){
 
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Cache-Control','no-cache');
-  return res.status(200).send(html + CHAT_IA_ESC);
+  return res.status(200).send(isGestor ? html + CHAT_IA_ESC : html);
 }
