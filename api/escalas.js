@@ -451,21 +451,26 @@ a{text-decoration:none}
   /* Métricas: 2 colunas */
   #esc-metrics{grid-template-columns:repeat(2,1fr)!important;gap:8px!important}
   #esc-metrics>div{padding:10px 12px!important}
-  #esc-metrics .mv{font-size:20px!important}
-  /* Controles: quebrar em 2 linhas */
-  #esc-controls{gap:6px!important;padding:8px 10px!important}
-  #esc-controls .ctrl-nav{order:2;width:100%;justify-content:space-between}
-  #esc-controls .ctrl-views{order:1}
+  #esc-metrics .mv{font-size:15px!important}
+  /* Controles (Dia/Semana/Mes + Anterior/Atual/Proximo): empilhar em vez de embolar numa linha só */
+  #esc-controls{flex-direction:column!important;align-items:stretch!important;gap:8px!important;padding:8px 10px!important}
+  #esc-controls .ctrl-views{width:100%;display:flex}
+  #esc-controls .ctrl-views a{flex:1;text-align:center}
+  #esc-controls .ctrl-nav{width:100%;display:flex;justify-content:space-between;gap:6px!important}
+  #esc-controls .ctrl-nav a{flex:1;text-align:center;padding:5px 6px!important}
+  #esc-controls .ctrl-divider{display:none!important}
   #esc-controls .ctrl-titulo{display:none!important}
-  /* Filtros: esconder cargo dropdown no mobile */
-  #esc-filtros{padding:6px 10px!important;gap:6px!important;flex-wrap:wrap!important}
-  #esc-cargo-filter{font-size:11px!important;padding:4px 6px!important;max-width:120px}
+  /* Filtros: empilhar, busca e cargo ocupam a linha toda */
+  #esc-filtros{flex-wrap:wrap!important;gap:6px!important;padding:8px 10px!important}
+  #esc-filtros #filtro-cargo{flex:1 1 100%!important;min-width:0!important}
+  #esc-filtros #busca{flex:1 1 100%!important;min-width:0!important}
   /* Tabela: scroll horizontal */
   #esc-tabela-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}
   #esc-tabela-wrap table{min-width:600px}
   #esc-tabela-wrap td,#esc-tabela-wrap th{padding:3px!important;font-size:10px!important}
   /* Regras: compactar */
-  #esc-regras{font-size:10px!important;padding:8px!important;flex-wrap:wrap!important;gap:4px!important}
+  #esc-regras{padding:10px 12px!important}
+  #esc-regras>div:last-child{font-size:10px!important;gap:6px!important}
 }
 </style>
 </head><body>
@@ -481,13 +486,13 @@ a{text-decoration:none}
 </div>
 <div style="max-width:1200px;margin:0 auto;padding:16px 20px">
 <div id="esc-metrics" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Periodo</div><div style="font-size:18px;font-weight:700">${datas.length} dia${datas.length>1?'s':''}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${nomes.length} colaboradores</div></div>
-    <div style="background:${totalPerigo>0?'#fef2f2':'var(--card)'};border:1px solid ${totalPerigo>0?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Alertas criticos</div><div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':'var(--text)'}">${totalPerigo}</div><div style="font-size:10px;color:#aaa;margin-top:2px">interjornada, consecutivos</div></div>
-    <div style="background:${totalAtencao>0?'#fffbeb':'var(--card)'};border:1px solid ${totalAtencao>0?'#fcd34d':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Atencoes</div><div style="font-size:24px;font-weight:700;color:${totalAtencao>0?'#d97706':'var(--text)'}">${totalAtencao}</div><div style="font-size:10px;color:#aaa;margin-top:2px">descanso, 6 dia</div></div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Saude da escala</div><div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':totalAtencao>0?'#d97706':'#16a34a'}">${totalPerigo>0?'Critica':totalAtencao>0?'Atencao':'OK'}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${totalPerigo+totalAtencao} ocorrencia(s)</div></div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Periodo</div><div class="mv" style="font-size:18px;font-weight:700">${datas.length} dia${datas.length>1?'s':''}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${nomes.length} colaboradores</div></div>
+    <div style="background:${totalPerigo>0?'#fef2f2':'var(--card)'};border:1px solid ${totalPerigo>0?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Alertas criticos</div><div class="mv" style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':'var(--text)'}">${totalPerigo}</div><div style="font-size:10px;color:#aaa;margin-top:2px">interjornada, consecutivos</div></div>
+    <div style="background:${totalAtencao>0?'#fffbeb':'var(--card)'};border:1px solid ${totalAtencao>0?'#fcd34d':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Atencoes</div><div class="mv" style="font-size:24px;font-weight:700;color:${totalAtencao>0?'#d97706':'var(--text)'}">${totalAtencao}</div><div style="font-size:10px;color:#aaa;margin-top:2px">descanso, 6 dia</div></div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Saude da escala</div><div class="mv" style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':totalAtencao>0?'#d97706':'#16a34a'}">${totalPerigo>0?'Critica':totalAtencao>0?'Atencao':'OK'}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${totalPerigo+totalAtencao} ocorrencia(s)</div></div>
     <div style="background:${horizonteVencido?'#fef2f2':'var(--card)'};border:1px solid ${horizonteVencido?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px" title="Ate quando a equipe consegue ver a escala. Gestores sempre veem tudo.">
       <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Publicado até</div>
-      <div style="font-size:18px;font-weight:700;color:${horizonteVencido?'#dc2626':'var(--text)'}">${horizonteAtual || 'Nao definido'}</div>
+      <div class="mv" style="font-size:18px;font-weight:700;color:${horizonteVencido?'#dc2626':'var(--text)'}">${horizonteAtual || 'Nao definido'}</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
         <button onclick="publicarHorizonte('1 dia')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1d</button>
         <button onclick="publicarHorizonte('2 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+2d</button>
@@ -498,19 +503,21 @@ a{text-decoration:none}
       </div>
     </div>
   </div>
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-    <div style="display:flex;gap:4px">
+  <div id="esc-controls" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <div class="ctrl-views" style="display:flex;gap:4px">
       <a href="/api/escalas?v=dia&offset=0" style="background:${visao==='dia'?'#1a1a1a':'none'};color:${visao==='dia'?'#fff':'#555'};border:1px solid ${visao==='dia'?'#1a1a1a':'#e5e5e5'};border-radius:6px;padding:5px 14px;font-size:12px">Dia</a>
       <a href="/api/escalas?v=semana&offset=0" style="background:${visao==='semana'?'#1a1a1a':'none'};color:${visao==='semana'?'#fff':'#555'};border:1px solid ${visao==='semana'?'#1a1a1a':'#e5e5e5'};border-radius:6px;padding:5px 14px;font-size:12px">Semana</a>
       <a href="/api/escalas?v=mes&offset=0" style="background:${visao==='mes'?'#1a1a1a':'none'};color:${visao==='mes'?'#fff':'#555'};border:1px solid ${visao==='mes'?'#1a1a1a':'#e5e5e5'};border-radius:6px;padding:5px 14px;font-size:12px">Mes</a>
     </div>
-    <div style="width:1px;height:20px;background:#e5e5e5"></div>
-    <a href="/api/escalas?v=${visao}&offset=${offset-1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Anterior</a>
-    <a href="/api/escalas?v=${visao}&offset=0" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)${offset===0?';background:var(--bg3)':''}">Atual</a>
-    <a href="/api/escalas?v=${visao}&offset=${offset+1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Proximo</a>
-    <div style="margin-left:auto;font-size:11px;color:#888;font-weight:600">${titulo}</div>
+    <div class="ctrl-divider" style="width:1px;height:20px;background:#e5e5e5"></div>
+    <div class="ctrl-nav" style="display:flex;gap:8px">
+      <a href="/api/escalas?v=${visao}&offset=${offset-1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Anterior</a>
+      <a href="/api/escalas?v=${visao}&offset=0" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)${offset===0?';background:var(--bg3)':''}">Atual</a>
+      <a href="/api/escalas?v=${visao}&offset=${offset+1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Proximo</a>
+    </div>
+    <div class="ctrl-titulo" style="margin-left:auto;font-size:11px;color:#888;font-weight:600">${titulo}</div>
   </div>
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+  <div id="esc-filtros" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
     <div style="display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:3px">
       <button id="view-grid" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">&#x229E;</button>
       <button id="view-list" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">&#9776;</button>
@@ -528,7 +535,7 @@ a{text-decoration:none}
   </div>
   ${legendaHTML}
   <div style="margin-top:10px" id="container-grid">${conteudoGrid}</div>
-  <div style="margin-top:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
+  <div id="esc-regras" style="margin-top:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
     <div style="font-size:10px;font-weight:600;text-transform:uppercase;color:#888;margin-bottom:8px">Regras aplicadas</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text2)">
       <span>Interjornada minima: 11h</span><span>Jornada maxima: 10h</span><span>Acima de 8h: 1h descanso</span><span>7 dia consecutivo sem folga</span><span>6 dia: aviso preventivo</span>
