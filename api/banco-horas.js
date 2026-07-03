@@ -69,7 +69,10 @@ function duracaoHoras(ent, sai) {
 // ── Regras por tipo de contrato ──────────────────────────────────────────
 // Temporário (LET) — jornada 6x1, 6h/dia. Seg-Sáb: até 2h extras vão pro banco; depois disso é hora extra.
 // Domingo: sem banco de horas, qualquer hora extra é paga a 100%.
-// CLT e PJ — jornada padrão 8h/dia (turno de 9h com 1h de intervalo). Tudo que exceder vai pro banco de horas.
+// CLT e PJ — jornada padrão 8h/dia (turno de 9h com 1h de intervalo). Até 2h excedentes por dia vão para o
+// banco de horas (limite do art. 59 da CLT); acima disso é hora extra 100% — regra provisória, ajustar o
+// limite de LIMITE_BANCO_CLT_PJ abaixo se o acordo real da empresa usar outro valor.
+const LIMITE_BANCO_CLT_PJ = 2;
 function jornadaContratada(tipo) { return tipo === 'Temporário' ? 6 : 8; }
 function horasEfetivas(durBruta, tipo) {
   if (tipo === 'Temporário') return durBruta; // turno de 6h, sem intervalo
@@ -83,7 +86,8 @@ function calcularDia(durBruta, tipo, isDomingo) {
     if (isDomingo) { extra100 = excedente; }
     else { banco = Math.min(excedente, 2); extra100 = Math.max(0, excedente - 2); }
   } else {
-    banco = excedente; // PJ e CLT: tudo vai para banco de horas
+    banco = Math.min(excedente, LIMITE_BANCO_CLT_PJ);
+    extra100 = Math.max(0, excedente - LIMITE_BANCO_CLT_PJ);
   }
   return { trabalhadas, excedente, banco, extra100 };
 }
@@ -353,7 +357,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div style="max-width:1300px;margin:0 auto;padding:18px 20px">
   <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:11px;color:var(--text2);line-height:1.6">
     <b>Regras aplicadas</b> · <span style="color:#7c3aed;font-weight:600">Temporário (LET, 6x1, 6h/dia):</span> seg–sáb, até 2h excedentes vão para o banco de horas; depois disso é hora extra (100%). Domingo: sem banco — toda hora excedente é hora extra (100%).
-    <span style="color:#1d4ed8;font-weight:600;margin-left:8px">CLT e PJ (8h/dia):</span> toda hora excedente vai para o banco de horas.
+    <span style="color:#1d4ed8;font-weight:600;margin-left:8px">CLT e PJ (8h/dia):</span> até ${LIMITE_BANCO_CLT_PJ}h excedentes por dia vão para o banco de horas; depois disso é hora extra (100%).
     ${totalSemTipo>0?`<div style="margin-top:4px;color:#d97706">⚠ ${totalSemTipo} colaborador${totalSemTipo>1?'es':''} ativo${totalSemTipo>1?'s':''} sem tipo de contrato definido — não entra neste relatório até ser configurado na aba Equipe.</div>`:''}
   </div>
   <div id="bh-metrics" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">
