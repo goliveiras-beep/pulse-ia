@@ -181,8 +181,9 @@ export default async function handler(req,res){
     const marcadoresHtml=marcadores.map(m=>`<div style="position:absolute;left:${m.pct}%;font-size:10px;color:var(--text4);font-weight:700;white-space:nowrap">${m.label}</div>`).join('');
 
     timelineHtml=`
-    <div style="display:flex">
-      <div style="width:160px;flex-shrink:0;padding-top:${TICKS_H}px">${nomesHtml}</div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <div style="display:flex;min-width:600px">
+      <div style="width:160px;flex-shrink:0;padding-top:${TICKS_H}px;position:sticky;left:0;background:var(--card);z-index:3">${nomesHtml}</div>
       <div style="flex:1;position:relative;min-width:0">
         <div style="position:relative;height:${TICKS_H}px">${marcadoresHtml}</div>
         <div style="position:relative;height:${colaboradores.length*ROW_H}px">
@@ -190,6 +191,7 @@ export default async function handler(req,res){
           ${linhasHtml}
         </div>
       </div>
+    </div>
     </div>
     ${detalheDiasHtml}`;
   }
