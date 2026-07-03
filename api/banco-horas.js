@@ -17,6 +17,8 @@ function fmtAirtable(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).pa
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
 function iniciais(n) { return (n||'?').split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// Normaliza nome pra comparar Equipe x Escala sem depender de acento/caixa/forma unicode iguais
+function normalizarNome(s) { return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
 
 function getSession(req) {
   const cookies = {};
@@ -142,7 +144,7 @@ export default async function handler(req, res) {
     for (let d = 1; d <= ultimoDia; d++) {
       const data = new Date(ano, mes, d);
       const df = fmtData(data);
-      const reg = escalaRaw.find(r => r[0] === df && r[2] === p.nome);
+      const reg = escalaRaw.find(r => r[0] === df && normalizarNome(r[2]) === normalizarNome(p.nome));
       if (!reg || !reg[3] || !reg[4] || reg[5] === 'Folga') continue;
       const durBruta = duracaoHoras(reg[3], reg[4]);
       if (durBruta <= 0) continue;
@@ -178,7 +180,7 @@ export default async function handler(req, res) {
     const dataAT = fmtAirtable(data);
     weekdayStats[wd].diasNoMes++;
     weekdayStats[wd].eventos += eventosMes.filter(e => e.data === dataAT).length;
-    const escaladosDoDia = escalaRaw.filter(r => r[0] === df && r[3] && r[4] && r[5] !== 'Folga' && equipe.some(p => p.nome === r[2]));
+    const escaladosDoDia = escalaRaw.filter(r => r[0] === df && r[3] && r[4] && r[5] !== 'Folga' && equipe.some(p => normalizarNome(p.nome) === normalizarNome(r[2])));
     weekdayStats[wd].pessoasDia += escaladosDoDia.length;
     weekdayStats[wd].horasTotais += escaladosDoDia.reduce((s,r) => s + duracaoHoras(r[3], r[4]), 0);
   }
