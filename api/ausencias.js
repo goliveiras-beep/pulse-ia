@@ -135,8 +135,17 @@ export default async function handler(req,res){
       const width=Math.max(pct(addDias(fimD,1))-left,1.2);
       let maxAusentes=0;
       for(let k=b.iniKey;k<=b.fimKey;k++)maxAusentes=Math.max(maxAusentes,diaParaNomes.get(k).size);
-      return `<div style="position:absolute;left:${left}%;width:${width}%;top:0;bottom:0;background:rgba(251,146,60,.14);border-left:1px dashed #fb923c;border-right:1px dashed #fb923c;z-index:0" title="${fmtData(iniD)}→${fmtData(fimD)} · ${maxAusentes} ausentes ao mesmo tempo"></div>
-        <div style="position:absolute;left:${left}%;top:-16px;font-size:9px;font-weight:800;color:#fb923c;white-space:nowrap;z-index:2">⚠ ${fmtData(iniD)}→${fmtData(fimD)} · ${maxAusentes} ausentes</div>`;
+      return `<div style="position:absolute;left:${left}%;width:${width}%;top:0;bottom:0;background:rgba(251,146,60,.14);border-left:1px dashed #fb923c;border-right:1px dashed #fb923c;z-index:0" title="${fmtData(iniD)}→${fmtData(fimD)} · ${maxAusentes} ausentes ao mesmo tempo"></div>`;
+    }).join('');
+
+    const AVISOS_H=blocos.length?16:0;
+    const avisosHtml=blocos.map(b=>{
+      const iniD=new Date(b.iniKey*DIA_MS);
+      const fimD=new Date(b.fimKey*DIA_MS);
+      const left=pct(iniD);
+      let maxAusentes=0;
+      for(let k=b.iniKey;k<=b.fimKey;k++)maxAusentes=Math.max(maxAusentes,diaParaNomes.get(k).size);
+      return `<div style="position:absolute;left:${left}%;top:0;font-size:9px;font-weight:800;color:#fb923c;white-space:nowrap;z-index:2">⚠ ${fmtData(iniD)}→${fmtData(fimD)} · ${maxAusentes} ausentes</div>`;
     }).join('');
 
     const detalheDiasHtml=blocos.map(b=>{
@@ -183,8 +192,9 @@ export default async function handler(req,res){
     timelineHtml=`
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
     <div style="display:flex;min-width:600px">
-      <div style="width:160px;flex-shrink:0;padding-top:${TICKS_H}px;position:sticky;left:0;background:var(--card);z-index:3">${nomesHtml}</div>
+      <div style="width:160px;flex-shrink:0;padding-top:${TICKS_H+AVISOS_H}px;position:sticky;left:0;background:var(--card);z-index:3">${nomesHtml}</div>
       <div style="flex:1;position:relative;min-width:0">
+        ${AVISOS_H?`<div style="position:relative;height:${AVISOS_H}px">${avisosHtml}</div>`:''}
         <div style="position:relative;height:${TICKS_H}px">${marcadoresHtml}</div>
         <div style="position:relative;height:${colaboradores.length*ROW_H}px">
           ${faixasHtml}
