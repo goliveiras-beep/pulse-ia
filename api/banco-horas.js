@@ -189,6 +189,7 @@ export default async function handler(req, res) {
   }
 
   const tipoCores = { 'CLT':['#dcfce7','#166534'], 'PJ':['#f3e8ff','#7c3aed'], 'Temporário':['#fef3c7','#92400e'] };
+  const tipoLabels = { 'CLT':'Live Mode', 'PJ':'PJ', 'Temporário':'LET' };
 
   const maiorValor = Math.max(1, ...resultado.map(p => Math.max(p.bancoTotal, p.extraTotal)));
 
@@ -213,7 +214,7 @@ export default async function handler(req, res) {
           <div style="font-size:13px;font-weight:700;color:var(--text)">${esc(p.nome)}</div>
           <div style="font-size:10px;color:var(--text3)">${esc(p.cargo)||'—'}</div>
         </div>
-        <span style="background:${tbg};color:${tc};border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700">${esc(p.tipoContrato)}</span>
+        <span style="background:${tbg};color:${tc};border-radius:4px;padding:2px 8px;font-size:10px;font-weight:700">${esc(tipoLabels[p.tipoContrato] || p.tipoContrato)}</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
         <div style="background:var(--bg2);border-radius:8px;padding:8px 10px">
@@ -235,7 +236,7 @@ export default async function handler(req, res) {
       </div>
       ${diasDetalheHtml}
     </div>`;
-  }).join('') : '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Nenhum colaborador com tipo de contrato definido (CLT, PJ ou Temporário). Defina o tipo de contrato em cada colaborador na aba Equipe.</div>';
+  }).join('') : '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Nenhum colaborador com tipo de contrato definido (Live Mode, PJ ou LET). Defina o tipo de contrato em cada colaborador na aba Equipe.</div>';
 
   const diaBarHtml = weekdayAnalise.map(w => {
     const pctEventos = Math.round((w.mediaEventos / maiorEventos) * 100);
@@ -285,9 +286,9 @@ export default async function handler(req, res) {
   <div id="bh-filtros" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
     <span style="font-size:11px;color:var(--text3);font-weight:600">Filtrar por tipo:</span>
     <button class="filtro-btn ativo" data-filtro="todos" data-cor="var(--text)" onclick="filtrarTipo('todos',this)" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:var(--card);color:var(--text);cursor:pointer">Todos</button>
-    <button class="filtro-btn" data-filtro="CLT" data-cor="#166534" onclick="filtrarTipo('CLT',this)" style="border:1px solid #166534;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#166534;cursor:pointer">CLT</button>
+    <button class="filtro-btn" data-filtro="CLT" data-cor="#166534" onclick="filtrarTipo('CLT',this)" style="border:1px solid #166534;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#166534;cursor:pointer">Live Mode</button>
     <button class="filtro-btn" data-filtro="PJ" data-cor="#7c3aed" onclick="filtrarTipo('PJ',this)" style="border:1px solid #7c3aed;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#7c3aed;cursor:pointer">PJ</button>
-    <button class="filtro-btn" data-filtro="Temporário" data-cor="#92400e" onclick="filtrarTipo('Temporário',this)" style="border:1px solid #92400e;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#92400e;cursor:pointer">Temporário</button>
+    <button class="filtro-btn" data-filtro="Temporário" data-cor="#92400e" onclick="filtrarTipo('Temporário',this)" style="border:1px solid #92400e;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;background:none;color:#92400e;cursor:pointer">LET</button>
   </div>`;
 
   const html = `<!DOCTYPE html>
@@ -356,8 +357,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 <div style="max-width:1300px;margin:0 auto;padding:18px 20px">
   <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:11px;color:var(--text2);line-height:1.6">
-    <b>Regras aplicadas</b> · <span style="color:#7c3aed;font-weight:600">Temporário (LET, 6x1, 6h/dia):</span> seg–sáb, até 2h excedentes vão para o banco de horas; depois disso é hora extra (100%). Domingo: sem banco — toda hora excedente é hora extra (100%).
-    <span style="color:#1d4ed8;font-weight:600;margin-left:8px">CLT e PJ (8h/dia):</span> até ${LIMITE_BANCO_CLT_PJ}h excedentes por dia vão para o banco de horas; depois disso é hora extra (100%).
+    <b>Regras aplicadas</b> · <span style="color:#7c3aed;font-weight:600">LET (6x1, 6h/dia):</span> seg–sáb, até 2h excedentes vão para o banco de horas; depois disso é hora extra (100%). Domingo: sem banco — toda hora excedente é hora extra (100%).
+    <span style="color:#1d4ed8;font-weight:600;margin-left:8px">Live Mode e PJ (8h/dia):</span> até ${LIMITE_BANCO_CLT_PJ}h excedentes por dia vão para o banco de horas; depois disso é hora extra (100%).
     ${totalSemTipo>0?`<div style="margin-top:4px;color:#d97706">⚠ ${totalSemTipo} colaborador${totalSemTipo>1?'es':''} ativo${totalSemTipo>1?'s':''} sem tipo de contrato definido — não entra neste relatório até ser configurado na aba Equipe.</div>`:''}
   </div>
   <div id="bh-metrics" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">
