@@ -2,6 +2,7 @@
 export const config = { maxDuration: 60 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { analisarEscala, duracaoTurno } from '../lib/escalas-engine.js';
+import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -813,7 +814,9 @@ async function colarDireto(cel){
 </script>
 </body></html>`;
 
+  const solicitarHtml = await solicitarBtn(session.nome);
+
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Cache-Control','no-cache');
-  return res.status(200).send(html + CHAT_IA_ESC);
+  return res.status(200).send(html + solicitarHtml + CHAT_IA_ESC);
 }

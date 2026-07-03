@@ -1,6 +1,7 @@
 // api/ausencias.js — Central de ausências com timeline visual
 export const config = { maxDuration: 30 };
 import { sheetsRequest } from '../lib/google-auth.js';
+import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -178,13 +179,15 @@ export default async function handler(req,res){
     const marcadoresHtml=marcadores.map(m=>`<div style="position:absolute;left:${m.pct}%;font-size:10px;color:#4a5568;font-weight:700;white-space:nowrap">${m.label}</div>`).join('');
 
     timelineHtml=`
-    <div style="display:flex">
-      <div style="width:160px;flex-shrink:0;padding-top:${TICKS_H}px">${nomesHtml}</div>
-      <div style="flex:1;position:relative;min-width:0">
-        <div style="position:relative;height:${TICKS_H}px">${marcadoresHtml}</div>
-        <div style="position:relative;height:${colaboradores.length*ROW_H}px">
-          ${faixasHtml}
-          ${linhasHtml}
+    <div id="aus-timeline-scroll" style="overflow-x:auto">
+      <div style="display:flex;min-width:600px">
+        <div style="width:160px;flex-shrink:0;padding-top:${TICKS_H}px">${nomesHtml}</div>
+        <div style="flex:1;position:relative;min-width:0">
+          <div style="position:relative;height:${TICKS_H}px">${marcadoresHtml}</div>
+          <div style="position:relative;height:${colaboradores.length*ROW_H}px">
+            ${faixasHtml}
+            ${linhasHtml}
+          </div>
         </div>
       </div>
     </div>
@@ -199,7 +202,7 @@ export default async function handler(req,res){
       const anexoUrl=hasAnexo?a.motivo.split('Anexo:')[1].trim():'';
       const motivoTxt=hasAnexo?a.motivo.split('Anexo:')[0].trim():a.motivo;
       const periodo=a.ini+(a.fim&&a.fim!==a.ini?' → '+a.fim:'');
-      return `<div style="background:#1e2230;border:1px solid ${comAcoes?c:'#2d3748'};border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:14px;margin-bottom:8px">
+      return `<div class="aus-card" style="background:#1e2230;border:1px solid ${comAcoes?c:'#2d3748'};border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:14px;margin-bottom:8px">
         <div style="font-size:22px">${ic}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
@@ -211,7 +214,7 @@ export default async function handler(req,res){
           ${hasAnexo?`<a href="${anexoUrl}" target="_blank" style="font-size:11px;color:#60a5fa">📎 Ver atestado</a>`:''}
           ${comAcoes?`<div style="font-size:10px;color:#4a5568;margin-top:3px">ID: ${a.id}</div>`:''}
         </div>
-        <div style="flex-shrink:0;display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        <div class="aus-card-acoes" style="flex-shrink:0;display:flex;flex-direction:column;gap:6px;align-items:flex-end">
           ${comAcoes?`
             <button onclick="aprovar('${a.id}')" style="background:#166534;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:700;color:#86efac;cursor:pointer">✓ Aprovar</button>
             <button onclick="recusar('${a.id}')" style="background:none;border:1px solid #991b1b;border-radius:6px;padding:5px 12px;font-size:12px;color:#fc8181;cursor:pointer">✕ Recusar</button>
@@ -227,22 +230,33 @@ export default async function handler(req,res){
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse — Ausências</title>
 <style>
+:root{--card:#242836;--header:#161920;--border:#2d3748;--border2:#2d3748;--bg2:#2d3140;--bg3:#2d3140;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--blue-m-bg:#1a2744;--blue-m-border:#2a4080;--blue-m-v:#63b3ed;}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1c1f26;color:#e2e8f0;min-height:100vh}
 .tab-btn{padding:8px 16px;font-size:13px;font-weight:600;background:none;border:none;color:#718096;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
 .tab-btn.ativo{color:#63b3ed;border-bottom-color:#3b82f6}
 .menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:#e2e8f0;text-decoration:none;white-space:nowrap}
 .menu-item:hover{background:#2d3140}
-@media(max-width:640px){#aus-tempo-widget{display:none!important}}
+@media(max-width:640px){
+  #aus-tempo-widget{display:none!important}
+  #aus-header{padding:8px 12px!important;gap:8px!important}
+  #aus-title{font-size:13px!important}
+  #aus-header-right{gap:5px!important}
+  #aus-metrics{grid-template-columns:repeat(2,1fr)!important;gap:8px!important}
+  #aus-tabs{padding:0 8px!important;overflow-x:auto!important}
+  .tab-btn{padding:8px 10px!important;font-size:12px!important;white-space:nowrap}
+  .aus-card{flex-wrap:wrap!important;gap:10px!important}
+  .aus-card-acoes{flex-direction:row!important;align-items:center!important;width:100%;justify-content:flex-end}
+}
 </style></head>
 <body>
-<div style="background:#161920;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;border-bottom:1px solid #2d3748">
+<div id="aus-header" style="background:#161920;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10;border-bottom:1px solid #2d3748">
   <div style="width:28px;height:28px;border-radius:6px;background:#e53e3e;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0">P</div>
-  <div>
-    <div style="font-size:14px;font-weight:700">Ausências</div>
-    <div style="font-size:10px;color:#718096">${ausentesHoje.length} hoje · ${pendentes.length} pendente${pendentes.length!==1?'s':''}</div>
+  <div style="min-width:0">
+    <div id="aus-title" style="font-size:14px;font-weight:700">Ausências</div>
+    <div id="aus-sub" style="font-size:10px;color:#718096">${ausentesHoje.length} hoje · ${pendentes.length} pendente${pendentes.length!==1?'s':''}</div>
   </div>
-  <div class="hdr-btns" style="margin-left:auto;display:flex;align-items:center;gap:6px">
+  <div class="hdr-btns" id="aus-header-right" style="margin-left:auto;display:flex;align-items:center;gap:6px">
     <div id="aus-tempo-widget" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 10px;font-size:12px;color:#e2e8f0">
       <span id="aus-tempo-icone">&#9203;</span>
       <span id="aus-tempo-temp" style="font-weight:700">--&deg;C</span>
@@ -276,7 +290,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div style="max-width:1100px;margin:0 auto;padding:20px 16px">
 
   <!-- Métricas -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px">
+  <div id="aus-metrics" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px">
     <div style="background:#1e2230;border:1px solid ${pendentes.length?'#991b1b':'#2d3748'};border-radius:10px;padding:14px 16px">
       <div style="font-size:10px;color:#718096;text-transform:uppercase;font-weight:600;margin-bottom:6px">Pendentes</div>
       <div style="font-size:28px;font-weight:800;color:${pendentes.length?'#fc8181':'#e2e8f0'}">${pendentes.length}</div>
@@ -315,7 +329,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
   <!-- Abas -->
   <div style="background:#1e2230;border:1px solid #2d3748;border-radius:12px;overflow:hidden">
-    <div style="display:flex;border-bottom:1px solid #2d3748;padding:0 16px">
+    <div id="aus-tabs" style="display:flex;border-bottom:1px solid #2d3748;padding:0 16px">
       <button class="tab-btn ativo" onclick="abrirAba('pendentes',this)">
         Pendentes ${pendentes.length?`<span style="background:#991b1b;color:#fca5a5;border-radius:50%;width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-left:4px">${pendentes.length}</span>`:''}
       </button>
@@ -384,6 +398,8 @@ async function recusar(id){
 </script>
 </body></html>`;
 
+  const solicitarHtml = await solicitarBtn(session.nome);
+
   res.setHeader('Content-Type','text/html; charset=utf-8');
-  return res.status(200).send(html);
+  return res.status(200).send(html + solicitarHtml);
 }
