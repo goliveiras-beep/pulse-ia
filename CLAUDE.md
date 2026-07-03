@@ -1,192 +1,204 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Este arquivo orienta o Claude Code (claude.ai/code) ao trabalhar com o código deste repositório.
 
-## What this is
+## O que é isso
 
-**Pulse IA** is LiveMode's (a Brazilian live-TV production company) internal AI assistant and operations
-portal. It has two faces:
+**Pulse IA** é o assistente de IA interno e portal operacional da LiveMode (empresa brasileira de produção
+de TV ao vivo). Tem duas frentes:
 
-1. A **Slack bot** (DM the "Pulse IA" app) for quick Q&A, checking the live-broadcast schedule, and
-   self-reporting absences.
-2. A **web portal** (`/api/app`) — server-rendered HTML dashboards for two roles: `colaborador`
-   (collaborator: sees own shifts/schedule, requests time off) and `gestor` (manager: edits the team
-   schedule, approves requests, generates schedules with AI, HR/hour-bank reports, document repository).
+1. Um **bot no Slack** (DM pro app "Pulse IA") para perguntas rápidas, consulta da grade de transmissão ao
+   vivo e autorregistro de ausências.
+2. Um **portal web** (`/api/app`) — dashboards em HTML renderizado no servidor para dois perfis:
+   `colaborador` (vê os próprios turnos/escala, solicita folgas/ausências) e `gestor` (edita a escala da
+   equipe, aprova solicitações, gera escalas com IA, relatórios de RH/banco de horas, repositório de
+   documentos).
 
-Everything is in Brazilian Portuguese — code comments, UI copy, variable/function names, and git commit
-messages. Keep new code consistent with that.
+Tudo está em português do Brasil — comentários de código, textos de interface, nomes de variáveis/funções e
+mensagens de commit. Mantenha código novo consistente com isso.
 
-## Stack & constraints
+## Stack e restrições
 
-- Plain **Node.js ESM serverless functions** deployed on **Vercel** — every file in `api/` (and
-  `api/auth/`) is an independent handler exporting `default async function handler(req, res)`, no shared
-  router/framework (no Express/Next.js).
-- **No build step, no bundler, no TypeScript, no linter/formatter config, and no test suite.** `package.json`
-  declares a single dependency (`google-auth-library`) and zero scripts. There is nothing to `npm run
-  build`/`test`/`lint` — verifying a change means reading the code carefully and, where possible, exercising
-  the deployed endpoint.
-- Static files (`index.html` marketing landing page, `privacy.html`, the Google site-verification file) are
-  served as-is by Vercel; they are unrelated to the dynamic portal in `api/app.js`.
-- `vercel.json` sets `maxDuration: 30` for all `api/*.js` functions and defines two cron schedules that hit
-  `/api/monitor?token=pulse_monitor_2026` (roughly every hour during the day, half-hourly overnight).
+- **Funções serverless Node.js ESM puras**, publicadas na **Vercel** — cada arquivo em `api/` (e
+  `api/auth/`) é um handler independente exportando `default async function handler(req, res)`, sem
+  router/framework compartilhado (nada de Express/Next.js).
+- **Sem build, sem bundler, sem TypeScript, sem configuração de linter/formatter e sem suíte de testes.**
+  O `package.json` declara uma única dependência (`google-auth-library`) e nenhum script. Não existe
+  `npm run build`/`test`/`lint` — validar uma mudança significa ler o código com atenção e, quando possível,
+  exercitar o endpoint já publicado.
+- Arquivos estáticos (`index.html`, a landing page de marketing; `privacy.html`; o arquivo de verificação do
+  Google) são servidos tal como estão pela Vercel; não têm relação com o portal dinâmico em `api/app.js`.
+- `vercel.json` define `maxDuration: 30` para todas as funções `api/*.js` e dois agendamentos de cron que
+  chamam `/api/monitor?token=pulse_monitor_2026` (aproximadamente de hora em hora durante o dia, de meia em
+  meia hora de madrugada).
 
-## Running / deploying
+## Rodando / publicando
 
-- There is no local dev server checked into the repo. To run locally you'd use the Vercel CLI
-  (`vercel dev`), which needs all the env vars below set in `.env.local` (copy `.env.example` as a starting
-  point — it only lists two of them, the rest must be sourced from Vercel project settings or teammates).
-- Deploys happen automatically on push via Vercel's GitHub integration (see `README.md` for the original
-  setup steps: create the Vercel project, wire env vars, point the Slack app's Event Subscriptions URL at
-  `/api/pulse`).
-- There's no staging environment in this repo — changes to `api/*.js` go live on the next deploy.
+- Não há servidor de desenvolvimento local versionado no repositório. Para rodar localmente, usa-se a
+  Vercel CLI (`vercel dev`), que precisa de todas as variáveis de ambiente abaixo configuradas em
+  `.env.local` (copie o `.env.example` como ponto de partida — ele só lista duas delas; o resto precisa vir
+  das configurações do projeto na Vercel ou de outra pessoa do time).
+- O deploy acontece automaticamente a cada push, via integração da Vercel com o GitHub (veja o `README.md`
+  para os passos originais de configuração: criar o projeto na Vercel, configurar as variáveis de ambiente,
+  apontar a Request URL de Event Subscriptions do app do Slack para `/api/pulse`).
+- Não existe ambiente de staging neste repositório — mudanças em `api/*.js` vão pro ar no próximo deploy.
 
-### Environment variables actually read by the code
+### Variáveis de ambiente realmente usadas pelo código
 
-| Var | Used by |
+| Variável | Usada por |
 |---|---|
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | `lib/google-auth.js` — service-account JSON (as a string) for all Google Sheets access |
-| `GOOGLE_SHEET_ID` | the single spreadsheet acting as the app's database |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth login flow (`api/app.js`, `api/auth/*`) |
-| `GOOGLE_DRIVE_REFRESH_TOKEN` | `api/upload-atestado.js` — uploads sick-note files to Drive under a fixed manager account |
-| `PULSE_BASE_URL` | OAuth redirect URI base |
-| `SLACK_BOT_TOKEN` | posting/reading via Slack Web API (`api/pulse.js`, `api/monitor.js`) |
-| `SLACK_RH_CHANNEL` | HR notification channel for absence reports |
-| `GROQ_API_KEY` | fast/cheap LLM calls (`llama-3.1-8b-instant` via Groq's OpenAI-compatible endpoint) — general Q&A, command parsing, motivational phrases |
-| `ANTHROPIC_API_KEY` | `api/gerar-escala.js` only — calls Claude directly for AI-assisted schedule generation |
-| `AIRTABLE_API_KEY` / `AIRTABLE_BASE_ID` / `AIRTABLE_TABLE_ID` | the live-broadcast event calendar ("grade"), read from Airtable, cross-referenced against the work schedule everywhere |
-| `CRON_TOKEN` | must equal the token in `vercel.json`'s cron paths for `api/monitor.js` to accept the request |
-| `GITHUB_TOKEN` | `api/monitor.js` commits `data/grade_snapshot.json` back to this repo via the GitHub API to diff schedule changes over time |
-| `DRIVE_ATESTADOS_FOLDER_ID` / `PULSE_REPOSITORY_FOLDER_ID` | Drive folder targets for uploads / the document repository (`api/repositorio.js`) |
-| `VERCEL_API_TOKEN` / `VERCEL_PROJECT_ID` | `api/auth/drive-token.js`, a manual one-off tool that mints a Drive refresh token and pushes it into Vercel env vars |
-| `IMPORT_TOKEN` | bearer-token gate for `api/import-escala.js` (defaults to `pulse_import_2026`) |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | `lib/google-auth.js` — JSON da service account (como string) para todo acesso ao Google Sheets |
+| `GOOGLE_SHEET_ID` | a única planilha que funciona como banco de dados da aplicação |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | fluxo de login via Google OAuth (`api/app.js`, `api/auth/*`) |
+| `GOOGLE_DRIVE_REFRESH_TOKEN` | `api/upload-atestado.js` — upload de atestados pro Drive usando a conta fixa de um gestor |
+| `PULSE_BASE_URL` | base da redirect URI do OAuth |
+| `SLACK_BOT_TOKEN` | postar/ler via Slack Web API (`api/pulse.js`, `api/monitor.js`) |
+| `SLACK_RH_CHANNEL` | canal de notificação do RH para registros de ausência |
+| `GROQ_API_KEY` | chamadas de LLM rápidas/baratas (`llama-3.1-8b-instant` via endpoint compatível com OpenAI da Groq) — Q&A geral, interpretação de comandos, frases motivacionais |
+| `ANTHROPIC_API_KEY` | usada só em `api/gerar-escala.js` — chama o Claude diretamente para a geração de escala assistida por IA |
+| `AIRTABLE_API_KEY` / `AIRTABLE_BASE_ID` / `AIRTABLE_TABLE_ID` | a grade de eventos de transmissão ao vivo, lida do Airtable e cruzada com a escala de trabalho em vários lugares |
+| `CRON_TOKEN` | precisa ser igual ao token usado nos caminhos de cron do `vercel.json` para o `api/monitor.js` aceitar a requisição |
+| `GITHUB_TOKEN` | `api/monitor.js` faz commit de `data/grade_snapshot.json` de volta neste repositório via API do GitHub, para comparar mudanças na grade ao longo do tempo |
+| `DRIVE_ATESTADOS_FOLDER_ID` / `PULSE_REPOSITORY_FOLDER_ID` | pastas do Drive usadas para upload de atestados / repositório de documentos (`api/repositorio.js`) |
+| `VERCEL_API_TOKEN` / `VERCEL_PROJECT_ID` | `api/auth/drive-token.js`, uma ferramenta manual e pontual que gera um refresh token do Drive e o publica nas variáveis de ambiente da Vercel |
+| `IMPORT_TOKEN` | token de autenticação (bearer) do `api/import-escala.js` (padrão `pulse_import_2026`) |
 
-## Architecture
+## Arquitetura
 
-### Google Sheets is the database
+### O Google Sheets é o banco de dados
 
-There's no real database — one Google Sheet (`GOOGLE_SHEET_ID`) is the system of record, accessed through
-`lib/google-auth.js`'s `sheetsRequest(sheetId, path, method, body)` (JWT auth via service account, token
-cached in-process). Every `api/*.js` file builds its own thin `getSheet`/`setSheet`/`appendSheet` wrappers
-around it and reads/writes specific tabs by A1-notation range, e.g. `Escala!A2:F2000`. Key tabs:
+Não existe um banco de dados de verdade — uma única planilha do Google (`GOOGLE_SHEET_ID`) é a fonte da
+verdade, acessada pela função `sheetsRequest(sheetId, path, method, body)` de `lib/google-auth.js`
+(autenticação via JWT de service account, token cacheado em memória). Cada arquivo `api/*.js` monta seus
+próprios wrappers finos `getSheet`/`setSheet`/`appendSheet` em cima dela e lê/escreve abas específicas por
+intervalo em notação A1, ex.: `Escala!A2:F2000`. Abas principais:
 
-- **`Equipe`** — the team roster. **Its column layout is not consistent across files** — e.g.
-  `api/equipe.js` treats it as 9 columns (`nome, cargo, nucleo, email, slackId, regime, status,
-  senhaHash, perfil`), while `api/equipe-view.js`/`api/app.js` treat it as 13 columns including
-  `cpf, rg, nascimento, endereco, telefone, tipoContrato`. **Read the specific file's column-index usage
-  before assuming a column's meaning** — don't cross-reference indices between files blindly.
-- **`Escala`** — the work schedule. Row shape: `[data DD/MM, (unused), nome, entrada HH:MM, saída HH:MM,
-  obs]`, where `obs` is one of `''`, `Folga`, `Férias`, `Dispensa Médica`, `Gerado IA`, `Ajustado IA`.
-  Shifts crossing midnight are represented as `saída < entrada` (see `duracaoTurno`/`estaDeServico` for the
-  overnight-wrap math, duplicated in several files).
-- **`Ausências`** — absence requests/approvals. ID prefixes double as status: `PLS-...` = pending,
-  `APROVADO-...` = approved, `RECUSADO`/`CANCELADO` = terminal negative states. Note the tab name is
-  spelled with the accent (`Ausências`) in most files but **without it (`Ausencias`) in `api/escalas.js`** —
-  check which one a given file targets.
-- **`PulseConfig`** — generic key/value config sheet (currently just `publicacao_horizonte`, the DD/MM
-  cutoff controlling how far ahead non-managers can see the published schedule). Auto-created on first
-  write if missing (see `api/publicar.js`/`api/setup-config.js` for the create-tab-then-retry pattern).
-- **`Ajustes`** — append-only audit log of schedule edits (who/what/when), written alongside every
-  `Escala` mutation.
-- Role checks are always "look up the user's row in `Equipe` by name/email, check the `perfil`/status
-  column equals `'gestor'`/`'ativo'`" — there's no separate roles table.
+- **`Equipe`** — cadastro da equipe. **O layout de colunas não é consistente entre os arquivos** — por
+  exemplo, `api/equipe.js` trata como 9 colunas (`nome, cargo, nucleo, email, slackId, regime, status,
+  senhaHash, perfil`), enquanto `api/equipe-view.js`/`api/app.js` tratam como 13 colunas, incluindo
+  `cpf, rg, nascimento, endereco, telefone, tipoContrato`. **Confira o índice de coluna usado no arquivo
+  específico antes de assumir o significado de uma coluna** — não cruze índices entre arquivos sem checar.
+- **`Escala`** — a escala de trabalho. Formato da linha: `[data DD/MM, (sem uso), nome, entrada HH:MM,
+  saída HH:MM, obs]`, onde `obs` é um de `''`, `Folga`, `Férias`, `Dispensa Médica`, `Gerado IA`,
+  `Ajustado IA`. Turnos que viram a meia-noite são representados com `saída < entrada` (veja
+  `duracaoTurno`/`estaDeServico` para a matemática de virada de turno, duplicada em vários arquivos).
+- **`Ausências`** — solicitações/aprovações de ausência. O prefixo do ID também indica o status:
+  `PLS-...` = pendente, `APROVADO-...` = aprovado, `RECUSADO`/`CANCELADO` = estados finais negativos.
+  Repare que o nome da aba é escrito com acento (`Ausências`) na maioria dos arquivos, mas **sem acento
+  (`Ausencias`) em `api/escalas.js`** — confira qual delas cada arquivo usa.
+- **`PulseConfig`** — planilha genérica de configuração chave/valor (hoje só tem
+  `publicacao_horizonte`, o limite DD/MM que controla até quando quem não é gestor pode ver a escala
+  publicada). É criada automaticamente na primeira escrita, se não existir (veja o padrão
+  criar-aba-e-tentar-de-novo em `api/publicar.js`/`api/setup-config.js`).
+- **`Ajustes`** — log de auditoria (só inserção) de edições na escala (quem/o quê/quando), escrito junto de
+  toda mutação em `Escala`.
+- As checagens de papel/perfil sempre são "procurar a linha do usuário em `Equipe` por nome/email, checar se
+  a coluna `perfil`/status é igual a `'gestor'`/`'ativo'`" — não existe uma tabela de papéis separada.
 
-Because everything is row-index arithmetic against a live spreadsheet (`rows.findIndex(...)`, writing to
-`Escala!A${idx+2}:F${idx+2}`), sheet edits from the UI, from Airtable-derived logic, and from manual
-spreadsheet edits can race or drift out of sync — be careful with any change that assumes a row's position
-is stable across an `await`.
+Como tudo é feito com aritmética de índice de linha contra uma planilha viva (`rows.findIndex(...)`,
+escrevendo em `Escala!A${idx+2}:F${idx+2}`), edições feitas pela interface, por lógica derivada do Airtable
+e por edições manuais na planilha podem entrar em race condition ou ficar dessincronizadas — tome cuidado
+com qualquer mudança que assuma que a posição de uma linha permanece estável entre dois `await`.
 
-### Auth: hand-rolled cookie sessions, not a library
+### Autenticação: sessões via cookie feitas na mão, sem biblioteca
 
-There's no auth framework/JWT library for the portal session. `pulse_session` is a cookie holding
-`base64(payload|sha256(payload+ts+'pulse2026')|timestamp)`, checked for a 7-day expiry and signature match.
-**Two incompatible payload formats exist in the wild**: an older `nome|hash|ts` format (`api/equipe.js`,
-`api/gerar-escala.js`) and a newer one supporting an intermediate OAuth state via `~~` separators
-(`nome~~accessToken~~refreshToken|hash|ts`, with a `~~OAUTH~~...` prefix used mid-login before the user is
-matched to an `Equipe` row) used by `api/app.js` and most other files. When touching session logic, match
-the newer format and be aware older files haven't been migrated.
+Não há framework de autenticação/biblioteca de JWT para a sessão do portal. `pulse_session` é um cookie com
+`base64(payload|sha256(payload+ts+'pulse2026')|timestamp)`, verificado quanto à expiração de 7 dias e à
+correspondência da assinatura. **Existem dois formatos de payload incompatíveis em uso**: um mais antigo,
+`nome|hash|ts` (`api/equipe.js`, `api/gerar-escala.js`), e um mais novo que suporta um estado intermediário
+de OAuth via separadores `~~` (`nome~~accessToken~~refreshToken|hash|ts`, com um prefixo `~~OAUTH~~...`
+usado no meio do login, antes do usuário ser associado a uma linha de `Equipe`), usado por `api/app.js` e a
+maioria dos outros arquivos. Ao mexer na lógica de sessão, siga o formato mais novo e tenha em mente que os
+arquivos antigos não foram migrados.
 
-Login flow: `/api/app` with no valid cookie renders a "Sign in with Google" page → Google OAuth →
-`api/auth/callback.js` exchanges the code, sets an intermediate `~~OAUTH~~`-prefixed cookie → redirects to
-`api/auth/register.js`, which matches the email against `Equipe`. If found & active, swaps in the final
-session cookie; if the person is new, inserts a `pendente` row and shows a waiting page that polls
-`api/auth/check-status.js`.
+Fluxo de login: `/api/app` sem cookie válido renderiza uma página "Entrar com Google" → OAuth do Google →
+`api/auth/callback.js` troca o código, define um cookie intermediário com prefixo `~~OAUTH~~` → redireciona
+para `api/auth/register.js`, que casa o email com `Equipe`. Se encontrado e ativo, troca pelo cookie de
+sessão final; se a pessoa é nova, insere uma linha `pendente` e mostra uma página de espera que consulta
+`api/auth/check-status.js` periodicamente.
 
-Two other cookies exist: `pulse_pending_action` (`api/chat.js`) holds a signed, TTL'd pending
-schedule-change action awaiting the user's "confirmar"/"cancelar" reply — the AI-driven chat command flow
-is propose-then-confirm, never a direct write.
+Existem mais dois cookies: `pulse_pending_action` (`api/chat.js`) guarda uma ação de mudança de escala
+assinada e com TTL, aguardando a resposta "confirmar"/"cancelar" do usuário — o fluxo de comandos via chat
+com IA sempre propõe antes de confirmar, nunca escreve direto.
 
-**Not every route is auth/role-gated equally** — e.g. `api/meu-turno.js` (view someone's shift by name
-slug) has no session check at all, and `api/dashboard.js` doesn't appear to check for a gestor role either.
-Don't assume a new `api/*.js` file is protected just because most of its siblings are; check explicitly.
+**Nem toda rota tem o mesmo nível de proteção de autenticação/perfil** — por exemplo, `api/meu-turno.js`
+(ver o turno de alguém pelo slug do nome) não tem nenhuma checagem de sessão, e `api/dashboard.js` também
+não parece checar se o usuário é gestor. Não assuma que um novo arquivo `api/*.js` está protegido só porque
+a maioria dos seus vizinhos está; confira explicitamente.
 
-### Two LLM providers, used for different jobs
+### Dois provedores de LLM, para tarefas diferentes
 
-- **Groq** (`llama-3.1-8b-instant`, OpenAI-compatible chat completions endpoint) handles cheap/fast text
-  tasks: general Slack Q&A (`api/pulse.js`), natural-language command→JSON-action interpretation for the
-  chat-driven schedule editor (`api/chat.js`), and short motivational "frase do dia" copy (`api/app.js`).
-- **Anthropic's API called directly** (model `claude-haiku-4-5-20251001`, no SDK — raw `fetch`) is used only
-  in `api/gerar-escala.js` for the heavier reasoning involved in AI-assisted schedule generation (filling
-  coverage gaps, suggesting days off based on fatigue/consecutive-days analysis).
+- **Groq** (`llama-3.1-8b-instant`, endpoint de chat completions compatível com a API da OpenAI) cuida das
+  tarefas de texto rápidas/baratas: Q&A geral no Slack (`api/pulse.js`), interpretação de comando em
+  linguagem natural → ação em JSON para o editor de escala via chat (`api/chat.js`), e a "frase do dia"
+  motivacional curta (`api/app.js`).
+- **A API da Anthropic chamada diretamente** (modelo `claude-haiku-4-5-20251001`, sem SDK — `fetch` cru) é
+  usada só em `api/gerar-escala.js`, para o raciocínio mais pesado envolvido na geração de escala assistida
+  por IA (preencher buracos de cobertura, sugerir folgas com base em análise de fadiga/dias consecutivos).
 
-### Airtable is the live-event calendar ("grade")
+### O Airtable é o calendário de eventos ao vivo ("grade")
 
-The broadcast schedule (individual live events/matches — separate from the *work* schedule in
-`Escala`) lives in Airtable (base `appqPBoDUYfX2edOp`, table `tblkqT3nDu1Gw6bnf`), fetched read-only via
-`fetch` + `filterByFormula`. Nearly every dashboard cross-references "who is on shift" (`Escala`) against
-"what's airing" (Airtable events) to compute coverage — see `estaDeServico`/`statusTurno`/`cruzarEventos`
-in `api/app.js` (duplicated with small variations in `api/dashboard.js`, `api/gerar-escala.js`,
-`api/banco-horas.js`, `api/meu-turno.js`). `api/monitor.js` runs on a Vercel cron, diffs tomorrow's Airtable
-schedule against `data/grade_snapshot.json` (committed back to this repo via the GitHub API), and posts
-changes to Slack.
+A grade de transmissão (eventos/jogos individuais ao vivo — separada da escala de *trabalho* em `Escala`)
+vive no Airtable (base `appqPBoDUYfX2edOp`, tabela `tblkqT3nDu1Gw6bnf`), lida apenas para leitura via
+`fetch` + `filterByFormula`. Praticamente todo dashboard cruza "quem está de plantão" (`Escala`) com "o que
+está no ar" (eventos do Airtable) para calcular cobertura — veja
+`estaDeServico`/`statusTurno`/`cruzarEventos` em `api/app.js` (duplicadas com pequenas variações em
+`api/dashboard.js`, `api/gerar-escala.js`, `api/banco-horas.js`, `api/meu-turno.js`). O `api/monitor.js`
+roda num cron da Vercel, compara a grade de amanhã no Airtable com `data/grade_snapshot.json` (que ele
+mesmo commita de volta neste repositório via API do GitHub) e posta as mudanças no Slack.
 
-### Labor-law rule engine
+### Motor de regras trabalhistas
 
-`lib/escalas-engine.js` is the one file of pure, sheet-agnostic functions: shift duration math handling
-midnight-crossing turnos, interjornada (rest-between-shifts) calculation, and `analisarDia`/`analisarEscala`
-which flag CLT violations (>10h jornada, missing 1h break over 8h, <11h interjornada, 6th/7th consecutive
-day without a folga). Reuse these instead of re-deriving the math elsewhere.
+`lib/escalas-engine.js` é o único arquivo com funções puras, sem dependência de planilha: matemática de
+duração de turno lidando com virada de meia-noite, cálculo de interjornada (descanso entre turnos), e
+`analisarDia`/`analisarEscala`, que sinalizam violações da CLT (jornada acima de 10h, falta do intervalo de
+1h acima de 8h trabalhadas, interjornada abaixo de 11h, 6º/7º dia consecutivo sem folga). Reaproveite essas
+funções em vez de reescrever essa matemática em outro lugar.
 
-### Server-rendered HTML portal (`api/app.js`, ~1900 lines)
+### Portal em HTML renderizado no servidor (`api/app.js`, ~1900 linhas)
 
-The largest file in the repo. It renders full HTML documents as JS template strings — no templating engine.
-Conventions to follow when touching it (or the similar `api/equipe-view.js`, `api/escalas.js`,
-`api/repositorio.js`, `api/ausencias.js`):
+O maior arquivo do repositório. Ele renderiza documentos HTML completos como strings de template em JS —
+sem motor de templates. Convenções a seguir ao mexer nele (ou nos arquivos parecidos `api/equipe-view.js`,
+`api/escalas.js`, `api/repositorio.js`, `api/ausencias.js`):
 
-- A shared `baseHTML(titulo, conteudo, script)` wrapper defines the `<head>`/theme CSS; light/dark theme is
-  done entirely with CSS custom properties (`--bg`, `--text`, `--card`, ...) swapped under an `html.dark`
-  class, toggled client-side via `localStorage['pulse-theme']`.
-  User-supplied strings interpolated into HTML must go through the `esc()` escaping helper defined locally
-  in each file — there's no shared escaping utility, so if you add a new HTML-rendering file, add your own.
-- Business logic that determines what to render (metrics, per-day status, coverage) is computed **twice**:
-  once server-side for the initial page render, and reimplemented in the inline `<script>` block so
-  day/week/month navigation doesn't need a server round-trip. When changing a rule (e.g. what counts as
-  "on shift"), grep for all client-side JS reimplementations of the same logic in the same file, not just
-  the server-side function.
-  - Interaction is via inline `onclick="..."` handlers, not `addEventListener`, and a floating AI chat
-  widget (`CHAT_IA` constant, posts to `/api/chat`) plus an absence-request widget (`SOLICITAR_BTN`) are
-  appended to most authenticated pages.
-- Dates are BRT (`America/Sao_Paulo`, UTC-3) computed with manual offset arithmetic (`getBRT()`,
-  `agoraBrasil()`, `hojeBrasil()`, or `toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'})`) — this
-  pattern is copy-pasted per file rather than shared; there's no timezone library. The canonical
-  human-facing date format is `DD/MM` (year omitted — assumed current year).
+- Um wrapper compartilhado `baseHTML(titulo, conteudo, script)` define o `<head>`/CSS de tema; o tema
+  claro/escuro é feito inteiramente com propriedades customizadas de CSS (`--bg`, `--text`, `--card`, ...)
+  trocadas sob uma classe `html.dark`, alternada no cliente via `localStorage['pulse-theme']`.
+  Strings vindas de usuário interpoladas em HTML precisam passar pelo helper de escape `esc()` definido
+  localmente em cada arquivo — não existe um utilitário de escape compartilhado, então, ao criar um novo
+  arquivo que renderiza HTML, crie o seu próprio.
+- A lógica de negócio que decide o que renderizar (métricas, status por dia, cobertura) é calculada
+  **duas vezes**: uma no servidor, para a renderização inicial da página, e outra reimplementada dentro do
+  bloco `<script>` inline, para que a navegação entre dia/semana/mês não precise de ida e volta ao servidor.
+  Ao mudar uma regra (ex.: o que conta como "de plantão"), procure por todas as reimplementações da mesma
+  lógica em JS no lado cliente, no mesmo arquivo — não só a função do servidor.
+- A interação é feita via handlers `onclick="..."` inline, não `addEventListener`, e um widget flutuante de
+  chat com IA (constante `CHAT_IA`, que faz POST para `/api/chat`) mais um widget de solicitação de ausência
+  (`SOLICITAR_BTN`) são adicionados na maioria das páginas autenticadas.
+- Datas são em BRT (`America/Sao_Paulo`, UTC-3), calculadas com aritmética manual de offset (`getBRT()`,
+  `agoraBrasil()`, `hojeBrasil()`, ou `toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'})`) — esse
+  padrão é copiado e colado em cada arquivo em vez de compartilhado; não existe biblioteca de timezone. O
+  formato canônico de data voltado ao usuário é `DD/MM` (sem o ano — assume-se o ano corrente).
 
-### One-off / admin scripts
+### Scripts pontuais / administrativos
 
-`api/setup-*.js` and `api/fix-gestor.js` are manually-triggered, GET-based scripts (gated by a hardcoded
-`?token=pulse_setup_2026` query param, not tied to any env var) used once to bootstrap sheet tabs and seed
-data — they are not part of normal request flow and mutate the spreadsheet with hardcoded values when
-visited. `api/import-escala.js` is a similar one-off backfill for a specific date range. Treat these as
-historical/break-glass tools, not endpoints to build on.
+`api/setup-*.js` e `api/fix-gestor.js` são scripts disparados manualmente via GET (protegidos por um
+parâmetro de query fixo `?token=pulse_setup_2026`, não ligado a nenhuma variável de ambiente), usados uma
+única vez para inicializar abas da planilha e popular dados — não fazem parte do fluxo normal de
+requisições e alteram a planilha com valores fixos quando acessados. `api/import-escala.js` é um backfill
+pontual parecido, para um intervalo de datas específico. Trate esses arquivos como ferramentas
+históricas/de emergência, não como endpoints para evoluir.
 
-## Conventions worth following
+## Convenções a seguir
 
-- Git commits: lowercase, no accents, conventional-style prefixes (`feat:`, `fix:`, `refactor:`), written in
-  Portuguese, e.g. `fix: usar campo ENCODERS GERAL (via cellFormat=string) em vez de Encoder Auxiliar`.
-- Match the file you're editing's existing session-cookie format, sheet column indices, and BRT date-math
-  style rather than introducing a new pattern — this codebase has several competing conventions already
-  (see the "Auth" and "Google Sheets" sections above) and consistency-within-file matters more than
-  consistency-across-repo here.
-- Several magic strings act as informal secrets (session salt `'pulse2026'`, setup token
-  `'pulse_setup_2026'`, cron token, import token default) — they're hardcoded rather than derived from env
-  vars in most places. Don't "fix" this as a drive-by refactor; treat it as existing behavior unless asked
-  to change it.
+- Commits do git: minúsculo, sem acento, com prefixos no estilo conventional commits (`feat:`, `fix:`,
+  `refactor:`), escritos em português, ex.: `fix: usar campo ENCODERS GERAL (via cellFormat=string) em vez
+  de Encoder Auxiliar`.
+- Siga o formato de cookie de sessão, os índices de coluna da planilha e o estilo de cálculo de data em BRT
+  já usados no arquivo que você está editando, em vez de introduzir um padrão novo — este código já tem
+  várias convenções concorrentes (veja as seções "Autenticação" e "Google Sheets" acima), e aqui
+  consistência dentro do arquivo importa mais que consistência entre arquivos.
+- Várias strings mágicas funcionam como segredos informais (salt de sessão `'pulse2026'`, token de setup
+  `'pulse_setup_2026'`, token de cron, valor padrão do token de import) — estão hardcoded em vez de virem de
+  variáveis de ambiente na maioria dos lugares. Não "conserte" isso como refactor de passagem; trate como
+  comportamento existente, a menos que seja pedido explicitamente para mudar.
