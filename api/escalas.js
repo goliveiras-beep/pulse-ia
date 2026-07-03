@@ -489,7 +489,7 @@ a{text-decoration:none}
         <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
         <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
         <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
-        <a href="/api/repositorio" class="menu-item">&#128193; Repositorio</a>
+        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
         <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
         <div style="height:1px;background:var(--border);margin:2px 0"></div>
         <form method="POST" action="/api/app?action=logout" style="margin:0">

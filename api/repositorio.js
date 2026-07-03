@@ -1,4 +1,4 @@
-// api/repositorio.js – Central Técnica — Gestão completa de documentos
+// api/repositorio.js – Central de Conhecimento — Gestão completa de documentos
 export const config = { maxDuration: 30 };
 import { createSign, createHash } from 'crypto';
 import { sheetsRequest } from '../lib/google-auth.js';
@@ -9,7 +9,7 @@ const SHEET_ID     = process.env.GOOGLE_SHEET_ID;
 const REPO_ROOT    = process.env.PULSE_REPOSITORY_FOLDER_ID || '1dZkR61MTm8oaHq-Ycxs53bU8fJlb7x_f';
 const CFG_RANGE    = 'RepositorioConfig!A2:B50';
 
-// Pastas raiz da Central Técnica
+// Pastas raiz da Central de Conhecimento
 const PASTA_DEFS = [
   { id: REPO_ROOT,                            label: 'Raiz',                       slack: '#docs-geral'       },
   { id: '1I7hi9lszj4q6lfIz3pdy0VOSbD7IXt26', label: 'Diagramacao',                slack: '#docs-diagramacao' },
@@ -118,7 +118,7 @@ async function buildBreadcrumb(folderId, token) {
   const crumbs = [];
   let cur = folderId;
   for(let i=0; i<8; i++) {
-    if(!cur || cur===REPO_ROOT) { crumbs.unshift({id:REPO_ROOT,nome:'Central Técnica'}); break; }
+    if(!cur || cur===REPO_ROOT) { crumbs.unshift({id:REPO_ROOT,nome:'Central de Conhecimento'}); break; }
     const meta = await driveGetMeta(cur, token);
     if(meta.error) break;
     crumbs.unshift({id:meta.id,nome:meta.name});
@@ -208,7 +208,7 @@ function renderPage({ session, arquivos, breadcrumb, currentId, isGestor, pastaD
 <head>
 <script>(function(){var d=localStorage.getItem("pulse-theme");if(d==="dark")document.documentElement.classList.add("dark");})()</script>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Central Técnica — Pulse</title>
+<title>Central de Conhecimento — Pulse</title>
 <style>
 :root{--bg:#f5f5f5;--bg2:#fff;--card:#fff;--text:#1a1a1a;--muted:#777;--border:#e5e5e5;--header:#161920;--blue:#1d4ed8;--chip-bg:#fff;--chip-c:#555;--chip-border:#e5e5e5;--doc-hover:#f8fafc;--input-bg:#fff;--input-border:#e0e0e0;}
 html.dark{--bg:#1c1f26;--bg2:#242836;--card:#242836;--text:#e2e8f0;--muted:#718096;--border:#2d3748;--header:#0f1117;--blue:#63b3ed;--chip-bg:#242836;--chip-c:#a0aec0;--chip-border:#2d3748;--doc-hover:#2d3140;--input-bg:#2d3140;--input-border:#3d4660;}
@@ -269,7 +269,7 @@ a{text-decoration:none;color:inherit}
 <body>
 <div class="header">
   <a class="logo" href="/api/app">P</a>
-  <div><div class="ht">Central Técnica</div><div class="hs">Documentos · Fluxos · Procedimentos</div></div>
+  <div><div class="ht">Central de Conhecimento</div><div class="hs">Documentos · Fluxos · Procedimentos</div></div>
   <div class="hr">
     <span class="hs" style="color:#aaa">Olá, ${esc(session.nome.split(' ')[0])}</span>
     ${isGestor ? `<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700">Gestor</span>` : ''}
@@ -281,7 +281,7 @@ a{text-decoration:none;color:inherit}
 <div class="wrap">
   <div class="top-bar">
     <div class="top-info">
-      <div class="title">Central Técnica</div>
+      <div class="title">Central de Conhecimento</div>
       <div class="sub">Documentos oficiais, fluxos operacionais e procedimentos da equipe.</div>
     </div>
     <form class="search-form" method="GET" action="/api/repositorio">
