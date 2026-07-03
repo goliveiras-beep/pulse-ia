@@ -1063,7 +1063,10 @@ async function cancelarSolicit(id){if(!confirm('Cancelar esta solicitação?'))r
         <span style="font-size:9px;color:#718096">BRT</span>
         <span id="relogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
       </div>
-      <span id="relogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:8px;color:#4a5568">GMT</span>
+        <span id="relogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
+      </div>
     </div>
     <button id="tt" class="btn-sm btn-sm-keep-colab m-keep" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');document.getElementById('tt').textContent=dk?'&#9728;&#65039;':'&#127769;';})()" style="font-size:14px;padding:3px 8px">&#127769;</button>
     <form method="POST" action="/api/app?action=logout" class="m-keep" style="display:inline"><button type="submit" class="btn-sm" style="display:inline-block">Sair</button></form>
@@ -1678,7 +1681,10 @@ setInterval(atualizarEventos, 60000);
         <span style="font-size:9px;font-weight:600;color:#718096;letter-spacing:.04em">BRT</span>
         <span id="grelogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
       </div>
-      <span id="grelogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:8px;font-weight:600;color:#4a5568;letter-spacing:.04em">GMT</span>
+        <span id="grelogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
+      </div>
     </div>
     <span id="saudacao-gestor" style="font-size:12px;color:#666">Ola, ${nome.split(' ')[0]}</span>
     <button class="btn-sm" onclick="location.reload()">&#8635;</button>
