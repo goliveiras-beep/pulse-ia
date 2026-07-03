@@ -43,8 +43,25 @@ function getSession(req) {
   } catch { return null; }
 }
 
+// Normaliza datas de qualquer formato para DD/MM — resolve legado USER_ENTERED (mesma lógica de escalas.js)
+function normalizarDf(raw) {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) { const p = s.split('-'); return p[2].slice(0,2).padStart(2,'0')+'/'+p[1].padStart(2,'0'); }
+  if (/^\d{1,2}\/\d{1,2}/.test(s)) { const p = s.split('/'); return p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0'); }
+  if (/^\d{5,6}$/.test(s)) return s; // serial numérico — ignora
+  return s;
+}
 async function getSheet(range) {
-  try { const d = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(range)}`); return d.values||[]; }
+  try {
+    const d = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(range)}`);
+    const values = d.values||[];
+    // Normaliza coluna A (data) se for range de Escala
+    if (range.includes('Escala')) {
+      return values.map(r => r.length>0 ? [normalizarDf(r[0]||''), ...r.slice(1)] : r);
+    }
+    return values;
+  }
   catch { return []; }
 }
 
