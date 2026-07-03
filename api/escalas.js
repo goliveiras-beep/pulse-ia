@@ -248,6 +248,10 @@ export default async function handler(req, res) {
   const usuario = equipeRaw.find(r => r[0] === session.nome);
   if (usuario?.[8] !== 'gestor') return res.redirect(302, '/api/app');
 
+  // Índice df|nome -> linha da escala, evita varrer escalaRaw inteira a cada célula do grid
+  const escalaIndex = new Map();
+  escalaRaw.forEach(r => { if (r[0] && r[2]) escalaIndex.set(`${r[0]}|${r[2]}`, r); });
+
   const visao = req.query.v || 'semana';
   const hoje = getBRT();
 
@@ -322,7 +326,7 @@ export default async function handler(req, res) {
       const a = analise[nome]?.[df];
       const cargo = equipeRaw.find(r=>r[0]===nome)?.[1]||'';
       const { perigo, atencao } = resumoPessoa[nome];
-      const escRegDia=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
+      const escRegDia=escalaIndex.get(`${df}|${nome}`);
       return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-df="${df}" data-nome2="${nome}" data-ent="${escRegDia?.[3]||''}" data-sai="${escRegDia?.[4]||''}" data-obs="${escRegDia?.[5]||''}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome2,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <div style="width:32px;height:32px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
@@ -375,7 +379,7 @@ export default async function handler(req, res) {
           const isFds2=diaSem2===0||diaSem2===6;
           const a=analise[nome]?.[df];
           const isHoje=df===fmtData(hoje);
-          const escReg=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
+          const escReg=escalaIndex.get(`${df}|${nome}`);
           const _ent=(escReg?.[3]||'');const _sai=(escReg?.[4]||'');const _obs=(escReg?.[5]||'');
           const cellBg = isHoje ? 'var(--today-bg)' : isFds2 ? 'var(--fds-bg)' : '';
           return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${cellBg};cursor:pointer${isFds2?';border-left:2px solid var(--fds-border)':''}" data-df="${df}" data-nome="${nome}" data-ent="${_ent}" data-sai="${_sai}" data-obs="${_obs}" onclick="var el=this;abrirEditor(el,el.dataset.df,el.dataset.nome,el.dataset.ent,el.dataset.sai,el.dataset.obs)">${celulaAnalise(a,null,true)}</td>`;
@@ -402,7 +406,7 @@ export default async function handler(req, res) {
         const isHoje=df===fmtData(hoje);
         const c=NIVEL_COR[a?.tipo||'livre']||NIVEL_COR.livre;
         const temAlerta=a?.alertas?.length>0;
-        const escRegMes=escalaRaw.find(r=>r[0]===df&&r[2]===nome);
+        const escRegMes=escalaIndex.get(`${df}|${nome}`);
         const _mEnt=escRegMes?.[3]||'';const _mSai=escRegMes?.[4]||'';const _mObs=(escRegMes?.[5]||'').replace(/['"]/g,'');
         cal+=`<div style="background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;cursor:pointer" data-df="${df}" data-nome="${nome}" data-ent="${_mEnt}" data-sai="${_mSai}" data-obs="${_mObs}" onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome,e.dataset.ent,e.dataset.sai,e.dataset.obs)">
           <div style="font-size:9px;font-weight:${isHoje?700:500};color:${c.txt}">${d}</div>
