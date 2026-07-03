@@ -1,6 +1,7 @@
 // api/ausencias.js — Central de ausências com timeline visual
 export const config = { maxDuration: 30 };
 import { sheetsRequest } from '../lib/google-auth.js';
+import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -268,14 +269,15 @@ export default async function handler(req,res){
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse — Ausências</title>
 <style>
-:root{--bg:#f5f5f5;--header:#1a1a1a;--card:#fff;--border:#e5e5e5;--text:#1a1a1a;--text2:#555;--text3:#888;--text4:#aaa;--input:#fff;--btn-border:#ccc;}
-html.dark{--bg:#1c1f26;--header:#161920;--card:#1e2230;--border:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--text4:#4a5568;--input:#161920;--btn-border:#3d4660;}
+:root{--bg:#f5f5f5;--header:#1a1a1a;--card:#fff;--bg2:#f0f0f0;--border:#e5e5e5;--text:#1a1a1a;--text2:#555;--text3:#888;--text4:#aaa;--input:#fff;--btn-border:#ccc;}
+html.dark{--bg:#1c1f26;--header:#161920;--card:#1e2230;--bg2:#2d3140;--border:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--text4:#4a5568;--input:#161920;--btn-border:#3d4660;}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 .tab-btn{padding:8px 16px;font-size:13px;font-weight:600;background:none;border:none;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
 .tab-btn.ativo{color:#63b3ed;border-bottom-color:#3b82f6}
+.menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
+.menu-item:hover{background:var(--bg2)}
 @media(max-width:640px){
-  .hdr-btns .extra{display:none}
   .hdr-btns>*{display:none!important}
   .hdr-btns>.m-keep{display:flex!important;align-items:center}
   #abas-header-aus{flex-wrap:wrap;padding:8px 12px!important}
@@ -292,9 +294,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
   <div class="hdr-btns" style="margin-left:auto;display:flex;align-items:center;gap:6px">
     <button onclick="abrirNovaAusencia()" class="m-keep" style="border:1px solid #166534;background:#0d2010;border-radius:6px;padding:5px 12px;font-size:11px;color:#86efac;cursor:pointer;font-weight:600">+ Nova ausência</button>
-    <a href="/api/equipe-view" style="border:1px solid var(--btn-border);border-radius:6px;padding:5px 12px;font-size:11px;color:#a0aec0;text-decoration:none" class="extra">← Equipe</a>
-    <a href="/api/app" class="m-keep" style="border:1px solid var(--btn-border);border-radius:6px;padding:5px 12px;font-size:11px;color:#a0aec0;text-decoration:none">Home</a>
+    <div id="aus-tempo-widget" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 10px;font-size:12px;color:#e2e8f0">
+      <span id="aus-tempo-icone">⏳</span>
+      <span id="aus-tempo-temp" style="font-weight:700">--°C</span>
+      <span id="aus-tempo-cidade" style="color:#718096;font-size:10px"></span>
+    </div>
+    <div class="m-keep" style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:9px;color:#718096">BRT</span>
+        <span id="aus-relogio-brt" style="font-size:15px;font-weight:800;color:#e2e8f0;font-variant-numeric:tabular-nums"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:8px;color:#718096">GMT</span>
+        <span id="aus-relogio-gmt" style="font-size:10px;font-weight:600;color:#4a5568;font-variant-numeric:tabular-nums"></span>
+      </div>
+    </div>
     <button id="tt" onclick="toggleTheme()" class="m-keep" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">🌙</button>
+    <div class="m-keep" style="position:relative">
+      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" style="border:1px solid var(--btn-border);border-radius:6px;padding:4px 10px;font-size:15px;color:var(--text2);background:none;cursor:pointer;line-height:1">&#9776;</button>
+      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
+        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
+        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
+        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
+        <div style="height:1px;background:var(--border);margin:2px 0"></div>
+        <form method="POST" action="/api/app?action=logout" style="margin:0">
+          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -413,6 +443,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div id="toast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:999"></div>
 
 <script>
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
+function atualizarRelogio(){
+  var now=new Date();
+  var p=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(now);
+  var bh=p.find(function(x){return x.type==='hour';}).value,bm=p.find(function(x){return x.type==='minute';}).value,bs=p.find(function(x){return x.type==='second';}).value;
+  var elBrt=document.getElementById('aus-relogio-brt');if(elBrt)elBrt.textContent=bh+':'+bm+':'+bs;
+  var elGmt=document.getElementById('aus-relogio-gmt');if(elGmt)elGmt.textContent=String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0')+':'+String(now.getUTCSeconds()).padStart(2,'0');
+}
+async function carregarTempo(){
+  try{
+    var loc=null;
+    try{var r1=await fetch('https://ipapi.co/json/');var j1=await r1.json();if(j1.latitude)loc={lat:j1.latitude,lon:j1.longitude,city:j1.city};}catch(e){}
+    if(!loc)loc={lat:-22.9068,lon:-43.1729,city:'Rio de Janeiro'};
+    var wd=await(await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America%2FSao_Paulo')).json();
+    var temp=wd.current&&wd.current.temperature_2m!==undefined?Math.round(wd.current.temperature_2m):'--';
+    var icons={0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',99:'⛈️'};
+    document.getElementById('aus-tempo-icone').textContent=icons[wd.current&&wd.current.weathercode||0]||'🌡️';
+    document.getElementById('aus-tempo-temp').textContent=temp+'°C';
+    document.getElementById('aus-tempo-cidade').textContent=loc.city||'';
+  }catch(e){document.getElementById('aus-tempo-temp').textContent='--°C';}
+}
+atualizarRelogio();carregarTempo();setInterval(atualizarRelogio,1000);
 function abrirAba(id,btn){
   ['pendentes','aprovadas','historico'].forEach(function(t){
     document.getElementById('aba-'+t).style.display=t===id?'block':'none';
@@ -473,6 +526,8 @@ async function criarAusenciaGestor(){
 </script>
 </body></html>`;
 
+  const solicitarHtml = await solicitarBtn(session.nome);
+
   res.setHeader('Content-Type','text/html; charset=utf-8');
-  return res.status(200).send(html);
+  return res.status(200).send(html + solicitarHtml);
 }
