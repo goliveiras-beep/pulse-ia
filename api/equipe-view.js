@@ -1,6 +1,7 @@
 // api/equipe-view.js — Gestão de equipe com aprovação de pendentes
 export const config = { maxDuration: 30 };
 import { sheetsRequest } from '../lib/google-auth.js';
+import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -276,14 +277,16 @@ export default async function handler(req, res) {
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse - Equipe</title>
 <style>
-:root{--bg:#f5f5f5;--bg2:#fafafa;--card:#fff;--border:#e5e5e5;--border2:#f0f0f0;--text:#1a1a1a;--text2:#555;--text3:#888;--header:#161920;}
-html.dark{--bg:#1c1f26;--bg2:#242836;--card:#242836;--border:#2d3748;--border2:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--header:#0f1117;}
+:root{--bg:#f5f5f5;--bg2:#fafafa;--card:#fff;--border:#e5e5e5;--border2:#f0f0f0;--text:#1a1a1a;--text2:#555;--text3:#888;--header:#161920;--blue-m-bg:#eff6ff;--blue-m-border:#dbeafe;--blue-m-v:#1d4ed8;}
+html.dark{--bg:#1c1f26;--bg2:#242836;--card:#242836;--border:#2d3748;--border2:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--header:#0f1117;--blue-m-bg:#1a2744;--blue-m-border:#2a4080;--blue-m-v:#63b3ed;}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 .header{background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
 .ht{font-size:14px;font-weight:700;color:#fff}.hs{font-size:11px;color:#666}
 .hr{margin-left:auto;display:flex;gap:6px;align-items:center}
 .btn-sm{border:1px solid #3d4660;border-radius:5px;padding:4px 10px;font-size:11px;color:#a0aec0;background:none;cursor:pointer;text-decoration:none}
+.menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
+.menu-item:hover{background:var(--bg2)}
 .wrap{max-width:960px;margin:0 auto;padding:20px}
 .section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:20px 0 10px;display:flex;align-items:center;gap:8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px;transition:all .2s}
@@ -321,9 +324,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       ✓ Sem ausências pendentes
     </a>
     `}
-    <a href="/api/banco-horas" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed">📊 Banco de horas</a>
-    <a href="/api/app" class="btn-sm">← Voltar</a>
+    <div id="eq-tempo-widget" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 10px;font-size:12px;color:#e2e8f0">
+      <span id="eq-tempo-icone">⏳</span>
+      <span id="eq-tempo-temp" style="font-weight:700">--°C</span>
+      <span id="eq-tempo-cidade" style="color:#718096;font-size:10px"></span>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:9px;color:#718096">BRT</span>
+        <span id="eq-relogio-brt" style="font-size:15px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:8px;color:#718096">GMT</span>
+        <span id="eq-relogio-gmt" style="font-size:10px;font-weight:600;color:var(--text3);font-variant-numeric:tabular-nums"></span>
+      </div>
+    </div>
     <button id="tt" class="btn-sm" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" style="font-size:14px;padding:3px 8px">🌙</button>
+    <div style="position:relative">
+      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-sm" style="font-size:15px;padding:4px 10px;line-height:1">&#9776;</button>
+      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
+        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausencias</a>
+        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
+        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
+        <div style="height:1px;background:var(--border);margin:2px 0"></div>
+        <form method="POST" action="/api/app?action=logout" style="margin:0">
+          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -408,6 +439,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="toast" id="toast"></div>
 
 <script>
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
+function atualizarRelogio(){
+  var now=new Date();
+  var p=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).formatToParts(now);
+  var bh=p.find(function(x){return x.type==='hour';}).value,bm=p.find(function(x){return x.type==='minute';}).value,bs=p.find(function(x){return x.type==='second';}).value;
+  var elBrt=document.getElementById('eq-relogio-brt');if(elBrt)elBrt.textContent=bh+':'+bm+':'+bs;
+  var elGmt=document.getElementById('eq-relogio-gmt');if(elGmt)elGmt.textContent=String(now.getUTCHours()).padStart(2,'0')+':'+String(now.getUTCMinutes()).padStart(2,'0')+':'+String(now.getUTCSeconds()).padStart(2,'0');
+}
+async function carregarTempo(){
+  try{
+    var loc=null;
+    try{var r1=await fetch('https://ipapi.co/json/');var j1=await r1.json();if(j1.latitude)loc={lat:j1.latitude,lon:j1.longitude,city:j1.city};}catch(e){}
+    if(!loc)loc={lat:-22.9068,lon:-43.1729,city:'Rio de Janeiro'};
+    var wd=await(await fetch('https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weathercode&timezone=America%2FSao_Paulo')).json();
+    var temp=wd.current&&wd.current.temperature_2m!==undefined?Math.round(wd.current.temperature_2m):'--';
+    var icons={0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',71:'❄️',80:'🌦️',81:'🌧️',82:'⛈️',95:'⛈️',99:'⛈️'};
+    document.getElementById('eq-tempo-icone').textContent=icons[wd.current&&wd.current.weathercode||0]||'🌡️';
+    document.getElementById('eq-tempo-temp').textContent=temp+'°C';
+    document.getElementById('eq-tempo-cidade').textContent=loc.city||'';
+  }catch(e){document.getElementById('eq-tempo-temp').textContent='--°C';}
+}
+atualizarRelogio();carregarTempo();setInterval(atualizarRelogio,1000);
 var _membrosData = ${membrosDataJson};
 function abrirEditorById(linha){
   var m=_membrosData[linha];
@@ -540,7 +594,9 @@ function filtrarEquipe() {
 </body>
 </html>`;
 
+  const solicitarHtml = await solicitarBtn(session.nome);
+
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Cache-Control','no-cache');
-  return res.status(200).send(html);
+  return res.status(200).send(html + solicitarHtml);
 }
