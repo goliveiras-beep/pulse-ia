@@ -300,6 +300,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
 .menu-item:hover{background:var(--bg3)}
 .bh-txt-short{display:none}
+.bh-mes-atual{display:none}
 /* ── MOBILE ── */
 @media(max-width:640px){
   #bh-header{padding:8px 12px!important;gap:8px!important;flex-wrap:wrap!important}
@@ -308,6 +309,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   #bh-header-right{gap:5px!important;margin-left:0!important;width:100%!important;justify-content:flex-end!important}
   .bh-txt-full{display:none!important}
   .bh-txt-short{display:inline!important}
+  .bh-mes-atual{display:inline-flex!important}
   #bh-metrics{grid-template-columns:1fr!important;gap:8px!important}
   #bh-filtros{flex-wrap:wrap!important;gap:6px!important}
   #bh-insight-cols{grid-template-columns:1fr!important}
@@ -320,6 +322,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div style="min-width:0"><div id="bh-title" style="font-size:14px;font-weight:600;color:#fff">Pulse — Banco de horas &amp; Horas extras</div><div id="bh-sub" style="font-size:11px;color:#999;text-transform:capitalize">${nomeMes} ${ano} · baseado na escala planejada</div></div>
   <div id="bh-header-right" style="margin-left:auto;display:flex;align-items:center;gap:6px">
     <a href="/api/banco-horas?offset=${offset-1}" class="btn-sm"><span class="bh-txt-full">&#8249; mês anterior</span><span class="bh-txt-short">&#8249;</span></a>
+    <span class="bh-mes-atual" style="font-size:11px;font-weight:600;color:#e2e8f0;text-transform:capitalize;white-space:nowrap">${nomeMes} ${ano}</span>
     <a href="/api/banco-horas?offset=${offset+1}" class="btn-sm"><span class="bh-txt-full">próximo mês &#8250;</span><span class="bh-txt-short">&#8250;</span></a>
     <a href="/api/banco-horas?offset=${offset}" class="btn-sm" style="background:#1a2744;border-color:#2a4080;color:#63b3ed"><span class="bh-txt-full">&#128202; Gerar relatório</span><span class="bh-txt-short">&#128202;</span></a>
     <button id="tt" onclick="(function(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" class="btn-sm" style="font-size:14px;padding:3px 8px">&#127769;</button>
