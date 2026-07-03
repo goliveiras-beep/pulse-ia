@@ -20,10 +20,17 @@ function toHoraBRT(isoString) {
 function iniciais(n) { return n.split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
 function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); return hh*60+(mm||0); }
 
-function estaDeServico(ent, sai, horaEv) {
+function estaDeServico(ent, sai, horaEv, isCarryover) {
   if(!ent||!sai||!horaEv) return false;
   const i=toMin(ent), f=toMin(sai), e=toMin(horaEv);
-  return f>i ? e>=i&&e<f : e>=i||e<f;
+  const isOvernight = f < i;
+  if (isOvernight) {
+    // Sobra do turno de ontem: só a madrugada de hoje (00:00 ate a saida) conta.
+    // Turno de hoje que vira a noite: so a parte de hoje (entrada ate 24:00) conta —
+    // a madrugada seguinte pertence a amanha, nao a hoje.
+    return isCarryover ? e < f : e >= i;
+  }
+  return e >= i && e < f;
 }
 function statusTurno(ent, sai, horaEv) {
   if(!ent||!sai||!horaEv) return null;
@@ -114,7 +121,11 @@ export default async function handler(req, res) {
   const ausencias=ausenciasRaw.filter(r=>r[4]>=segStr&&r[4]<=domStr);
   const equipe=equipeRaw;
   const nomes=equipe.length>0?equipe.map(r=>r[0]):[...new Set(escalaRaw.map(r=>r[2]))];
-  const escalaD1=escala.filter(r=>r[0]===d1Str);
+  const escalaD1Own=escala.filter(r=>r[0]===d1Str);
+  // Turnos de hoje que viram a noite e sobram pra madrugada de amanha (marcados com r[6]=true)
+  const carryoverHoje=escalaRaw.filter(r=>r[0]===hojeStr&&r[3]&&r[4]&&toMin(r[4])<toMin(r[3])&&toMin(r[4])>0)
+    .map(r=>{const r2=r.slice();r2[6]=true;return r2;});
+  const escalaD1=[...escalaD1Own,...carryoverHoje];
 
   const eventosCruzados=eventosD1.map(ev=>{
     const disponiveis=[],atencao=[],ausentes=[];
@@ -124,7 +135,7 @@ export default async function handler(req, res) {
       if(ausente||obs==='Folga'||obs==='Folga/Ausente'||(!entrada&&!saida)){
         ausentes.push({nome,motivo:ausente?ausente[3]:'Folga'}); return;
       }
-      if(estaDeServico(entrada,saida,ev.hora)){
+      if(estaDeServico(entrada,saida,ev.hora,r[6])){
         const st=statusTurno(entrada,saida,ev.hora);
         st?atencao.push({nome,entrada,saida,status:st}):disponiveis.push({nome,entrada,saida});
       }
