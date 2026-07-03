@@ -22,26 +22,23 @@ function horaDeString(s) {
   return m ? m[1] : '';
 }
 function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); return hh*60+(mm||0); }
-function estaDeServico(ent, sai, horaEv, horaFimEv) {
+function estaDeServico(ent, sai, horaEv, horaFimEv, isCarryover) {
   if(!ent||!sai||!horaEv) return false;
   const i=toMin(ent), f=toMin(sai), e=toMin(horaEv);
   if(i===null||f===null||e===null) return false;
   const isOvernight = f < i; // turno vira meia-noite (ex: 23:00→07:00)
-  const durTurno = isOvernight ? (1440-i)+f : f-i;
 
-  // Verifica se a pessoa está de plantão na hora do evento
-  let posNoTurno;
-  if(isOvernight) {
-    // Turno noturno: cobre das ent até 24:00 + 00:00 até sai
-    if(e >= i) posNoTurno = e - i;           // evento na primeira metade (ex: 23:30 dentro de 23:00-07:00)
-    else posNoTurno = (1440 - i) + e;         // evento na segunda metade (ex: 04:00 dentro de 23:00-07:00)
-  } else {
-    // Turno diurno: só cobre entre ent e sai (sem tolerância no fim — turno encerrado não cobre mais)
-    if(e < i - 60 || e >= f) return false;
-    posNoTurno = e - i;
+  if (isOvernight) {
+    if (isCarryover) {
+      // Essa linha é a sobra do turno de ONTEM — só a madrugada de hoje (00:00 até a saída) conta
+      return e < f;
+    }
+    // Turno de HOJE que vira a noite — só a parte de hoje (entrada até 24:00) conta;
+    // a madrugada seguinte (00:00-saída) pertence ao dia de AMANHÃ, não a hoje
+    return e >= i - 60;
   }
-  // Pessoa está de plantão se a hora do evento está dentro do turno (com 60min de tolerância no início, sem tolerância no fim)
-  return posNoTurno >= -60 && posNoTurno < durTurno;
+  // Turno diurno: só cobre entre ent e sai (sem tolerância no fim — turno encerrado não cobre mais)
+  return e >= i - 60 && e < f;
 }
 function statusTurno(ent,sai,horaEv) {
   if(!ent||!sai||!horaEv) return null;
@@ -436,7 +433,7 @@ function dentroAusencia(aus, df) {
 }
 function cruzarEventos(eventos, escHoje, dataStr) {
   return eventos.map(ev => {
-    const disp = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && estaDeServico(r[3], r[4], ev.hora, ev.horaFim));
+    const disp = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && estaDeServico(r[3], r[4], ev.hora, ev.horaFim, r[6]));
     const atenc = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && statusTurno(r[3], r[4], ev.hora) !== null && !disp.find(d => d[2] === r[2]));
     const aus = escHoje.filter(r => !disp.find(d => d[2] === r[2]) && !atenc.find(a => a[2] === r[2]));
     const semCob = disp.length === 0;
@@ -629,7 +626,7 @@ export default async function handler(req, res) {
     // um turno que termina EXATAMENTE às 00:00 não cobre nenhum minuto de hoje)
     const noturnos = escalaArr.filter(r =>
       r[0] === ontem && r[3] && r[4] && toMin(r[4]) < toMin(r[3]) && toMin(r[4]) > 0
-    );
+    ).map(r => { const r2 = r.slice(); r2[6] = true; return r2; }); // r2[6] = veio de ontem (sobra de madrugada)
     // Combina: hoje + noturnos de ontem (podem haver duplicatas de nome, tudo bem)
     return [...diaAtual, ...noturnos];
   }
