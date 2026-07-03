@@ -238,12 +238,14 @@ export default async function handler(req, res) {
     return res.status(200).json({ok:true});
   }
 
+  const _tInicio = Date.now();
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
     getSheet('Equipe!A2:I50'),
     getSheet('Escala!A2:F2000'),
     getSheet('Ausências!A2:I500'),
     getSheet('PulseConfig!A2:B20'),
   ]);
+  console.log(`[escalas] fetch sheets: ${Date.now()-_tInicio}ms — equipe=${equipeRaw.length} escala=${escalaRaw.length} ausencias=${ausenciasRaw.length}`);
 
   const usuario = equipeRaw.find(r => r[0] === session.nome);
   if (usuario?.[8] !== 'gestor') return res.redirect(302, '/api/app');
@@ -293,7 +295,9 @@ export default async function handler(req, res) {
   }
 
   const nomes = equipeRaw.map(r => r[0]);
+  const _tAnalise = Date.now();
   const analise = analisarEscala(escalaRaw, ausenciasRaw, nomes, datas);
+  console.log(`[escalas] analisarEscala: ${Date.now()-_tAnalise}ms — visao=${visao} nomes=${nomes.length} datas=${datas.length}`);
 
   const resumoPessoa = {};
   let totalPerigo = 0, totalAtencao = 0;
@@ -319,6 +323,7 @@ export default async function handler(req, res) {
   </div>`;
 
   let conteudoGrid = '';
+  const _tGrid = Date.now();
 
   if (visao === 'dia') {
     conteudoGrid = nomes.map((nome,idx) => {
@@ -430,6 +435,7 @@ export default async function handler(req, res) {
     }).join('');
     conteudoGrid = `<div id="grid-principal" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">${conteudoGrid}</div>`;
   }
+  console.log(`[escalas] conteudoGrid (${visao}): ${Date.now()-_tGrid}ms`);
 
   // Lista de cargos únicos para o dropdown de filtro
   const cargosUnicos = [...new Set(nomes.map(n => equipeRaw.find(r=>r[0]===n)?.[1]||'').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
@@ -759,6 +765,7 @@ async function colarDireto(cel){
 </script>
 </body></html>`;
 
+  console.log(`[escalas] total ate enviar resposta: ${Date.now()-_tInicio}ms`);
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Cache-Control','no-cache');
   return res.status(200).send(html + CHAT_IA_ESC);
