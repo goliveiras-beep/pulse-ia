@@ -635,7 +635,7 @@ export default async function handler(req, res) {
   }
 
   const escHoje = escalaComNoturnosAnteriores(escala, hojeStr);
-  const escD1 = escala.filter(r => r[0] === d1Str);
+  const escD1 = escalaComNoturnosAnteriores(escala, d1Str);
   const SOLICITAR_BTN = await solicitarBtn(nome);
 
   if (!isGestor) {
