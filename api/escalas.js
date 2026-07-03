@@ -80,7 +80,7 @@ const NIVEL_COR = {
   atencao: { bg: 'var(--amber-m-bg)', border: 'var(--amber-m-border)', txt: 'var(--amber-m-v)', dot: '#f6ad55' },
   ok:      { bg: 'var(--badge-green-bg)', border: 'var(--badge-green-c)', txt: 'var(--badge-green-c)', dot: '#68d391' },
   folga:   { bg: 'var(--today-bg)',   border: 'var(--today-border)',   txt: 'var(--today-c)',   dot: '#63b3ed' },
-  ausencia:{ bg: '#1a0d2e',           border: '#6b21a8',               txt: '#c084fc',          dot: '#a855f7' },
+  ausencia:{ bg: 'var(--purple-m-bg)', border: 'var(--purple-m-border)', txt: 'var(--purple-m-v)', dot: 'var(--purple-m-v)' },
   livre:   { bg: 'var(--card)',       border: 'var(--border)',         txt: 'var(--text3)',     dot: 'var(--border)' },
 };
 
@@ -238,14 +238,12 @@ export default async function handler(req, res) {
     return res.status(200).json({ok:true});
   }
 
-  const _tInicio = Date.now();
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
     getSheet('Equipe!A2:I50'),
     getSheet('Escala!A2:F2000'),
     getSheet('Ausências!A2:I500'),
     getSheet('PulseConfig!A2:B20'),
   ]);
-  console.log(`[escalas] fetch sheets: ${Date.now()-_tInicio}ms — equipe=${equipeRaw.length} escala=${escalaRaw.length} ausencias=${ausenciasRaw.length}`);
 
   const usuario = equipeRaw.find(r => r[0] === session.nome);
   if (usuario?.[8] !== 'gestor') return res.redirect(302, '/api/app');
@@ -295,9 +293,7 @@ export default async function handler(req, res) {
   }
 
   const nomes = equipeRaw.map(r => r[0]);
-  const _tAnalise = Date.now();
   const analise = analisarEscala(escalaRaw, ausenciasRaw, nomes, datas);
-  console.log(`[escalas] analisarEscala: ${Date.now()-_tAnalise}ms — visao=${visao} nomes=${nomes.length} datas=${datas.length}`);
 
   const resumoPessoa = {};
   let totalPerigo = 0, totalAtencao = 0;
@@ -323,7 +319,6 @@ export default async function handler(req, res) {
   </div>`;
 
   let conteudoGrid = '';
-  const _tGrid = Date.now();
 
   if (visao === 'dia') {
     conteudoGrid = nomes.map((nome,idx) => {
@@ -435,7 +430,6 @@ export default async function handler(req, res) {
     }).join('');
     conteudoGrid = `<div id="grid-principal" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">${conteudoGrid}</div>`;
   }
-  console.log(`[escalas] conteudoGrid (${visao}): ${Date.now()-_tGrid}ms`);
 
   // Lista de cargos únicos para o dropdown de filtro
   const cargosUnicos = [...new Set(nomes.map(n => equipeRaw.find(r=>r[0]===n)?.[1]||'').filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
@@ -446,8 +440,8 @@ export default async function handler(req, res) {
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse - Escala</title>
 <style>
-:root{--bg:#f5f5f5;--bg2:#fff;--bg3:#fafafa;--border:#e5e5e5;--border2:#f0f0f0;--text:#1a1a1a;--text2:#555;--text3:#888;--text4:#aaa;--header:#1a1a1a;--card:#fff;--input:#fff;--th:#fafafa;--th-border:#f0f0f0;--td-border:#f5f5f5;--btn-border:#444;--btn-c:#ccc;--blue-m-bg:#eff6ff;--blue-m-border:#dbeafe;--blue-m-v:#1d4ed8;--red-m-bg:#fef2f2;--red-m-border:#fca5a5;--red-m-v:#dc2626;--amber-m-bg:#fffbeb;--amber-m-border:#fcd34d;--amber-m-v:#d97706;--badge-green-bg:#dcfce7;--badge-green-c:#166534;--badge-red-bg:#fee2e2;--badge-red-c:#991b1b;--badge-amber-bg:#fef3c7;--badge-amber-c:#92400e;--today-bg:#eff6ff;--today-border:#3b82f6;--today-c:#1d4ed8;--fds-bg:#fff7ed;--fds-th:#fff3e0;--fds-c:#c2410c;--fds-border:#fb923c;}
-html.dark{--bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--border:#2d3748;--border2:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--text4:#4a5568;--header:#161920;--card:#242836;--input:#2d3140;--th:#1e2230;--th-border:#2d3748;--td-border:#252a38;--btn-border:#3d4660;--btn-c:#a0aec0;--blue-m-bg:#1a2744;--blue-m-border:#2a4080;--blue-m-v:#63b3ed;--red-m-bg:#1f1010;--red-m-border:#3d2020;--red-m-v:#fc8181;--amber-m-bg:#1f1a0d;--amber-m-border:#3d3010;--amber-m-v:#f6ad55;--badge-green-bg:#0d2010;--badge-green-c:#68d391;--badge-red-bg:#1f1010;--badge-red-c:#fc8181;--badge-amber-bg:#2d1f00;--badge-amber-c:#f6ad55;--today-bg:#1a2744;--today-border:#2a4080;--today-c:#63b3ed;--fds-bg:#1c1206;--fds-th:#211508;--fds-c:#fb923c;--fds-border:#92400e;}
+:root{--bg:#f5f5f5;--bg2:#fff;--bg3:#fafafa;--border:#e5e5e5;--border2:#f0f0f0;--text:#1a1a1a;--text2:#555;--text3:#888;--text4:#aaa;--header:#1a1a1a;--card:#fff;--input:#fff;--th:#fafafa;--th-border:#f0f0f0;--td-border:#f5f5f5;--btn-border:#444;--btn-c:#ccc;--blue-m-bg:#eff6ff;--blue-m-border:#dbeafe;--blue-m-v:#1d4ed8;--red-m-bg:#fef2f2;--red-m-border:#fca5a5;--red-m-v:#dc2626;--amber-m-bg:#fffbeb;--amber-m-border:#fcd34d;--amber-m-v:#d97706;--badge-green-bg:#dcfce7;--badge-green-c:#166534;--badge-red-bg:#fee2e2;--badge-red-c:#991b1b;--badge-amber-bg:#fef3c7;--badge-amber-c:#92400e;--today-bg:#eff6ff;--today-border:#3b82f6;--today-c:#1d4ed8;--fds-bg:#fff7ed;--fds-th:#fff3e0;--fds-c:#c2410c;--fds-border:#fb923c;--purple-m-bg:#f3e8ff;--purple-m-border:#d8b4fe;--purple-m-v:#7c3aed;}
+html.dark{--bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--border:#2d3748;--border2:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--text4:#4a5568;--header:#161920;--card:#242836;--input:#2d3140;--th:#1e2230;--th-border:#2d3748;--td-border:#252a38;--btn-border:#3d4660;--btn-c:#a0aec0;--blue-m-bg:#1a2744;--blue-m-border:#2a4080;--blue-m-v:#63b3ed;--red-m-bg:#1f1010;--red-m-border:#3d2020;--red-m-v:#fc8181;--amber-m-bg:#1f1a0d;--amber-m-border:#3d3010;--amber-m-v:#f6ad55;--badge-green-bg:#0d2010;--badge-green-c:#68d391;--badge-red-bg:#1f1010;--badge-red-c:#fc8181;--badge-amber-bg:#2d1f00;--badge-amber-c:#f6ad55;--today-bg:#1a2744;--today-border:#2a4080;--today-c:#63b3ed;--fds-bg:#1c1206;--fds-th:#211508;--fds-c:#fb923c;--fds-border:#92400e;--purple-m-bg:#1a0d2e;--purple-m-border:#6b21a8;--purple-m-v:#c084fc;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 a{text-decoration:none}
@@ -765,7 +759,6 @@ async function colarDireto(cel){
 </script>
 </body></html>`;
 
-  console.log(`[escalas] total ate enviar resposta: ${Date.now()-_tInicio}ms`);
   res.setHeader('Content-Type','text/html; charset=utf-8');
   res.setHeader('Cache-Control','no-cache');
   return res.status(200).send(html + CHAT_IA_ESC);
