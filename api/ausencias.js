@@ -375,6 +375,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:16px">
+      <button id="na-btn-excluir" onclick="excluirDoModal()" style="display:none;background:none;border:1px solid #991b1b;border-radius:6px;padding:8px 12px;font-size:12px;color:#fc8181;cursor:pointer">🗑 Excluir</button>
       <button onclick="fecharNovaAusencia()" style="flex:1;background:none;border:1px solid var(--btn-border);border-radius:6px;padding:8px;font-size:12px;color:var(--text2);cursor:pointer">Cancelar</button>
       <button id="na-btn-salvar" onclick="salvarAusenciaGestor()" style="flex:1;background:#166534;border:none;border-radius:6px;padding:8px;font-size:12px;font-weight:700;color:#86efac;cursor:pointer">Criar</button>
     </div>
@@ -525,6 +526,7 @@ function resetModalNovaAusencia(){
   naEditandoId=null;
   document.getElementById('na-titulo').textContent='Nova ausência (já aprovada)';
   document.getElementById('na-btn-salvar').textContent='Criar';
+  document.getElementById('na-btn-excluir').style.display='none';
   document.getElementById('na-colaborador').value=document.getElementById('na-colaborador').options[0]?document.getElementById('na-colaborador').options[0].value:'';
   document.getElementById('na-tipo').value='Férias';
   document.getElementById('na-inicio').value='';
@@ -540,12 +542,17 @@ function abrirEditarAusencia(btn){
   naEditandoId=d.id;
   document.getElementById('na-titulo').textContent='Editar ausência';
   document.getElementById('na-btn-salvar').textContent='Salvar';
+  document.getElementById('na-btn-excluir').style.display='block';
   document.getElementById('na-colaborador').value=d.nome;
   document.getElementById('na-tipo').value=d.tipo;
   document.getElementById('na-inicio').value=dfParaISO(d.ini);
   document.getElementById('na-fim').value=dfParaISO(d.fim);
   document.getElementById('na-motivo').value=d.motivo||'';
   document.getElementById('modal-nova-aus-overlay').style.display='flex';
+}
+function excluirDoModal(){
+  if(!naEditandoId)return;
+  excluirAusenciaGestor(naEditandoId);
 }
 async function salvarAusenciaGestor(){
   var colaborador=document.getElementById('na-colaborador').value;
