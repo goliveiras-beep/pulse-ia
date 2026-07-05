@@ -344,6 +344,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <option value="Férias">🏖️ Férias</option>
           <option value="Folga programada">📅 Folga programada</option>
           <option value="Atestado médico">🏥 Atestado médico</option>
+          <option value="Viagem">✈️ Viagem</option>
           <option value="Troca de horário">🔄 Troca de horário</option>
         </select>
       </div>
