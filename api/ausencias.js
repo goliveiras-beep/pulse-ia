@@ -80,8 +80,8 @@ export default async function handler(req,res){
 
   // Timeline: período completo (proporcional às datas reais, sem grade de dias pra rolar)
   const colaboradores=[...new Set(aprovadas.map(a=>a.nome))];
-  const TIPO_COR={'Férias':['#1c3a0a','#4ade80','🏖️'],'Folga programada':['#0a1c3a','#60a5fa','📅'],'Atestado médico':['#3a0a0a','#f87171','🏥'],'Troca de horário':['#1c1a3a','#c084fc','🔄']};
-  const TIPO_COR_LIGHT={'Férias':['#dcfce7','#166534','🏖️'],'Folga programada':['#dbeafe','#1d4ed8','📅'],'Atestado médico':['#fee2e2','#991b1b','🏥'],'Troca de horário':['#f3e8ff','#7c3aed','🔄']};
+  const TIPO_COR={'Férias':['#1c3a0a','#4ade80','🏖️'],'Folga programada':['#0a1c3a','#60a5fa','📅'],'Atestado médico':['#3a0a0a','#f87171','🏥'],'Viagem':['#0a2e3a','#22d3ee','✈️'],'Troca de horário':['#1c1a3a','#c084fc','🔄']};
+  const TIPO_COR_LIGHT={'Férias':['#dcfce7','#166534','🏖️'],'Folga programada':['#dbeafe','#1d4ed8','📅'],'Atestado médico':['#fee2e2','#991b1b','🏥'],'Viagem':['#cffafe','#0e7490','✈️'],'Troca de horário':['#f3e8ff','#7c3aed','🔄']};
 
   function badgeTipo(tipo,dark=true){
     const c=dark?TIPO_COR[tipo]||['#1e2230','#94a3b8','📋']:TIPO_COR_LIGHT[tipo]||['#f3f4f6','#374151','📋'];
@@ -403,6 +403,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <span style="font-size:10px;color:#4ade80">🏖️ Férias</span>
         <span style="font-size:10px;color:#60a5fa">📅 Folga</span>
         <span style="font-size:10px;color:#f87171">🏥 Atestado</span>
+        <span style="font-size:10px;color:#22d3ee">✈️ Viagem</span>
         <span style="font-size:10px;color:#c084fc">🔄 Troca</span>
       </div>
     </div>
