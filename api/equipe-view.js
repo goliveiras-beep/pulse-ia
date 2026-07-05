@@ -103,6 +103,26 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, id: novoId });
     }
 
+    if (acao === 'editar-ausencia') {
+      const { id, colaborador, tipo, motivo, dataInicio, dataFim } = req.body || {};
+      if (!id || !colaborador || !tipo || !dataInicio) return res.status(400).json({ error: 'Dados inválidos' });
+      const aus = await getSheet('Ausências!A2:F500');
+      const aidx = aus.findIndex(r => r[0] === id);
+      if (aidx < 0) return res.status(404).json({ error: 'Não encontrado' });
+      await setSheet(`Ausências!A${aidx+2}:F${aidx+2}`, [[aus[aidx][0], colaborador, tipo, motivo || '', dataInicio, dataFim || dataInicio]]);
+      return res.status(200).json({ ok: true });
+    }
+
+    if (acao === 'excluir-ausencia') {
+      const { id } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'ID inválido' });
+      const aus = await getSheet('Ausências!A2:F500');
+      const aidx = aus.findIndex(r => r[0] === id);
+      if (aidx < 0) return res.status(404).json({ error: 'Não encontrado' });
+      await setSheet(`Ausências!A${aidx+2}`, [['CANCELADO']]);
+      return res.status(200).json({ ok: true });
+    }
+
     if (acao === 'rejeitar' && idx) {
       const row = equipeRaw[idx-2] || [];
       await setSheet(`Equipe!K${idx}`, [['rejeitado']]);

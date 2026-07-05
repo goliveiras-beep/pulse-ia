@@ -34,6 +34,7 @@ function normDf(raw){
   return s;
 }
 function dfParaDate(df,ano){const[d,m]=df.split('/').map(Number);return new Date(ano,m-1,d);}
+function escAttr(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function dentroAus(ini,fim,df,ano){
   try{const dtDf=dfParaDate(df,ano),dtIni=dfParaDate(ini,ano),dtFim=dfParaDate(fim||ini,ano);return dtDf>=dtIni&&dtDf<=dtFim;}catch{return false;}
 }
@@ -171,7 +172,7 @@ export default async function handler(req,res){
         const [bg,c,ic]=TIPO_COR[a.tipo]||['#1e2230','#94a3b8','📋'];
         const left=pct(a.iniD);
         const width=Math.max(pct(addDias(a.fimD,1))-left,3);
-        return `<div style="position:absolute;left:${left}%;width:${width}%;top:${i*ROW_H+2}px;height:${ROW_H-8}px;border-radius:6px;background:${bg};border:1px solid ${c};display:flex;align-items:center;justify-content:center;padding:0 4px;overflow:hidden;z-index:1" title="${a.tipo}: ${a.ini} → ${a.fim||a.ini}">
+        return `<div onclick="abrirEditarAusencia(this)" data-id="${escAttr(a.id)}" data-nome="${escAttr(a.nome)}" data-tipo="${escAttr(a.tipo)}" data-ini="${escAttr(a.ini)}" data-fim="${escAttr(a.fim||a.ini)}" data-motivo="${escAttr(a.motivo||'')}" style="position:absolute;left:${left}%;width:${width}%;top:${i*ROW_H+2}px;height:${ROW_H-8}px;border-radius:6px;background:${bg};border:1px solid ${c};display:flex;align-items:center;justify-content:center;padding:0 4px;overflow:hidden;z-index:1;cursor:pointer" title="${a.tipo}: ${a.ini} → ${a.fim||a.ini} (clique pra editar)">
           <span style="font-size:9px;font-weight:800;color:${c};white-space:nowrap">${ic} ${a.ini} → ${a.fim||a.ini}</span>
         </div>`;
       }).join('');
@@ -207,7 +208,17 @@ export default async function handler(req,res){
     ${detalheDiasHtml}`;
   }
 
-  function renderCards(lista, comAcoes=false){
+  function botoesGerenciar(a,compacto=false){
+    const attrs=`data-id="${escAttr(a.id)}" data-nome="${escAttr(a.nome)}" data-tipo="${escAttr(a.tipo)}" data-ini="${escAttr(a.ini)}" data-fim="${escAttr(a.fim||a.ini)}" data-motivo="${escAttr(a.motivo||'')}"`;
+    if(compacto){
+      return `<button onclick="abrirEditarAusencia(this)" ${attrs} style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:11px;color:var(--text2);cursor:pointer">✏️</button>
+        <button onclick="excluirAusenciaGestor('${a.id}')" style="background:none;border:1px solid #991b1b;border-radius:5px;padding:3px 8px;font-size:11px;color:#fc8181;cursor:pointer">🗑</button>`;
+    }
+    return `<button onclick="abrirEditarAusencia(this)" ${attrs} style="background:none;border:1px solid var(--btn-border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2);cursor:pointer">✏️ Editar</button>
+      <button onclick="excluirAusenciaGestor('${a.id}')" style="background:none;border:1px solid #991b1b;border-radius:6px;padding:5px 12px;font-size:12px;color:#fc8181;cursor:pointer">🗑 Excluir</button>`;
+  }
+
+  function renderCards(lista, comAcoes=false, podeGerenciar=false){
     if(!lista.length)return `<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Nenhum registro</div>`;
     return lista.map(a=>{
       const [bg,c,ic]=TIPO_COR[a.tipo]||['#1e2230','#94a3b8','📋'];
@@ -225,19 +236,19 @@ export default async function handler(req,res){
           <div style="font-size:12px;color:#63b3ed;font-weight:600;margin-bottom:2px">📅 ${periodo}</div>
           ${motivoTxt?`<div style="font-size:11px;color:var(--text2)">${motivoTxt}</div>`:''}
           ${hasAnexo?`<a href="${anexoUrl}" target="_blank" style="font-size:11px;color:#60a5fa">📎 Ver atestado</a>`:''}
-          ${comAcoes?`<div style="font-size:10px;color:var(--text4);margin-top:3px">ID: ${a.id}</div>`:''}
+          ${comAcoes||podeGerenciar?`<div style="font-size:10px;color:var(--text4);margin-top:3px">ID: ${a.id}</div>`:''}
         </div>
         <div style="flex-shrink:0;display:flex;flex-direction:column;gap:6px;align-items:flex-end">
           ${comAcoes?`
             <button onclick="aprovar('${a.id}')" style="background:#166534;border:none;border-radius:6px;padding:6px 16px;font-size:12px;font-weight:700;color:#86efac;cursor:pointer">✓ Aprovar</button>
             <button onclick="recusar('${a.id}')" style="background:none;border:1px solid #991b1b;border-radius:6px;padding:5px 12px;font-size:12px;color:#fc8181;cursor:pointer">✕ Recusar</button>
-          `:`<span style="font-size:10px;color:${a.status==='aprovado'?'#4ade80':a.status==='recusado'?'#fc8181':'#718096'};font-weight:600;text-transform:uppercase">${a.status==='aprovado'?'✓ Aprovado':a.status==='recusado'?'✕ Recusado':'Cancelado'}</span>`}
+          `:podeGerenciar?botoesGerenciar(a):`<span style="font-size:10px;color:${a.status==='aprovado'?'#4ade80':a.status==='recusado'?'#fc8181':'#718096'};font-weight:600;text-transform:uppercase">${a.status==='aprovado'?'✓ Aprovado':a.status==='recusado'?'✕ Recusado':'Cancelado'}</span>`}
         </div>
       </div>`;
     }).join('');
   }
 
-  function renderTabela(lista, comAcoes=false){
+  function renderTabela(lista, comAcoes=false, podeGerenciar=false){
     if(!lista.length)return `<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px">Nenhum registro</div>`;
     const linhas=lista.map(a=>{
       const periodo=a.ini+(a.fim&&a.fim!==a.ini?' → '+a.fim:'');
@@ -249,7 +260,7 @@ export default async function handler(req,res){
           <div style="display:flex;gap:6px">
             <button onclick="aprovar('${a.id}')" style="background:#166534;border:none;border-radius:5px;padding:4px 10px;font-size:11px;font-weight:700;color:#86efac;cursor:pointer">✓</button>
             <button onclick="recusar('${a.id}')" style="background:none;border:1px solid #991b1b;border-radius:5px;padding:3px 9px;font-size:11px;color:#fc8181;cursor:pointer">✕</button>
-          </div>`:`<span style="font-size:10px;font-weight:600;text-transform:uppercase;color:${a.status==='aprovado'?'#4ade80':a.status==='recusado'?'#fc8181':'var(--text3)'}">${a.status==='aprovado'?'✓ Aprovado':a.status==='recusado'?'✕ Recusado':'Cancelado'}</span>`}</td>
+          </div>`:podeGerenciar?`<div style="display:flex;gap:6px">${botoesGerenciar(a,true)}</div>`:`<span style="font-size:10px;font-weight:600;text-transform:uppercase;color:${a.status==='aprovado'?'#4ade80':a.status==='recusado'?'#fc8181':'var(--text3)'}">${a.status==='aprovado'?'✓ Aprovado':a.status==='recusado'?'✕ Recusado':'Cancelado'}</span>`}</td>
       </tr>`;
     }).join('');
     return `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -257,7 +268,7 @@ export default async function handler(req,res){
         <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text3);text-transform:uppercase">Nome</th>
         <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text3);text-transform:uppercase">Tipo</th>
         <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text3);text-transform:uppercase">Período</th>
-        <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text3);text-transform:uppercase">${comAcoes?'Ações':'Status'}</th>
+        <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text3);text-transform:uppercase">${comAcoes||podeGerenciar?'Ações':'Status'}</th>
       </tr></thead>
       <tbody>${linhas}</tbody>
     </table></div>`;
@@ -330,7 +341,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div id="modal-nova-aus-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:998;align-items:center;justify-content:center" onclick="if(event.target===this)fecharNovaAusencia()">
   <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;width:340px;max-width:90vw">
-    <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--text)">Nova ausência (já aprovada)</div>
+    <div id="na-titulo" style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--text)">Nova ausência (já aprovada)</div>
     <div style="display:flex;flex-direction:column;gap:10px">
       <div>
         <label style="font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:600">Colaborador</label>
@@ -365,7 +376,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button onclick="fecharNovaAusencia()" style="flex:1;background:none;border:1px solid var(--btn-border);border-radius:6px;padding:8px;font-size:12px;color:var(--text2);cursor:pointer">Cancelar</button>
-      <button onclick="criarAusenciaGestor()" style="flex:1;background:#166534;border:none;border-radius:6px;padding:8px;font-size:12px;font-weight:700;color:#86efac;cursor:pointer">Criar</button>
+      <button id="na-btn-salvar" onclick="salvarAusenciaGestor()" style="flex:1;background:#166534;border:none;border-radius:6px;padding:8px;font-size:12px;font-weight:700;color:#86efac;cursor:pointer">Criar</button>
     </div>
   </div>
 </div>
@@ -430,8 +441,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div id="aba-pendentes-grade" style="display:none">${renderTabela(pendentes,true)}</div>
       </div>
       <div id="aba-aprovadas" style="display:none">
-        <div id="aba-aprovadas-lista">${renderCards(aprovadas)}</div>
-        <div id="aba-aprovadas-grade" style="display:none">${renderTabela(aprovadas)}</div>
+        <div id="aba-aprovadas-lista">${renderCards(aprovadas,false,true)}</div>
+        <div id="aba-aprovadas-grade" style="display:none">${renderTabela(aprovadas,false,true)}</div>
       </div>
       <div id="aba-historico" style="display:none">
         <div id="aba-historico-lista">${renderCards(historico)}</div>
@@ -445,6 +456,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div id="toast" style="display:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:999"></div>
 
 <script>
+var ANO_ATUAL_AUS=${ano};
 function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
 document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
 function atualizarRelogio(){
@@ -508,20 +520,55 @@ async function recusar(id){
     else toast('Erro: '+(d.error||'?'),'#991b1b');
   }catch(e){toast('Erro de conexão','#991b1b');}
 }
-function abrirNovaAusencia(){document.getElementById('modal-nova-aus-overlay').style.display='flex';}
+var naEditandoId=null;
+function resetModalNovaAusencia(){
+  naEditandoId=null;
+  document.getElementById('na-titulo').textContent='Nova ausência (já aprovada)';
+  document.getElementById('na-btn-salvar').textContent='Criar';
+  document.getElementById('na-colaborador').value=document.getElementById('na-colaborador').options[0]?document.getElementById('na-colaborador').options[0].value:'';
+  document.getElementById('na-tipo').value='Férias';
+  document.getElementById('na-inicio').value='';
+  document.getElementById('na-fim').value='';
+  document.getElementById('na-motivo').value='';
+}
+function abrirNovaAusencia(){resetModalNovaAusencia();document.getElementById('modal-nova-aus-overlay').style.display='flex';}
 function fecharNovaAusencia(){document.getElementById('modal-nova-aus-overlay').style.display='none';}
 function fmtDtNA(s){if(!s)return '';var p=s.split('-');return p[2]+'/'+p[1];}
-async function criarAusenciaGestor(){
+function dfParaISO(df){if(!df)return '';var p=df.split('/');return ANO_ATUAL_AUS+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0');}
+function abrirEditarAusencia(btn){
+  var d=btn.dataset;
+  naEditandoId=d.id;
+  document.getElementById('na-titulo').textContent='Editar ausência';
+  document.getElementById('na-btn-salvar').textContent='Salvar';
+  document.getElementById('na-colaborador').value=d.nome;
+  document.getElementById('na-tipo').value=d.tipo;
+  document.getElementById('na-inicio').value=dfParaISO(d.ini);
+  document.getElementById('na-fim').value=dfParaISO(d.fim);
+  document.getElementById('na-motivo').value=d.motivo||'';
+  document.getElementById('modal-nova-aus-overlay').style.display='flex';
+}
+async function salvarAusenciaGestor(){
   var colaborador=document.getElementById('na-colaborador').value;
   var tipo=document.getElementById('na-tipo').value;
   var inicio=fmtDtNA(document.getElementById('na-inicio').value);
   var fim=fmtDtNA(document.getElementById('na-fim').value)||inicio;
   var motivo=document.getElementById('na-motivo').value;
   if(!colaborador||!tipo||!inicio){toast('Preencha colaborador, tipo e data de início','#991b1b');return;}
+  var body={acao:naEditandoId?'editar-ausencia':'criar-ausencia-gestor',colaborador:colaborador,tipo:tipo,motivo:motivo,dataInicio:inicio,dataFim:fim};
+  if(naEditandoId)body.id=naEditandoId;
   try{
-    var r=await fetch('/api/equipe-view',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({acao:'criar-ausencia-gestor',colaborador:colaborador,tipo:tipo,motivo:motivo,dataInicio:inicio,dataFim:fim})});
+    var r=await fetch('/api/equipe-view',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     var d=await r.json();
-    if(d.ok){toast('✓ Ausência criada e aprovada!','#166534');setTimeout(function(){location.reload();},1000);}
+    if(d.ok){toast(naEditandoId?'✓ Ausência atualizada!':'✓ Ausência criada e aprovada!','#166534');setTimeout(function(){location.reload();},1000);}
+    else toast('Erro: '+(d.error||'?'),'#991b1b');
+  }catch(e){toast('Erro de conexão','#991b1b');}
+}
+async function excluirAusenciaGestor(id){
+  if(!confirm('Excluir esta ausência? Essa ação não pode ser desfeita.'))return;
+  try{
+    var r=await fetch('/api/equipe-view',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({acao:'excluir-ausencia',id:id})});
+    var d=await r.json();
+    if(d.ok){toast('🗑 Ausência excluída','#7f1d1d');setTimeout(function(){location.reload();},1000);}
     else toast('Erro: '+(d.error||'?'),'#991b1b');
   }catch(e){toast('Erro de conexão','#991b1b');}
 }
