@@ -488,6 +488,7 @@ export default async function handler(req, res) {
 
   try {
     const token = await getAccessToken();
+    // Equipe (9 col, só 0=nome e 6=status são usados aqui): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
     const equipeRows = await sheetsGet(token, 'Equipe!A2:I50');
     const pending = getPendingAction(req);
 
@@ -553,6 +554,7 @@ export default async function handler(req, res) {
 
     // query — busca contexto real e responde em linguagem natural
     if (comando.action === 'query' || !ACTIONS.includes(comando.action)) {
+      // Ausências (6 col, não indexado aqui — repassado cru pro LLM): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
       const [escalaRows, ausRows] = await Promise.all([
         sheetsGet(token, 'Escala!A2:F2000'),
         sheetsGet(token, 'Ausências!A2:F500'),

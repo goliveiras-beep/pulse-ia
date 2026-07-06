@@ -475,6 +475,7 @@ export default async function handler(req, res) {
   const { nome } = session;
 
   if (req.method === 'POST' && action === 'ajuste') {
+    // Equipe (12 col, layout de 13 sem tipoContrato): 0=nome, 1=cargo, 2=nucleo, 3=cpf, 4=rg, 5=nascimento, 6=endereco, 7=senha (hash), 8=perfil, 9=email, 10=status, 11=telefone
     const equipeCheck = await getSheet('Equipe!A2:L200');
     const usuarioCheck = equipeCheck.find(r => r[0] === nome);
     if (usuarioCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
@@ -511,6 +512,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST' && action === 'cancelar-solicitacao') {
     const { id } = req.body || {};
     if (!id) return res.status(400).json({ error: 'ID inválido' });
+    // Ausências (6 col): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
     const ausRaw = await getSheet('Ausências!A2:F500');
     const idx = ausRaw.findIndex(r => r[0] === id && r[1] === nome);
     if (idx < 0) return res.status(404).json({ error: 'Solicitação não encontrada' });
@@ -519,6 +521,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST' && action === 'publicar') {
+    // Equipe (9 col): só usa 0=nome e 8=perfil aqui
     const eqCheck = await getSheet('Equipe!A2:I200');
     const uCheck = eqCheck.find(r=>r[0]===nome);
     if (uCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
@@ -571,6 +574,8 @@ export default async function handler(req, res) {
   const DIAS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
   const DIAS_FULL = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
 
+  // Equipe (12 col, layout de 13 sem tipoContrato): 0=nome, 1=cargo, 2=nucleo, 3=cpf, 4=rg, 5=nascimento, 6=endereco, 7=senha (hash), 8=perfil, 9=email, 10=status, 11=telefone
+  // Ausências (range busca 9 col, mas só 0-5 são usados): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
     getSheet('Equipe!A2:L200'),
     getSheet('Escala!A2:F2000'),

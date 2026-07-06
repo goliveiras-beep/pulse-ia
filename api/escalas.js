@@ -151,11 +151,13 @@ export default async function handler(req, res) {
   if (req.method === 'POST' && req.body?.action === 'quick-generate') {
     // Gerar escala dos próximos 14 dias
     try {
+      // Equipe (9 col): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
       const equipeRaw2 = await getSheet('Equipe!A2:I50');
       const usuario2 = equipeRaw2.find(r=>r[0]===session.nome);
       if (usuario2?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});
 
       const escalaAtual = await getSheet('Escala!A2:F2000');
+      // Ausências (6 col): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
       const ausenciasRaw = await getSheet('Ausências!A2:F500');
       // Ausências aprovadas: não gerar turno para quem está de férias/atestado no dia
       function temAusencia(nome, df) {
@@ -187,6 +189,8 @@ export default async function handler(req, res) {
           })
           .map(r => normalizarDf(r[0])+'|'+r[2])
       );
+      // nota: r[8] é perfil (gestor/colaborador), nao status — status de pendente fica em r[6] neste layout de 9 col.
+      // esse filtro nunca exclui ninguem de fato (perfil nunca vale 'pendente'); parece um check que deveria comparar r[6].
       const ativos = equipeRaw2.filter(r=>r[0]&&r[8]!=='pendente');
       const revQ = [...escalaNorm].reverse();
       const turnosQ = {};
@@ -234,6 +238,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    // Equipe (9 col): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
     const equipeRaw2 = await getSheet('Equipe!A2:I50');
     const usuario2 = equipeRaw2.find(r=>r[0]===session.nome);
     if (usuario2?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});
@@ -261,6 +266,8 @@ export default async function handler(req, res) {
     return res.status(200).json({ok:true});
   }
 
+  // Equipe (9 col): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
+  // Ausências (range busca 9 col, mas só 0-5 são usados): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
     getSheet('Equipe!A2:I50'),
     getSheet('Escala!A2:F2000'),

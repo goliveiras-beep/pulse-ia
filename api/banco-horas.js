@@ -116,6 +116,8 @@ export default async function handler(req, res) {
   const session = getSession(req);
   if (!session) return res.redirect(302, '/api/app');
 
+  // Equipe (13 col, só 0/1/8/10/12 são usados aqui): 0=nome, 1=cargo, 8=perfil, 10=status, 12=tipoContrato
+  // (layout completo: 2=nucleo, 3=cpf, 4=rg, 5=nascimento, 6=endereco, 7=senha/hash, 9=email, 11=telefone)
   const [equipeRaw, escalaRaw] = await Promise.all([
     getSheet('Equipe!A2:M200'),
     getSheet('Escala!A2:F2000'),
