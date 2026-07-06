@@ -61,6 +61,37 @@ async function appendSheet(range, values) {
   await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,'POST',{values});
 }
 
+// Cache de frase-do-dia guardado em PulseConfig (chave/valor), não em Equipe!K1:L1 — aquela célula caía
+// bem em cima do cabeçalho da planilha de Equipe (colunas K/L) e era sobrescrita toda vez que a frase
+// era gerada de novo, apagando qualquer título que alguém tivesse colocado ali.
+async function lerCacheConfig(chave) {
+  try {
+    const cfgRaw = await getSheet('PulseConfig!A2:B50');
+    const row = (cfgRaw || []).find(r => r[0] === chave);
+    return row?.[1] ? JSON.parse(row[1]) : null;
+  } catch { return null; }
+}
+async function salvarCacheConfig(chave, valor) {
+  async function salvar() {
+    const cfgRaw = await getSheet('PulseConfig!A2:B50');
+    const idx = (cfgRaw || []).findIndex(r => r[0] === chave);
+    const json = JSON.stringify(valor);
+    if (idx >= 0) await setSheet(`PulseConfig!B${idx + 2}`, [[json]]);
+    else await appendSheet('PulseConfig!A:B', [[chave, json]]);
+  }
+  try {
+    await salvar();
+  } catch (e1) {
+    if (e1.message?.includes('Unable to parse range') || e1.message?.includes('404') || e1.message?.includes('No grid')) {
+      await sheetsRequest(process.env.GOOGLE_SHEET_ID, ':batchUpdate', 'POST', {
+        requests: [{ addSheet: { properties: { title: 'PulseConfig' } } }]
+      });
+      await setSheet('PulseConfig!A1:B1', [['chave', 'valor']]);
+      await salvar();
+    }
+  }
+}
+
 async function getEventos(dataStr) {
   // Filtra pela data de INÍCIO do evento (campo fldgNvn52DK5Yu8x9 = Início do Evento BRT)
   // fldBNl8ypKaV5hFG5 é o campo "Encerramento" (data/hora de término) — não usar para filtrar
@@ -97,10 +128,8 @@ function gerarFraseEncerrado(nomeEvento) {
 
 async function getFraseDoDia(dataStr) {
   try {
-    try {
-      const cache = await getSheet('Equipe!K1:L1');
-      if (cache?.[0]?.[0] === dataStr && cache?.[0]?.[1]) return cache[0][1];
-    } catch {}
+    const cache = await lerCacheConfig('frase_dia');
+    if (cache?.[0] === dataStr && cache?.[1]) return cache[1];
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
@@ -119,7 +148,7 @@ async function getFraseDoDia(dataStr) {
     const fraseOk = diasSemana.some(d => frase.toLowerCase().includes(d))
       ? 'Câmera ligada, produção no ar!'
       : frase;
-    try { await setSheet('Equipe!K1:L1', [[dataStr, fraseOk]]); } catch {}
+    try { await salvarCacheConfig('frase_dia', [dataStr, fraseOk]); } catch {}
     return fraseOk;
   } catch { return 'Camera ligada, coração acelerado, vamos nessa!'; }
 }
@@ -702,10 +731,8 @@ export default async function handler(req, res) {
 
       try {
         // Verificar cache
-        try {
-          const cache = await getSheet('Equipe!K1:L1');
-          if (cache?.[0]?.[0] === hojeStr+nome && cache?.[0]?.[1]) return cache[0][1];
-        } catch {}
+        const cache = await lerCacheConfig('frase_colaborador');
+        if (cache?.[0] === hojeStr+nome && cache?.[1]) return cache[1];
 
         const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
@@ -720,7 +747,7 @@ export default async function handler(req, res) {
         });
         const d = await r.json();
         const frase = d.choices?.[0]?.message?.content?.trim() || 'Câmera ligada, coração acelerado!';
-        try { await setSheet('Equipe!K1:L1', [[hojeStr+nome, frase]]); } catch {}
+        try { await salvarCacheConfig('frase_colaborador', [hojeStr+nome, frase]); } catch {}
         return frase;
       } catch {
         if (folgaAmanha) return `Amanhã é seu dia de descanso, ${nome.split(' ')[0]}! ☀️`;
