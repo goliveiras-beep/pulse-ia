@@ -52,6 +52,9 @@ export default async function handler(req, res) {
   const session = getSession(req);
   if (!session) return res.redirect(302, '/api/app');
 
+  // Equipe (13 col — layout novo, diferente do de 9 col usado em equipe.js/escalas.js/gerar-escala.js/chat.js):
+  // 0=nome, 1=cargo, 2=nucleo, 3=cpf, 4=rg, 5=nascimento, 6=endereco, 7=senha (hash, nao rotulada mas preservada nas escritas), 8=perfil, 9=email, 10=status, 11=telefone, 12=tipoContrato
+  // Ausências (6 col): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
   const [equipeRaw, ausenciasRaw] = await Promise.all([
     getSheet('Equipe!A2:M200'),
     getSheet('Ausências!A2:F500'),

@@ -29,6 +29,8 @@ export default async function handler(req, res) {
   const session = getSession(req);
   if (!session) return res.status(401).json({error:'Não autorizado'});
 
+  // Equipe (9 col — layout mais antigo, diferente do de 13 col usado em equipe-view.js/app.js/banco-horas.js):
+  // 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
   const equipeRaw = await getSheet('Equipe!A2:I50');
   const usuario = equipeRaw.find(r=>r[0]===session.nome);
   if (usuario?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});

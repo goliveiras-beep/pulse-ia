@@ -110,6 +110,9 @@ export default async function handler(req, res) {
   const dias=Array.from({length:7},(_,i)=>{const d=new Date(seg);d.setDate(seg.getDate()+i);return d;});
   const segStr=fmtData(dias[0]), domStr=fmtData(dias[6]);
 
+  // Ausências (range busca 9 col, só 1/3/4/5 são usados aqui): 1=nome, 3=motivo, 4=início DD/MM, 5=fim DD/MM
+  // nota: diferente de outros arquivos, aqui NÃO se filtra por status (id/status na col 0) — CANCELADO/RECUSADO entram igual.
+  // Equipe (só 0=nome e 1=cargo são usados aqui, de um range de 7 col)
   const [escalaRaw,ausenciasRaw,equipeRaw,eventosD1]=await Promise.all([
     getSheet('Escala!A2:F500'),
     getSheet('Ausências!A2:I500'),

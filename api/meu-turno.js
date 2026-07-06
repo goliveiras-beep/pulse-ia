@@ -52,6 +52,8 @@ function semanasDe(dataRef, qtd) {
 
 export default async function handler(req, res) {
   const slug = req.query.nome || '';
+  // Equipe (0=nome, 1=cargo, 2=nucleo usados aqui, de um range de 7 col)
+  // Ausências (range busca 9 col, só 1/3/4/5 são usados aqui): 1=nome, 3=motivo, 4=início DD/MM, 5=fim DD/MM
   const [equipeRaw, escalaRaw, ausenciasRaw] = await Promise.all([
     getSheet('Equipe!A2:G50'),
     getSheet('Escala!A2:F500'),

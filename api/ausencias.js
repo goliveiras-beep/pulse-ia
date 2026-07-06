@@ -43,6 +43,8 @@ export default async function handler(req,res){
   const session=getSession(req);
   if(!session)return res.redirect(302,'/api/app');
 
+  // Equipe (9 col): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil (gestor/colaborador)
+  // Ausências (6 col): 0=id/status (prefixo APROVADO-.../RECUSADO/CANCELADO, senão pendente), 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
   const [equipeRaw,ausRaw]=await Promise.all([
     getSheet('Equipe!A2:I200'),
     getSheet('Ausências!A2:F500'),

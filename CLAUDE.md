@@ -73,19 +73,37 @@ verdade, acessada pela função `sheetsRequest(sheetId, path, method, body)` de 
 próprios wrappers finos `getSheet`/`setSheet`/`appendSheet` em cima dela e lê/escreve abas específicas por
 intervalo em notação A1, ex.: `Escala!A2:F2000`. Abas principais:
 
-- **`Equipe`** — cadastro da equipe. **O layout de colunas não é consistente entre os arquivos** — por
-  exemplo, `api/equipe.js` trata como 9 colunas (`nome, cargo, nucleo, email, slackId, regime, status,
-  senhaHash, perfil`), enquanto `api/equipe-view.js`/`api/app.js` tratam como 13 colunas, incluindo
-  `cpf, rg, nascimento, endereco, telefone, tipoContrato`. **Confira o índice de coluna usado no arquivo
-  específico antes de assumir o significado de uma coluna** — não cruze índices entre arquivos sem checar.
+- **`Equipe`** — cadastro da equipe. **O layout de colunas não é consistente entre os arquivos** — há dois
+  esquemas concorrentes, dependendo de quantas colunas o arquivo busca:
+  - **9 colunas** (`Equipe!A2:I...`) — usado por `api/equipe.js`, `api/escalas.js`, `api/gerar-escala.js`,
+    `api/chat.js`: `0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash),
+    8=perfil`.
+  - **12/13 colunas** (`Equipe!A2:L...`/`A2:M...`) — usado por `api/app.js` (12, sem a última), `api/
+    equipe-view.js`, `api/banco-horas.js`, `lib/solicitar-widget.js` (13): `0=nome, 1=cargo, 2=nucleo,
+    3=cpf, 4=rg, 5=nascimento, 6=endereco, 7=senha (hash, não rotulada mas preservada nas escritas),
+    8=perfil, 9=email, 10=status, 11=telefone, 12=tipoContrato`.
+  - Ou seja: **`perfil` está sempre no índice 8 nos dois esquemas**, mas **`status` está no índice 6 no
+    esquema de 9 colunas e no índice 10 no de 12/13** — é o erro mais fácil de cometer ao copiar lógica
+    entre arquivos. `api/dashboard.js` e `api/meu-turno.js` usam um terceiro range parcial (`A2:G50`, 7
+    colunas) mas só leem `0=nome`/`1=cargo`/`2=nucleo`, que coincidem nos dois esquemas.
+  - **Confira sempre o índice de coluna usado no arquivo específico antes de assumir o significado de uma
+    coluna** — não cruze índices entre arquivos sem checar. Cada arquivo que faz essa leitura agora tem um
+    comentário local documentando o mapeamento exato que ele usa.
 - **`Escala`** — a escala de trabalho. Formato da linha: `[data DD/MM, (sem uso), nome, entrada HH:MM,
   saída HH:MM, obs]`, onde `obs` é um de `''`, `Folga`, `Férias`, `Dispensa Médica`, `Gerado IA`,
   `Ajustado IA`. Turnos que viram a meia-noite são representados com `saída < entrada` (veja
   `duracaoTurno`/`estaDeServico` para a matemática de virada de turno, duplicada em vários arquivos).
-- **`Ausências`** — solicitações/aprovações de ausência. O prefixo do ID também indica o status:
-  `PLS-...` = pendente, `APROVADO-...` = aprovado, `RECUSADO`/`CANCELADO` = estados finais negativos.
-  Repare que o nome da aba é escrito com acento (`Ausências`) na maioria dos arquivos, mas **sem acento
-  (`Ausencias`) em `api/escalas.js`** — confira qual delas cada arquivo usa.
+- **`Ausências`** — solicitações/aprovações de ausência, sempre 6 colunas (`Ausências!A2:F...`, mesmo
+  quando algum arquivo busca um range maior tipo `A2:I500` "por segurança" — as colunas depois da F nunca
+  são lidas): `0=id/status, 1=nome, 2=tipo, 3=motivo, 4=data início DD/MM, 5=data fim DD/MM`. O prefixo do
+  ID (coluna 0) também indica o status: `PLS-...` = pendente, `APROVADO-...` = aprovado, `RECUSADO`/
+  `CANCELADO` = estados finais negativos. Todos os arquivos já usam o nome da aba com acento
+  (`Ausências`) — a menção antiga a uma variante sem acento em `api/escalas.js` não é mais verdade, foi
+  corrigida. Duas inconsistências conhecidas nessa leitura: `api/dashboard.js` não filtra por status ao
+  cruzar ausências da semana (uma linha `CANCELADO`/`RECUSADO` entra igual); e `api/escalas.js` tem um
+  filtro (`r[8]!=='pendente'` sobre `Equipe`) que compara a coluna de `perfil` com a string `'pendente'` —
+  isso nunca é verdadeiro (perfil só vale `gestor`/`colaborador`), então o filtro não exclui ninguém; se a
+  intenção era pular colaboradores pendentes, o índice certo seria `6` (esquema de 9 colunas).
 - **`PulseConfig`** — planilha genérica de configuração chave/valor (hoje só tem
   `publicacao_horizonte`, o limite DD/MM que controla até quando quem não é gestor pode ver a escala
   publicada). É criada automaticamente na primeira escrita, se não existir (veja o padrão
