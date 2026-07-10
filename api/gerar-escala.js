@@ -44,9 +44,16 @@ function getSession(req) {
   if (!token) return null;
   try {
     const d = Buffer.from(token,'base64').toString('utf8');
-    const [nome,h,ts] = d.split('|');
-    if (Date.now()-parseInt(ts) > 7*24*3600*1000) return null;
-    if (h !== hash(nome+ts)) return null;
+    const lastPipe = d.lastIndexOf('|');
+    const secondPipe = d.lastIndexOf('|', lastPipe - 1);
+    const data = d.slice(0, secondPipe);
+    const h = d.slice(secondPipe + 1, lastPipe);
+    const ts = d.slice(lastPipe + 1);
+    if (Date.now()-parseInt(ts,10) > 7*24*3600*1000) return null;
+    if (h !== hash(data+ts)) return null;
+    if (data.startsWith('~~OAUTH~~')) return null;
+    const nome = data.split('~~')[0];
+    if (!nome) return null;
     return { nome };
   } catch { return null; }
 }
