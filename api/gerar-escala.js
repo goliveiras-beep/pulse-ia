@@ -471,6 +471,11 @@ Responda SOMENTE JSON (sem texto):
 
   const totalAGravar = diasProcessados.reduce((s,dia) => s + dia.escala.filter(p=>!p.existente).length, 0);
 
+  // Cabeçalho da tabela — uma coluna por colaborador com turno detectado (mesma ordem das linhas)
+  const cabecalho = ativos.filter(p=>turnos[p[0]]).map(p=>
+    `<th style="padding:6px 8px;text-align:center;font-size:9px;font-weight:600;color:#718096;text-transform:uppercase;background:#1e2230;border-bottom:1px solid #2d3748;white-space:nowrap">${p[0].split(' ')[0]}</th>`
+  ).join('');
+
   // Painel de fadiga por pessoa
   const fadigaCards = ativos.filter(p=>turnos[p[0]]).map(p=>{
     const f = fadiga[p[0]]||{};
