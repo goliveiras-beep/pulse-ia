@@ -623,7 +623,14 @@ var DATAS = ${JSON.stringify(diasProcessados.map(d=>({df:d.df,diaSem:d.diaSem,is
 // Carrega análise assíncrona
 (async function(){
   try {
-    var r = await fetch('/api/gerar-escala?action=analisar', {credentials:'include'});
+    var ctrl = new AbortController();
+    var timeoutId = setTimeout(function(){ ctrl.abort(); }, 45000);
+    var r;
+    try {
+      r = await fetch('/api/gerar-escala?action=analisar', {credentials:'include', signal: ctrl.signal});
+    } finally {
+      clearTimeout(timeoutId);
+    }
     var d = await r.json();
     if(!d.ok) throw new Error(d.error);
 
@@ -665,7 +672,8 @@ var DATAS = ${JSON.stringify(diasProcessados.map(d=>({df:d.df,diaSem:d.diaSem,is
     }
   } catch(e) {
     document.getElementById('fadiga-spinner').style.display='none';
-    document.getElementById('fadiga-status').textContent='Erro na análise: '+e.message;
+    var msg = (e.name==='AbortError') ? 'Demorou demais (45s) e foi cancelado — tenta recarregar a página' : e.message;
+    document.getElementById('fadiga-status').textContent='Erro na análise: '+msg;
     document.getElementById('fadiga-status').style.color='#fc8181';
   }
 })();
