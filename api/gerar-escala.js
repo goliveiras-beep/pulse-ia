@@ -502,18 +502,18 @@ Responda SOMENTE JSON (sem texto):
         <div style="color:#c084fc">💤 Folga</div>
         <div style="font-size:8px;color:#9f7aea">${folgaSugerida.motivo||'IA'}</div>
       </td>`;
-      if(!esc || (!esc.ent && !esc.sai)) return `<td data-df="${dia.df}" data-nome="${p[0]}" style="padding:4px 6px;text-align:center;font-size:10px;color:#4a5568">—</td>`;
+      if(!esc || (!esc.ent && !esc.sai)) return `<td data-df="${dia.df}" data-nome="${p[0]}" style="padding:4px 6px;text-align:center;font-size:10px;color:var(--text3)">—</td>`;
       const ajustado = esc.ajustado;
       const jaExistia = esc.existente;
-      return `<td data-df="${dia.df}" data-nome="${p[0]}" style="padding:4px 6px;text-align:center;font-size:10px;font-weight:600;white-space:nowrap;${ajustado?'background:#1f1a0d;':jaExistia?'background:#10131a;':''}">
+      return `<td data-df="${dia.df}" data-nome="${p[0]}" style="padding:4px 6px;text-align:center;font-size:10px;font-weight:600;white-space:nowrap;${ajustado?'background:var(--ajustado-bg);':jaExistia?'background:var(--muted);':''}">
         ${ajustado?`<div style="font-size:9px;color:var(--text3);text-decoration:line-through">${esc.entAntes}–${esc.saiAntes}</div>`:''}
         <div style="color:${ajustado?'#f6ad55':jaExistia?'var(--text2)':'#7dd3fc'}">${esc.ent}–${esc.sai}</div>
         ${ajustado?`<div style="font-size:8px;color:#f6ad55">✱ ajustado</div>`:''}
-        ${jaExistia?`<div style="font-size:8px;color:#4a5568">já preenchido</div>`:''}
+        ${jaExistia?`<div style="font-size:8px;color:var(--text3)">já preenchido</div>`:''}
       </td>`;
     }).join('');
     const lacunasRestantes = dia.lacunasAntes - dia.lacunasResolvidas;
-    return `<tr style="background:${dia.isFds?'#1a1f2e':''}">
+    return `<tr style="background:${dia.isFds?'var(--fds-bg)':''}">
       <td style="padding:6px 10px;border-bottom:1px solid var(--border);white-space:nowrap">
         <div style="font-size:11px;font-weight:700;color:${dia.isFds?'#f6ad55':'var(--text)'}">${dia.diaSem} ${dia.df}</div>
         <div style="font-size:9px;color:var(--text3);margin-top:1px">${dia.evsDia.length} eventos${dia.evsDia[0]?' · '+dia.evsDia[0].hora:''}</div>
@@ -541,8 +541,8 @@ Responda SOMENTE JSON (sem texto):
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse — Gerar Escala IA</title>
 <style>
-:root{--bg:#f5f5f5;--header:#1a1a1a;--card:#fff;--border:#e5e5e5;--text:#1a1a1a;--text2:#555;--text3:#888;--input:#fff;--btn-border:#ccc;}
-html.dark{--bg:#1c1f26;--header:#161920;--card:#242836;--border:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--input:#1e2230;--btn-border:#3d4660;}
+:root{--bg:#f5f5f5;--header:#1a1a1a;--card:#fff;--border:#e5e5e5;--text:#1a1a1a;--text2:#555;--text3:#888;--input:#fff;--btn-border:#ccc;--muted:#f0f0f0;--fds-bg:#fff7ed;--ajustado-bg:#fffbeb;}
+html.dark{--bg:#1c1f26;--header:#161920;--card:#242836;--border:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--input:#1e2230;--btn-border:#3d4660;--muted:#10131a;--fds-bg:#1a1f2e;--ajustado-bg:#1f1a0d;}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
 </style>
@@ -572,10 +572,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
   </div>` : ''}
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Dias gerados</div><div style="font-size:24px;font-weight:700">14</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${fmtData(inicio)} → ${fmtData(fim)}</div></div>
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Linhas novas</div><div style="font-size:24px;font-weight:700">${totalAGravar}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${totalJaPreenchidos} já existentes, preservadas</div></div>
-    <div style="background:${totalAjustes>0?'#1f1a0d':'var(--card)'};border:1px solid ${totalAjustes>0?'#3d3010':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Ajustes IA</div><div style="font-size:24px;font-weight:700;color:${totalAjustes>0?'#f6ad55':'var(--text)'}">${totalAjustes}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">turnos ajustados</div></div>
-    <div style="background:${totalLacunas-totalAjustes>0?'#1f1010':'#0d2010'};border:1px solid ${totalLacunas-totalAjustes>0?'#3d2020':'#0d2010'};border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Lacunas restantes</div><div style="font-size:24px;font-weight:700;color:${totalLacunas-totalAjustes>0?'#fc8181':'#68d391'}">${totalLacunas-totalAjustes}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${totalLacunas-totalAjustes>0?'sem cobertura':'cobertura completa'}</div></div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Dias gerados</div><div style="font-size:24px;font-weight:700">14</div><div style="font-size:10px;color:var(--text3);margin-top:2px">${fmtData(inicio)} → ${fmtData(fim)}</div></div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Linhas novas</div><div style="font-size:24px;font-weight:700">${totalAGravar}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">${totalJaPreenchidos} já existentes, preservadas</div></div>
+    <div style="background:${totalAjustes>0?'#1f1a0d':'var(--card)'};border:1px solid ${totalAjustes>0?'#3d3010':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Ajustes IA</div><div style="font-size:24px;font-weight:700;color:${totalAjustes>0?'#f6ad55':'var(--text)'}">${totalAjustes}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">turnos ajustados</div></div>
+    <div style="background:${totalLacunas-totalAjustes>0?'#1f1010':'#0d2010'};border:1px solid ${totalLacunas-totalAjustes>0?'#3d2020':'#0d2010'};border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Lacunas restantes</div><div style="font-size:24px;font-weight:700;color:${totalLacunas-totalAjustes>0?'#fc8181':'#68d391'}">${totalLacunas-totalAjustes}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">${totalLacunas-totalAjustes>0?'sem cobertura':'cobertura completa'}</div></div>
   </div>
   ${ajustesResumoHtml?`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:10px">✱ Ajustes realizados pela IA</div>${ajustesResumoHtml}</div>`:''}
 
@@ -587,7 +587,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div id="fadiga-spinner" style="width:14px;height:14px;border:2px solid var(--btn-border);border-top-color:#63b3ed;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0"></div>
     </div>
     <div id="fadiga-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:12px"></div>
-    <div id="fadiga-footer" style="display:none;margin-top:8px;font-size:10px;color:#4a5568">🟢 ok · 🟡 5–6 dias seguidos · 🔴 7+ dias seguidos. Folgas roxas 💤 na tabela = sugeridas pela IA.</div>
+    <div id="fadiga-footer" style="display:none;margin-top:8px;font-size:10px;color:var(--text3)">🟢 ok · 🟡 5–6 dias seguidos · 🔴 7+ dias seguidos. Folgas roxas 💤 na tabela = sugeridas pela IA.</div>
   </div>
   <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 
@@ -596,7 +596,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text2)">Proposta de escala</span>
       <span style="background:#1a2744;color:#63b3ed;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">${totalAGravar} linhas novas</span>
       <span id="badge-folgas" style="display:none;background:#1a0d2e;color:#c084fc;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600"></span>
-      ${totalJaPreenchidos>0?`<span style="background:#10131a;color:var(--text2);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">cinza = já preenchido</span>`:''}
+      ${totalJaPreenchidos>0?`<span style="background:var(--muted);color:var(--text2);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">cinza = já preenchido</span>`:''}
     </div>
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse" id="tabela-escala">
