@@ -473,7 +473,7 @@ Responda SOMENTE JSON (sem texto):
 
   // Cabeçalho da tabela — uma coluna por colaborador com turno detectado (mesma ordem das linhas)
   const cabecalho = ativos.filter(p=>turnos[p[0]]).map(p=>
-    `<th style="padding:6px 8px;text-align:center;font-size:9px;font-weight:600;color:#718096;text-transform:uppercase;background:#1e2230;border-bottom:1px solid #2d3748;white-space:nowrap">${p[0].split(' ')[0]}</th>`
+    `<th style="padding:6px 8px;text-align:center;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;background:var(--input);border-bottom:1px solid var(--border);white-space:nowrap">${p[0].split(' ')[0]}</th>`
   ).join('');
 
   // Painel de fadiga por pessoa
@@ -486,7 +486,7 @@ Responda SOMENTE JSON (sem texto):
     return `<div style="background:${bg};border:1px solid ${border};border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px">
       <div style="font-size:18px">${nivel==='red'?'🔴':nivel==='amber'?'🟡':'🟢'}</div>
       <div style="flex:1">
-        <div style="font-size:12px;font-weight:600;color:#e2e8f0">${p[0].split(' ')[0]}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${p[0].split(' ')[0]}</div>
         <div style="font-size:10px;color:${cor}">${f.consecutivos||0} dias seguidos · ${f.diasTrabalho||0} trabalhados/60d</div>
         ${folgas14.length?`<div style="font-size:9px;color:#68d391;margin-top:2px">💤 Folgas sugeridas: ${folgas14.join(', ')}</div>`:''}
       </div>
@@ -506,17 +506,17 @@ Responda SOMENTE JSON (sem texto):
       const ajustado = esc.ajustado;
       const jaExistia = esc.existente;
       return `<td data-df="${dia.df}" data-nome="${p[0]}" style="padding:4px 6px;text-align:center;font-size:10px;font-weight:600;white-space:nowrap;${ajustado?'background:#1f1a0d;':jaExistia?'background:#10131a;':''}">
-        ${ajustado?`<div style="font-size:9px;color:#718096;text-decoration:line-through">${esc.entAntes}–${esc.saiAntes}</div>`:''}
-        <div style="color:${ajustado?'#f6ad55':jaExistia?'#a0aec0':'#7dd3fc'}">${esc.ent}–${esc.sai}</div>
+        ${ajustado?`<div style="font-size:9px;color:var(--text3);text-decoration:line-through">${esc.entAntes}–${esc.saiAntes}</div>`:''}
+        <div style="color:${ajustado?'#f6ad55':jaExistia?'var(--text2)':'#7dd3fc'}">${esc.ent}–${esc.sai}</div>
         ${ajustado?`<div style="font-size:8px;color:#f6ad55">✱ ajustado</div>`:''}
         ${jaExistia?`<div style="font-size:8px;color:#4a5568">já preenchido</div>`:''}
       </td>`;
     }).join('');
     const lacunasRestantes = dia.lacunasAntes - dia.lacunasResolvidas;
     return `<tr style="background:${dia.isFds?'#1a1f2e':''}">
-      <td style="padding:6px 10px;border-bottom:1px solid #2d3748;white-space:nowrap">
-        <div style="font-size:11px;font-weight:700;color:${dia.isFds?'#f6ad55':'#e2e8f0'}">${dia.diaSem} ${dia.df}</div>
-        <div style="font-size:9px;color:#718096;margin-top:1px">${dia.evsDia.length} eventos${dia.evsDia[0]?' · '+dia.evsDia[0].hora:''}</div>
+      <td style="padding:6px 10px;border-bottom:1px solid var(--border);white-space:nowrap">
+        <div style="font-size:11px;font-weight:700;color:${dia.isFds?'#f6ad55':'var(--text)'}">${dia.diaSem} ${dia.df}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:1px">${dia.evsDia.length} eventos${dia.evsDia[0]?' · '+dia.evsDia[0].hora:''}</div>
         ${dia.ajustes.length>0?`<div style="font-size:9px;color:#f6ad55;margin-top:1px">✱ ${dia.ajustes.length} ajuste${dia.ajustes.length>1?'s':''}</div>`:''}
         ${lacunasRestantes>0?`<div style="font-size:9px;color:#fc8181;margin-top:1px">⚠ ${lacunasRestantes} sem cobertura</div>`:''}
       </td>
@@ -526,11 +526,11 @@ Responda SOMENTE JSON (sem texto):
 
   const ajustesResumoHtml = diasProcessados.filter(d=>d.ajustes.length>0).map(dia=>
     dia.ajustes.map(aj=>`
-      <div style="padding:6px 0;border-bottom:1px solid #2d3748;display:flex;gap:10px;align-items:flex-start">
-        <div style="min-width:60px;font-size:10px;font-weight:600;color:#a0aec0">${dia.df}</div>
+      <div style="padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start">
+        <div style="min-width:60px;font-size:10px;font-weight:600;color:var(--text2)">${dia.df}</div>
         <div>
-          <div style="font-size:11px;color:#e2e8f0"><span style="color:#f6ad55;font-weight:600">${aj.nome}</span> · <span style="text-decoration:line-through;color:#718096">${aj.entAntes}–${aj.saiAntes}</span> → <span style="color:#f6ad55;font-weight:700">${aj.entDepois}–${aj.saiDepois}</span></div>
-          <div style="font-size:10px;color:#718096;margin-top:2px">${aj.motivo}</div>
+          <div style="font-size:11px;color:var(--text)"><span style="color:#f6ad55;font-weight:600">${aj.nome}</span> · <span style="text-decoration:line-through;color:var(--text3)">${aj.entAntes}–${aj.saiAntes}</span> → <span style="color:#f6ad55;font-weight:700">${aj.entDepois}–${aj.saiDepois}</span></div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">${aj.motivo}</div>
         </div>
       </div>`).join('')
   ).join('');
@@ -540,19 +540,27 @@ Responda SOMENTE JSON (sem texto):
 <script>(function(){var d=localStorage.getItem("pulse-theme");if(d==="dark")document.documentElement.classList.add("dark");})()</script>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse — Gerar Escala IA</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1c1f26;color:#e2e8f0}</style>
+<style>
+:root{--bg:#f5f5f5;--header:#1a1a1a;--card:#fff;--border:#e5e5e5;--text:#1a1a1a;--text2:#555;--text3:#888;--input:#fff;--btn-border:#ccc;}
+html.dark{--bg:#1c1f26;--header:#161920;--card:#242836;--border:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--input:#1e2230;--btn-border:#3d4660;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
+</style>
 </head><body>
-<div style="background:#161920;padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;border-bottom:1px solid #2d3748">
-  <a href="/api/escalas?v=semana" style="width:28px;height:28px;background:#2d3748;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#e2e8f0;font-size:12px;font-weight:700;text-decoration:none">P</a>
+<div style="background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;border-bottom:1px solid var(--border)">
+  <a href="/api/escalas?v=semana" style="width:28px;height:28px;background:var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--text);font-size:12px;font-weight:700;text-decoration:none">P</a>
   <div>
     <div style="font-size:14px;font-weight:600;color:#fff">Pulse — Escala IA ✨</div>
-    <div style="font-size:11px;color:#718096">${fmtData(inicio)} a ${fmtData(fim)} · ${totalAjustes} ajustes automáticos · ${totalJaPreenchidos} já preenchidos (preservados) · ${totalLacunas - totalAjustes > 0 ? (totalLacunas - totalAjustes)+' lacunas restantes' : 'cobertura completa ✓'}</div>
+    <div style="font-size:11px;color:var(--text3)">${fmtData(inicio)} a ${fmtData(fim)} · ${totalAjustes} ajustes automáticos · ${totalJaPreenchidos} já preenchidos (preservados) · ${totalLacunas - totalAjustes > 0 ? (totalLacunas - totalAjustes)+' lacunas restantes' : 'cobertura completa ✓'}</div>
   </div>
-  <div style="margin-left:auto"><a href="/api/escalas?v=semana" style="background:none;border:1px solid #3d4660;border-radius:5px;padding:4px 10px;font-size:11px;color:#a0aec0;text-decoration:none">← Escala</a></div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+    <button id="tt" onclick="toggleTheme()" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">&#127769;</button>
+    <a href="/api/escalas?v=semana" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--text2);text-decoration:none">← Escala</a>
+  </div>
 </div>
 <div style="max-width:1400px;margin:0 auto;padding:16px 20px">
   <div style="background:#1a2744;border:1px solid #2a4080;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:#93c5fd">
-    ℹ️ A geração nunca sobrescreve o que já está preenchido. Dias marcados como <span style="color:#a0aec0;font-weight:600">"já preenchido"</span> são preservados.
+    ℹ️ A geração nunca sobrescreve o que já está preenchido. Dias marcados como <span style="color:var(--text2);font-weight:600">"já preenchido"</span> são preservados.
   </div>
   ${totalAGravar === 0 ? `<div style="background:#1f1010;border:1px solid #991b1b;border-radius:8px;padding:12px 16px;margin-bottom:14px">
     <div style="font-weight:700;color:#fc8181;margin-bottom:6px">⚠️ Nenhum turno para gerar</div>
@@ -564,48 +572,49 @@ Responda SOMENTE JSON (sem texto):
     </div>
   </div>` : ''}
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
-    <div style="background:#242836;border:1px solid #2d3748;border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:#718096;font-weight:600;text-transform:uppercase;margin-bottom:4px">Dias gerados</div><div style="font-size:24px;font-weight:700">14</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${fmtData(inicio)} → ${fmtData(fim)}</div></div>
-    <div style="background:#242836;border:1px solid #2d3748;border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:#718096;font-weight:600;text-transform:uppercase;margin-bottom:4px">Linhas novas</div><div style="font-size:24px;font-weight:700">${totalAGravar}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${totalJaPreenchidos} já existentes, preservadas</div></div>
-    <div style="background:${totalAjustes>0?'#1f1a0d':'#242836'};border:1px solid ${totalAjustes>0?'#3d3010':'#2d3748'};border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:#718096;font-weight:600;text-transform:uppercase;margin-bottom:4px">Ajustes IA</div><div style="font-size:24px;font-weight:700;color:${totalAjustes>0?'#f6ad55':'#e2e8f0'}">${totalAjustes}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">turnos ajustados</div></div>
-    <div style="background:${totalLacunas-totalAjustes>0?'#1f1010':'#0d2010'};border:1px solid ${totalLacunas-totalAjustes>0?'#3d2020':'#0d2010'};border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:#718096;font-weight:600;text-transform:uppercase;margin-bottom:4px">Lacunas restantes</div><div style="font-size:24px;font-weight:700;color:${totalLacunas-totalAjustes>0?'#fc8181':'#68d391'}">${totalLacunas-totalAjustes}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${totalLacunas-totalAjustes>0?'sem cobertura':'cobertura completa'}</div></div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Dias gerados</div><div style="font-size:24px;font-weight:700">14</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${fmtData(inicio)} → ${fmtData(fim)}</div></div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Linhas novas</div><div style="font-size:24px;font-weight:700">${totalAGravar}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${totalJaPreenchidos} já existentes, preservadas</div></div>
+    <div style="background:${totalAjustes>0?'#1f1a0d':'var(--card)'};border:1px solid ${totalAjustes>0?'#3d3010':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Ajustes IA</div><div style="font-size:24px;font-weight:700;color:${totalAjustes>0?'#f6ad55':'var(--text)'}">${totalAjustes}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">turnos ajustados</div></div>
+    <div style="background:${totalLacunas-totalAjustes>0?'#1f1010':'#0d2010'};border:1px solid ${totalLacunas-totalAjustes>0?'#3d2020':'#0d2010'};border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Lacunas restantes</div><div style="font-size:24px;font-weight:700;color:${totalLacunas-totalAjustes>0?'#fc8181':'#68d391'}">${totalLacunas-totalAjustes}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${totalLacunas-totalAjustes>0?'sem cobertura':'cobertura completa'}</div></div>
   </div>
-  ${ajustesResumoHtml?`<div style="background:#242836;border:1px solid #2d3748;border-radius:10px;padding:16px;margin-bottom:16px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#718096;margin-bottom:10px">✱ Ajustes realizados pela IA</div>${ajustesResumoHtml}</div>`:''}
+  ${ajustesResumoHtml?`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:10px">✱ Ajustes realizados pela IA</div>${ajustesResumoHtml}</div>`:''}
 
   <!-- Painel de fadiga e folgas — carregado assincronamente -->
-  <div id="painel-fadiga" style="background:#242836;border:1px solid #2d3748;border-radius:10px;padding:16px;margin-bottom:16px">
+  <div id="painel-fadiga" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:10px">
-      <span style="font-size:12px;font-weight:700;color:#e2e8f0">💤 Análise de fadiga + sugestões de folga</span>
-      <span id="fadiga-status" style="font-size:11px;color:#718096">Analisando escala histórica e Airtable...</span>
-      <div id="fadiga-spinner" style="width:14px;height:14px;border:2px solid #3d4660;border-top-color:#63b3ed;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0"></div>
+      <span style="font-size:12px;font-weight:700;color:var(--text)">💤 Análise de fadiga + sugestões de folga</span>
+      <span id="fadiga-status" style="font-size:11px;color:var(--text3)">Analisando escala histórica e Airtable...</span>
+      <div id="fadiga-spinner" style="width:14px;height:14px;border:2px solid var(--btn-border);border-top-color:#63b3ed;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0"></div>
     </div>
     <div id="fadiga-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:12px"></div>
     <div id="fadiga-footer" style="display:none;margin-top:8px;font-size:10px;color:#4a5568">🟢 ok · 🟡 5–6 dias seguidos · 🔴 7+ dias seguidos. Folgas roxas 💤 na tabela = sugeridas pela IA.</div>
   </div>
   <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 
-  <div style="background:#242836;border:1px solid #2d3748;border-radius:10px;overflow:hidden;margin-bottom:16px">
-    <div style="padding:10px 16px;border-bottom:1px solid #2d3748;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#a0aec0">Proposta de escala</span>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px">
+    <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text2)">Proposta de escala</span>
       <span style="background:#1a2744;color:#63b3ed;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">${totalAGravar} linhas novas</span>
       <span id="badge-folgas" style="display:none;background:#1a0d2e;color:#c084fc;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600"></span>
-      ${totalJaPreenchidos>0?`<span style="background:#10131a;color:#a0aec0;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">cinza = já preenchido</span>`:''}
+      ${totalJaPreenchidos>0?`<span style="background:#10131a;color:var(--text2);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600">cinza = já preenchido</span>`:''}
     </div>
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse" id="tabela-escala">
-        <thead><tr><th style="padding:6px 10px;text-align:left;font-size:9px;font-weight:600;color:#718096;text-transform:uppercase;background:#1e2230;border-bottom:1px solid #2d3748;min-width:110px">Dia</th>${cabecalho}</tr></thead>
+        <thead><tr><th style="padding:6px 10px;text-align:left;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;background:var(--input);border-bottom:1px solid var(--border);min-width:110px">Dia</th>${cabecalho}</tr></thead>
         <tbody id="tbody-escala">${linhasTabelaComFolgas}</tbody>
       </table>
     </div>
   </div>
-  <div style="background:#242836;border:1px solid #2d3748;border-radius:10px;padding:16px;display:flex;align-items:center;gap:16px">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;align-items:center;gap:16px">
     <div style="flex:1">
       <div style="font-size:13px;font-weight:600">Compartilhar escala com a equipe</div>
-      <div style="font-size:11px;color:#718096;margin-top:2px" id="btn-desc">Grava ${totalAGravar} linhas novas · folgas sugeridas pela IA incluídas automaticamente</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px" id="btn-desc">Grava ${totalAGravar} linhas novas · folgas sugeridas pela IA incluídas automaticamente</div>
     </div>
     <button onclick="confirmar()" id="btn" style="background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer">Compartilhar com a equipe ✓</button>
   </div>
 </div>
 <script>
+function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');var btn=document.getElementById('tt');if(btn)btn.textContent=dk?'☀️':'🌙';}
 var AJUSTES = ${JSON.stringify(ajustesJSON)};
 var FOLGAS_IA = [];
 var TURNOS_BASE = ${JSON.stringify(Object.fromEntries(ativos.filter(p=>turnos[p[0]]).map(p=>[p[0],turnos[p[0]]])))};
@@ -630,7 +639,7 @@ var DATAS = ${JSON.stringify(diasProcessados.map(d=>({df:d.df,diaSem:d.diaSem,is
       var folgasDessaPessoa=FOLGAS_IA.filter(function(fg){return fg.nome===nome;}).map(function(fg){return fg.data;});
       return '<div style="background:'+c[0]+';border:1px solid '+c[1]+';border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px">'
         +'<div style="font-size:18px">'+(nivel==='red'?'🔴':nivel==='amber'?'🟡':'🟢')+'</div>'
-        +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:#e2e8f0">'+nome.split(' ')[0]+'</div>'
+        +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--text)">'+nome.split(' ')[0]+'</div>'
         +'<div style="font-size:10px;color:'+c[2]+'">'+f.consecutivos+' dias seguidos · '+f.diasTrabalho+'/'+f.totalDias60+' trabalhados/60d</div>'
         +(folgasDessaPessoa.length?'<div style="font-size:9px;color:#68d391;margin-top:2px">💤 Folga sugerida: '+folgasDessaPessoa.join(', ')+'</div>':'')
         +'</div></div>';
