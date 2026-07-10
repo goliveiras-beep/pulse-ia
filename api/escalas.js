@@ -530,7 +530,7 @@ a{text-decoration:none}
   <div><div style="font-size:14px;font-weight:600;color:#fff">${isGestor ? 'Pulse - Escala' : 'Pulse - Escala da equipe'}</div><div style="font-size:11px;color:#666">${titulo} &middot; ${subtitulo}</div></div>
   <div id="esc-header-right" style="margin-left:auto;display:flex;align-items:center;gap:6px">
     <span id="esc-atualizado" style="font-size:11px;color:#555">${atualizado}</span>
-    ${isGestor ? `<button id="btn-gerar-ia" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;cursor:pointer" onclick="gerarEscalaIA()">&#10024; Gerar escala IA</button>` : ''}
+    ${isGestor ? `<a href="/api/gerar-escala" id="btn-gerar-ia" style="background:#1a2744;border:1px solid #2a4080;border-radius:5px;padding:4px 10px;font-size:11px;color:#63b3ed;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center">&#10024; Gerar escala IA</a>` : ''}
     <button id="tt" onclick="toggleTheme()" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">&#127769;</button>
     ${isGestor ? `
     <div style="position:relative">
@@ -801,25 +801,6 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Tab'&&document.activeElement.id==='editor-ent'){e.preventDefault();document.getElementById('editor-sai').focus();}
 });
 
-async function gerarEscalaIA(){
-  var btn=document.getElementById('btn-gerar-ia');
-  btn.textContent='⏳ Gerando...';btn.disabled=true;btn.style.color='#a0aec0';
-  try{
-    var r=await fetch('/api/escalas',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'quick-generate'})});
-    var d=await r.json();
-    if(d.ok){
-      btn.textContent='✓ '+d.gravadas+' turnos gerados!';btn.style.background='#0d2010';btn.style.color='#68d391';btn.style.borderColor='#166534';
-      toast(d.gravadas+' linhas gravadas para os próximos 14 dias','#166634');
-      setTimeout(function(){location.reload();},1500);
-    } else {
-      btn.textContent='✨ Gerar escala IA';btn.disabled=false;btn.style.color='#63b3ed';
-      toast('Erro: '+(d.error||'?'),'#dc2626');
-    }
-  }catch(e){
-    btn.textContent='✨ Gerar escala IA';btn.disabled=false;btn.style.color='#63b3ed';
-    toast('Erro de conexão: '+e.message,'#dc2626');
-  }
-}
 async function colarDireto(cel){
   if(!clipboard||!cel.df||!cel.nome) return;
   toast('Colando...','#374151');
