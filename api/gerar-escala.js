@@ -679,7 +679,7 @@ var DATAS = ${JSON.stringify(diasProcessados.map(d=>({df:d.df,diaSem:d.diaSem,is
 })();
 
 async function confirmar(){
-  if(!confirm('Compartilhar esta escala com toda a equipe?\n\nInclui '+FOLGAS_IA.length+' folgas sugeridas pela IA.\nO que já estava preenchido não será alterado.')) return;
+  if(!confirm('Compartilhar esta escala com toda a equipe?\\n\\nInclui '+FOLGAS_IA.length+' folgas sugeridas pela IA.\\nO que já estava preenchido não será alterado.')) return;
   var btn=document.getElementById('btn');
   btn.textContent='Compartilhando...';btn.disabled=true;btn.style.background='#374151';
   try{
