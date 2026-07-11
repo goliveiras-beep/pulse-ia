@@ -66,7 +66,16 @@ async function setSheet(range, values) {
   await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,'PUT',{values});
 }
 async function appendSheet(range, values) {
-  await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${range}:append?valueInputOption=RAW`,'POST',{values});
+  // NÃO usa values.append: a detecção de "tabela" do Sheets erra o alinhamento de colunas
+  // quando há qualquer linha desalinhada perto do fim da aba (bug real, gravava a partir da
+  // coluna C em vez de A — ver CLAUDE.md changelog 2026-07-11). Calcula a próxima linha vazia
+  // explicitamente e grava com update (PUT), que sempre respeita as colunas pedidas.
+  const [sheetName, cols] = range.split('!');
+  const [colStart, colEnd] = cols.split(':');
+  const existing = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`${sheetName}!${colStart}2:${colEnd}`)}`).then(d=>d.values||[]);
+  const nextRow = 2 + existing.length;
+  const lastRow = nextRow + values.length - 1;
+  await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`${sheetName}!${colStart}${nextRow}:${colEnd}${lastRow}`)}?valueInputOption=RAW`, 'PUT', {values});
 }
 
 async function getEventosPeriodo(dataInicio, dataFim) {
