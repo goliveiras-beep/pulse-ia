@@ -133,17 +133,32 @@ async function sheetsBatchUpdate(token, updates) {
 }
 
 async function sheetsAppend(token, range, values) {
+  // NÃO usa values.append: a detecção de "tabela" do Sheets erra o alinhamento de colunas
+  // quando há qualquer linha desalinhada perto do fim da aba (bug real, gravava a partir da
+  // coluna C em vez de A — ver CLAUDE.md changelog 2026-07-11). Calcula a próxima linha vazia
+  // explicitamente e grava com update (PUT), que sempre respeita as colunas pedidas.
   const id = process.env.GOOGLE_SHEET_ID;
+  const [sheetName, cols] = range.split('!');
+  const [colStart, colEnd] = cols.split(':');
+  const getRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(`${sheetName}!${colStart}2:${colEnd}`)}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  const getData = await getRes.json();
+  if (getData.error) throw new Error('Sheets GET (append pre-check): ' + JSON.stringify(getData.error));
+  const nextRow = 2 + (getData.values || []).length;
+  const lastRow = nextRow + values.length - 1;
+  const putRange = `${sheetName}!${colStart}${nextRow}:${colEnd}${lastRow}`;
   const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(putRange)}?valueInputOption=USER_ENTERED`,
     {
-      method: 'POST',
+      method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ values }),
     }
   );
   const data = await res.json();
-  if (data.error) throw new Error('Sheets append: ' + JSON.stringify(data.error));
+  if (data.error) throw new Error('Sheets append(as update): ' + JSON.stringify(data.error));
   return data;
 }
 
