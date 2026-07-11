@@ -3,5 +3,30 @@
     "api/*.js": {
       "maxDuration": 30
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/api/auth/callback", "destination": "/api/auth-bundle?_route=callback" },
+    { "source": "/api/auth/check-status", "destination": "/api/auth-bundle?_route=check-status" },
+    { "source": "/api/auth/drive-token", "destination": "/api/auth-bundle?_route=drive-token" },
+    { "source": "/api/auth/register", "destination": "/api/auth-bundle?_route=register" },
+
+    { "source": "/api/setup-auth", "destination": "/api/setup-bundle?_route=setup-auth" },
+    { "source": "/api/setup-config", "destination": "/api/setup-bundle?_route=setup-config" },
+    { "source": "/api/setup-equipe", "destination": "/api/setup-bundle?_route=setup-equipe" },
+    { "source": "/api/setup-escala", "destination": "/api/setup-bundle?_route=setup-escala" },
+    { "source": "/api/setup-sheets", "destination": "/api/setup-bundle?_route=setup-sheets" },
+
+    { "source": "/api/equipe", "destination": "/api/gestao-bundle?_route=equipe" },
+    { "source": "/api/equipe-view", "destination": "/api/gestao-bundle?_route=equipe-view" },
+    { "source": "/api/dashboard", "destination": "/api/gestao-bundle?_route=dashboard" },
+    { "source": "/api/banco-horas", "destination": "/api/gestao-bundle?_route=banco-horas" },
+    { "source": "/api/publicar", "destination": "/api/gestao-bundle?_route=publicar" },
+
+    { "source": "/api/ausencias", "destination": "/api/extras-bundle?_route=ausencias" },
+    { "source": "/api/repositorio", "destination": "/api/extras-bundle?_route=repositorio" },
+    { "source": "/api/meu-turno", "destination": "/api/extras-bundle?_route=meu-turno" },
+    { "source": "/api/import-escala", "destination": "/api/extras-bundle?_route=import-escala" },
+    { "source": "/api/upload-atestado", "destination": "/api/extras-bundle?_route=upload-atestado" },
+    { "source": "/api/fix-gestor", "destination": "/api/extras-bundle?_route=fix-gestor" }
+  ]
 }
