@@ -530,6 +530,16 @@ a{text-decoration:none}
   /* Regras: compactar */
   #esc-regras{font-size:10px!important;padding:8px!important;flex-wrap:wrap!important;gap:4px!important}
 }
+/* ── IMPRESSAO / PDF ── */
+@media print{
+  body *{visibility:hidden}
+  #export-area,#export-area *{visibility:visible}
+  #export-area{position:absolute;left:0;top:0;width:100%}
+  #export-header{display:block!important}
+  :root,html.dark{--bg:#fff!important;--card:#fff!important;--text:#000!important;--text2:#333!important;--text3:#666!important;--text4:#888!important;--border:#ccc!important;--border2:#ddd!important;--td-border:#ddd!important;--th:#f5f5f5!important;--th-border:#ddd!important;--input:#fff!important;}
+  #esc-tabela-wrap{overflow:visible!important}
+  #esc-tabela-wrap table{min-width:0!important}
+}
 </style>
 </head><body>
 <div id="esc-header" style="background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100">
@@ -606,9 +616,19 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
       ${cargosUnicos.map(c=>`<option value="${c.toLowerCase()}">${c}</option>`).join('')}
     </select>
     <input id="busca" placeholder="Buscar colaborador..." style="flex:1;min-width:160px;border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;outline:none;background:var(--input);color:var(--text)">
+    <div style="display:flex;gap:4px">
+      <button id="btn-imprimir" onclick="imprimirEscala()" title="Imprimir / Salvar como PDF" style="border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;background:var(--card);color:var(--text2);cursor:pointer">&#128424;&#65039;</button>
+      <button id="btn-baixar-imagem" onclick="baixarImagemEscala()" title="Baixar como imagem (PNG)" style="border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;background:var(--card);color:var(--text2);cursor:pointer">&#128444;&#65039;</button>
+    </div>
   </div>
-  ${isGestor ? legendaHTML : ''}
-  <div style="margin-top:10px" id="container-grid">${conteudoGrid}</div>
+  <div id="export-area">
+    <div id="export-header" style="display:none;padding-bottom:12px">
+      <div style="font-size:16px;font-weight:700;color:#000">Pulse &mdash; Escala</div>
+      <div style="font-size:12px;color:#555;margin-top:2px">${titulo} &middot; ${subtitulo}</div>
+    </div>
+    ${isGestor ? legendaHTML : ''}
+    <div style="margin-top:10px" id="container-grid">${conteudoGrid}</div>
+  </div>
   ${!isGestor ? '' : `<div style="margin-top:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
     <div style="font-size:10px;font-weight:600;text-transform:uppercase;color:#888;margin-bottom:8px">Regras aplicadas</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text2)">
@@ -660,6 +680,29 @@ document.getElementById('filtro-cargo').addEventListener('change',function(){loc
 function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');var btn=document.getElementById('tt');if(btn)btn.textContent=dk?'\u2600\uFE0F':'\uD83C\uDF19';}
 function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');if(d)d.style.display=d.style.display==='block'?'none':'block';}
 document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
+function imprimirEscala(){window.print();}
+function baixarImagemEscala(){
+  var btn=document.getElementById('btn-baixar-imagem');
+  btn.disabled=true;btn.style.opacity='.5';
+  function gerar(){
+    html2canvas(document.getElementById('export-area'),{backgroundColor:getComputedStyle(document.body).backgroundColor,scale:2}).then(function(canvas){
+      var link=document.createElement('a');
+      link.download='escala-'+visaoAtual+'.png';
+      link.href=canvas.toDataURL('image/png');
+      link.click();
+      btn.disabled=false;btn.style.opacity='1';
+    }).catch(function(e){
+      alert('Erro ao gerar imagem: '+e.message);
+      btn.disabled=false;btn.style.opacity='1';
+    });
+  }
+  if(window.html2canvas){gerar();return;}
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  s.onload=gerar;
+  s.onerror=function(){alert('Nao consegui carregar a biblioteca de imagem. Verifique sua conexao.');btn.disabled=false;btn.style.opacity='1';};
+  document.head.appendChild(s);
+}
 </script>
 <div id="editor-popup" style="display:none;position:fixed;z-index:500;background:#242836;border:1px solid #3d4660;border-radius:10px;padding:16px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
