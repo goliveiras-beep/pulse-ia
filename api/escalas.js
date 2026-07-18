@@ -110,7 +110,7 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot
 
 function celulaAnalise(analise, turno, compacto=false, isGestor=true) {
   if (!analise) return `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px;text-align:center;color:#d1d5db;font-size:11px">--</div>`;
-  const { status, alertas, durHoras, motivo } = analise;
+  const { status, alertas, durHoras } = analise;
   const tipo = tipoParaExibicao(analise.tipo, isGestor);
   const c = NIVEL_COR[tipo] || NIVEL_COR.livre;
   const temAlerta = isGestor && alertas && alertas.length > 0;
@@ -118,7 +118,6 @@ function celulaAnalise(analise, turno, compacto=false, isGestor=true) {
   if (compacto) {
     return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:6px;padding:5px 6px;min-height:52px">
       <div style="font-size:10px;font-weight:700;color:${c.txt}">${status||'--'}${dot}</div>
-      ${motivo ? `<div style="font-size:8px;color:${c.txt};opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(motivo)}">${esc(motivo)}</div>` : ''}
       ${durHoras ? `<div style="font-size:9px;color:${c.txt};opacity:.8">${durHoras.toFixed(1)}h</div>` : ''}
       ${temAlerta ? `<div style="font-size:8px;color:${c.dot};font-weight:700;margin-top:2px">${alertas.length} alerta${alertas.length>1?'s':''}</div>` : ''}
     </div>`;
@@ -128,7 +127,6 @@ function celulaAnalise(analise, turno, compacto=false, isGestor=true) {
       <span style="font-size:12px;font-weight:700;color:${c.txt}">${status||'--'}</span>
       ${durHoras ? `<span style="font-size:10px;color:${c.txt};opacity:.8">${durHoras.toFixed(1)}h</span>` : ''}
     </div>
-    ${motivo ? `<div style="font-size:10px;color:${c.txt};opacity:.8;margin-bottom:${temAlerta?4:0}px">${esc(motivo)}</div>` : ''}
     ${isGestor && alertas ? alertas.map(a=>alertaBadge(a)).join('') : ''}
   </div>`;
 }
