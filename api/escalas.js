@@ -103,7 +103,7 @@ function tipoParaExibicao(tipo, isGestor) {
 
 function alertaBadge(alerta) {
   const c = NIVEL_COR[alerta.nivel] || NIVEL_COR.warning;
-  return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:4px;padding:2px 6px;font-size:9px;color:${c.txt};font-weight:600;margin-top:2px;line-height:1.3">${alerta.msg}</div>`;
+  return `<div class="alerta-badge" style="background:${c.bg};border:1px solid ${c.border};border-radius:4px;padding:2px 6px;font-size:9px;color:${c.txt};font-weight:600;margin-top:2px;line-height:1.3">${alerta.msg}</div>`;
 }
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -115,12 +115,12 @@ function celulaAnalise(analise, turno, compacto=false, isGestor=true) {
   const tipo = tipoParaExibicao(analise.tipo, isGestor);
   const c = NIVEL_COR[tipo] || NIVEL_COR.livre;
   const temAlerta = isGestor && alertas && alertas.length > 0;
-  const dot = temAlerta ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${c.dot};margin-left:4px;vertical-align:middle"></span>` : '';
+  const dot = temAlerta ? `<span class="alerta-badge" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${c.dot};margin-left:4px;vertical-align:middle"></span>` : '';
   if (compacto) {
     return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:6px;padding:5px 6px;min-height:52px">
       <div style="font-size:10px;font-weight:700;color:${c.txt}">${statusLabel||'--'}${dot}</div>
       ${durHoras ? `<div style="font-size:9px;color:${c.txt};opacity:.8">${durHoras.toFixed(1)}h</div>` : ''}
-      ${temAlerta ? `<div style="font-size:8px;color:${c.dot};font-weight:700;margin-top:2px">${alertas.length} alerta${alertas.length>1?'s':''}</div>` : ''}
+      ${temAlerta ? `<div class="alerta-badge" style="font-size:8px;color:${c.dot};font-weight:700;margin-top:2px">${alertas.length} alerta${alertas.length>1?'s':''}</div>` : ''}
     </div>`;
   }
   return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:7px;padding:8px 10px">
@@ -361,8 +361,8 @@ export default async function handler(req, res) {
   const atualizado = hoje.toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 
   const legendaHTML = `<div style="display:flex;gap:12px;flex-wrap:wrap;padding:8px 0;font-size:11px;margin-bottom:8px">
-    <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:3px;background:#fef2f2;border:1px solid #fca5a5"></div><span style="color:#666">Alerta critico</span></div>
-    <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:3px;background:#fffbeb;border:1px solid #fcd34d"></div><span style="color:#666">Atencao</span></div>
+    <div class="alerta-item" style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:3px;background:#fef2f2;border:1px solid #fca5a5"></div><span style="color:#666">Alerta critico</span></div>
+    <div class="alerta-item" style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:3px;background:#fffbeb;border:1px solid #fcd34d"></div><span style="color:#666">Atencao</span></div>
     <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:3px;background:#f0fdf4;border:1px solid #86efac"></div><span style="color:#666">OK</span></div>
     <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:3px;background:#eff6ff;border:1px solid #93c5fd"></div><span style="color:#666">Folga</span></div>
     <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:3px;background:#fdf4ff;border:1px solid #d8b4fe"></div><span style="color:#666">Ausencia</span></div>
@@ -539,6 +539,7 @@ a{text-decoration:none}
   :root,html.dark{--bg:#fff!important;--card:#fff!important;--text:#000!important;--text2:#333!important;--text3:#666!important;--text4:#888!important;--border:#ccc!important;--border2:#ddd!important;--td-border:#ddd!important;--th:#f5f5f5!important;--th-border:#ddd!important;--input:#fff!important;}
   #esc-tabela-wrap{overflow:visible!important}
   #esc-tabela-wrap table{min-width:0!important}
+  .alerta-badge,.alerta-item{display:none!important}
 }
 </style>
 </head><body>
@@ -685,7 +686,7 @@ function baixarImagemEscala(){
   var btn=document.getElementById('btn-baixar-imagem');
   btn.disabled=true;btn.style.opacity='.5';
   function gerar(){
-    html2canvas(document.getElementById('export-area'),{backgroundColor:getComputedStyle(document.body).backgroundColor,scale:2}).then(function(canvas){
+    html2canvas(document.getElementById('export-area'),{backgroundColor:getComputedStyle(document.body).backgroundColor,scale:2,onclone:function(clonedDoc){clonedDoc.querySelectorAll('.alerta-badge,.alerta-item').forEach(function(el){el.remove();});}}).then(function(canvas){
       var link=document.createElement('a');
       link.download='escala-'+visaoAtual+'.png';
       link.href=canvas.toDataURL('image/png');
