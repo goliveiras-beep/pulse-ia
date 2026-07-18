@@ -111,20 +111,21 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot
 function celulaAnalise(analise, turno, compacto=false, isGestor=true) {
   if (!analise) return `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:6px;text-align:center;color:#d1d5db;font-size:11px">--</div>`;
   const { status, alertas, durHoras } = analise;
+  const statusLabel = status === 'Folga programada' ? 'Folga Programada' : status;
   const tipo = tipoParaExibicao(analise.tipo, isGestor);
   const c = NIVEL_COR[tipo] || NIVEL_COR.livre;
   const temAlerta = isGestor && alertas && alertas.length > 0;
   const dot = temAlerta ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${c.dot};margin-left:4px;vertical-align:middle"></span>` : '';
   if (compacto) {
     return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:6px;padding:5px 6px;min-height:52px">
-      <div style="font-size:10px;font-weight:700;color:${c.txt}">${status||'--'}${dot}</div>
+      <div style="font-size:10px;font-weight:700;color:${c.txt}">${statusLabel||'--'}${dot}</div>
       ${durHoras ? `<div style="font-size:9px;color:${c.txt};opacity:.8">${durHoras.toFixed(1)}h</div>` : ''}
       ${temAlerta ? `<div style="font-size:8px;color:${c.dot};font-weight:700;margin-top:2px">${alertas.length} alerta${alertas.length>1?'s':''}</div>` : ''}
     </div>`;
   }
   return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:7px;padding:8px 10px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${temAlerta?4:0}px">
-      <span style="font-size:12px;font-weight:700;color:${c.txt}">${status||'--'}</span>
+      <span style="font-size:12px;font-weight:700;color:${c.txt}">${statusLabel||'--'}</span>
       ${durHoras ? `<span style="font-size:10px;color:${c.txt};opacity:.8">${durHoras.toFixed(1)}h</span>` : ''}
     </div>
     ${isGestor && alertas ? alertas.map(a=>alertaBadge(a)).join('') : ''}

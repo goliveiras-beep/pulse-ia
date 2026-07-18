@@ -768,13 +768,14 @@ export default async function handler(req, res) {
         const cores = {'Férias':['#1a2744','#2a4080','#63b3ed'],'Folga programada':['#0d2010','#166534','#68d391'],'Atestado médico':['#1f1010','#991b1b','#fc8181'],'Folga direcionada':['#2d1f00','#92400e','#f6ad55']};
         const [bg,bc,tc] = cores[tipo] || ['#1a0d2e','#6b21a8','#c084fc'];
         const ic = icones[tipo] || '📋';
+        const tipoLabel = tipo === 'Folga programada' ? 'Folga Programada' : tipo;
         const periodo = aus[4] ? `${aus[4]}${aus[5] && aus[5] !== aus[4] ? ' → '+aus[5] : ''}` : '';
         return `<div style="background:${bg};border:1px solid ${bc};border-radius:12px;padding:14px 16px">
           <div style="font-size:10px;color:${tc};font-weight:600;text-transform:uppercase;margin-bottom:6px;opacity:.8">${label}</div>
           <div style="display:flex;align-items:center;gap:10px">
             <div style="font-size:28px">${ic}</div>
             <div>
-              <div style="font-size:18px;font-weight:700;color:${tc}">${tipo}</div>
+              <div style="font-size:18px;font-weight:700;color:${tc}">${tipoLabel}</div>
               ${periodo ? `<div style="font-size:11px;color:${tc};opacity:.7;margin-top:2px">${periodo}</div>` : ''}
             </div>
           </div>

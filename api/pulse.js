@@ -235,11 +235,12 @@ export default async function handler(req, res) {
       // Monta confirmação
       const linhas = ausencias.map(a => {
         const emoji = EMOJI[a.tipo] || '📅';
+        const tipoLabel = a.tipo === 'Folga programada' ? 'Folga Programada' : a.tipo;
         const mesmodia = a.inicio.getTime() === a.fim.getTime();
         const periodo = mesmodia
           ? `*${formatarData(a.inicio)}*`
           : `*${formatarData(a.inicio)}* a *${formatarData(a.fim)}*`;
-        return `${emoji} *${a.tipo}* — ${periodo}${a.observacao ? ` _(${a.observacao})_` : ''}`;
+        return `${emoji} *${tipoLabel}* — ${periodo}${a.observacao ? ` _(${a.observacao})_` : ''}`;
       }).join('\n');
 
       const plural = ausencias.length > 1 ? 'registros salvos' : 'registro salvo';
