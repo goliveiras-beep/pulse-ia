@@ -69,6 +69,7 @@ function esc(s) { return String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot
 
 const LOCAIS = ['Estoque','PD 1','PD 2','PD 3','PD 4','PD 5','PD 6','Switcher A (SWA)','Switcher B (SWB)','Estúdio 1','Estúdio 2'];
 const STATUSES = ['Operacional','Em manutenção','Reserva','Baixado'];
+const TIPOS_PARQUE = ['Interno','Externo'];
 const PDS_SEED = ['PD 1','PD 2','PD 3','PD 4','PD 5','PD 6'];
 
 const CATALOGO_PADRAO = [
@@ -98,11 +99,18 @@ async function garantirAbas() {
 
   if (!temEquipamentos) {
     await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
-      requests: [{ addSheet: { properties: { title: 'Equipamentos', gridProperties: { rowCount: 2000, columnCount: 10 } } } }]
+      requests: [{ addSheet: { properties: { title: 'Equipamentos', gridProperties: { rowCount: 2000, columnCount: 11 } } } }]
     });
-    await setSheet('Equipamentos!A1:J1', [[
-      'ID','Categoria','Equipamento','Patrimônio','Série','Status','Alocação atual','Data última movimentação','Observação','Data cadastro'
+    await setSheet('Equipamentos!A1:K1', [[
+      'ID','Categoria','Equipamento','Patrimônio','Série','Status','Alocação atual','Data última movimentação','Observação','Data cadastro','Tipo de Parque'
     ]]);
+  } else {
+    // Migração: abas criadas antes do campo Tipo de Parque não têm a coluna K — adiciona o
+    // cabeçalho se faltar (linhas existentes ficam sem valor, tratado como 'Interno' na leitura).
+    const cabecalhoK = await getSheet('Equipamentos!K1:K1');
+    if (!cabecalhoK[0]?.[0]) {
+      await setSheet('Equipamentos!K1', [['Tipo de Parque']]);
+    }
   }
   if (!temMovimentacoes) {
     await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
@@ -123,12 +131,12 @@ async function semearCatalogoPadrao() {
     for (const item of CATALOGO_PADRAO) {
       for (let u = 0; u < item.qtdPorPd; u++) {
         const id = 'EQP-' + String(seq).padStart(4,'0');
-        linhas.push([id, item.categoria, item.equipamento, '', '', 'Operacional', pd, agora, '', agora]);
+        linhas.push([id, item.categoria, item.equipamento, '', '', 'Operacional', pd, agora, '', agora, 'Interno']);
         seq++;
       }
     }
   }
-  await inserirLinhas('Equipamentos', 'J', linhas, 2);
+  await inserirLinhas('Equipamentos', 'K', linhas, 2);
   await inserirLinhas('MovimentacoesEquipamento', 'H', [[
     agora, '—', '—', '—', 'Carga inicial', 'Sistema', `Seed automático — ${linhas.length} unidades`, 'cadastro'
   ]], 2);
@@ -174,7 +182,7 @@ export default async function handler(req, res) {
       return renderHistorico(res, session, movRaw);
     }
     const [equipamentosRaw, movRaw] = await Promise.all([
-      getSheet('Equipamentos!A2:J3000'),
+      getSheet('Equipamentos!A2:K3000'),
       getSheet('MovimentacoesEquipamento!A2:H5000'),
     ]);
     return renderInventario(res, session, equipamentosRaw, movRaw);
@@ -183,19 +191,22 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
   const { action } = req.body || {};
-  const equipamentosRaw = await getSheet('Equipamentos!A2:J3000');
+  const equipamentosRaw = await getSheet('Equipamentos!A2:K3000');
 
   if (action === 'cadastrar') {
-    const { categoria, equipamento, patrimonio, serie, alocacao, observacao } = req.body || {};
+    const { categoria, equipamento, patrimonio, serie, alocacao, observacao, tipoParque } = req.body || {};
     if (!categoria?.trim() || !equipamento?.trim()) return res.status(400).json({ error: 'Categoria e equipamento são obrigatórios' });
-    const local = LOCAIS.includes(alocacao) ? alocacao : 'Estoque';
+    const tipo = TIPOS_PARQUE.includes(tipoParque) ? tipoParque : 'Interno';
+    const local = tipo === 'Externo'
+      ? ((alocacao||'').trim() || 'A definir')
+      : (LOCAIS.includes(alocacao) ? alocacao : 'Estoque');
     const id = proximoId(equipamentosRaw);
     const agora = fmtTimestamp(getBRT());
     const linha = await proximaLinhaLivre('Equipamentos');
-    await inserirLinhas('Equipamentos', 'J', [[
-      id, categoria.trim(), equipamento.trim(), patrimonio||'', serie||'', 'Operacional', local, agora, observacao||'', agora
+    await inserirLinhas('Equipamentos', 'K', [[
+      id, categoria.trim(), equipamento.trim(), patrimonio||'', serie||'', 'Operacional', local, agora, observacao||'', agora, tipo
     ]], linha);
-    await registrarMovimentacao({ id, equipamento: equipamento.trim(), de: '—', para: local, responsavel: session.nome, observacao, tipo: 'cadastro' });
+    await registrarMovimentacao({ id, equipamento: equipamento.trim(), de: '—', para: `${local} (${tipo})`, responsavel: session.nome, observacao, tipo: 'cadastro' });
     return res.status(200).json({ ok: true, id, msg: `${equipamento.trim()} cadastrado em ${local}` });
   }
 
@@ -208,12 +219,16 @@ export default async function handler(req, res) {
 
   if (action === 'mover') {
     const { novaAlocacao } = req.body || {};
-    if (!LOCAIS.includes(novaAlocacao)) return res.status(400).json({ error: 'Alocação inválida' });
+    const tipoAtual = TIPOS_PARQUE.includes(row[10]) ? row[10] : 'Interno';
+    const novaAlocacaoValida = tipoAtual === 'Externo'
+      ? (novaAlocacao||'').trim()
+      : (LOCAIS.includes(novaAlocacao) ? novaAlocacao : null);
+    if (!novaAlocacaoValida) return res.status(400).json({ error: 'Alocação inválida' });
     const de = row[6] || 'Estoque';
     const agora = fmtTimestamp(getBRT());
-    await setSheet(`Equipamentos!G${linha}:H${linha}`, [[novaAlocacao, agora]]);
-    await registrarMovimentacao({ id: row[0], equipamento: row[2], de, para: novaAlocacao, responsavel: session.nome, tipo: 'mover' });
-    return res.status(200).json({ ok: true, msg: `${row[2]} movido para ${novaAlocacao}` });
+    await setSheet(`Equipamentos!G${linha}:H${linha}`, [[novaAlocacaoValida, agora]]);
+    await registrarMovimentacao({ id: row[0], equipamento: row[2], de, para: novaAlocacaoValida, responsavel: session.nome, tipo: 'mover' });
+    return res.status(200).json({ ok: true, msg: `${row[2]} movido para ${novaAlocacaoValida}` });
   }
 
   if (action === 'status') {
@@ -293,6 +308,17 @@ a{text-decoration:none;color:inherit}
 .menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
 .menu-item:hover{background:var(--bg3)}
 .wrap{max-width:1300px;margin:0 auto;padding:16px 20px}
+.macro-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px}
+@media (max-width:900px){.macro-grid{grid-template-columns:1fr}}
+.macro-card{display:flex;align-items:center;gap:14px;text-align:left;border:1px solid var(--border);border-radius:14px;padding:18px 20px;background:var(--card);cursor:pointer;box-shadow:var(--shadow-sm);transition:transform .15s,box-shadow .15s;font-family:inherit;border-top:3px solid var(--border)}
+.macro-card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.macro-card.interno{border-top-color:var(--cat-video)}
+.macro-card.externo{border-top-color:var(--cat-comunicacao)}
+.macro-card.todos{border-top-color:var(--blue)}
+.macro-ic{font-size:26px;width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:none;background:var(--bg3)}
+.macro-n{font-size:28px;font-weight:800;line-height:1;color:var(--text)}
+.macro-l{font-size:12px;font-weight:700;color:var(--text2);margin-top:3px}
+.macro-s{font-size:10.5px;color:var(--text3);margin-top:2px}
 .badge{border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600;white-space:nowrap}
 .badge.green{background:var(--badge-green-bg);color:var(--badge-green-c)}
 .badge.red{background:var(--badge-red-bg);color:var(--badge-red-c)}
@@ -459,17 +485,34 @@ function donutSVG(items) {
 function renderInventario(res, session, equipamentosRaw, movRaw) {
   const unidades = equipamentosRaw.filter(r => r[0]).map(r => ({
     id: r[0], categoria: r[1]||'', equipamento: r[2]||'', patrimonio: r[3]||'', serie: r[4]||'',
-    status: r[5]||'Operacional', alocacao: r[6]||'Estoque', dataMov: r[7]||'', observacao: r[8]||'', dataCadastro: r[9]||''
+    status: r[5]||'Operacional', alocacao: r[6]||'Estoque', dataMov: r[7]||'', observacao: r[8]||'', dataCadastro: r[9]||'',
+    tipoParque: TIPOS_PARQUE.includes(r[10]) ? r[10] : 'Interno'
   }));
 
   const porCategoria = {};
   const porLocal = {};
   const porStatus = {};
+  const porTipo = { Interno: 0, Externo: 0 };
   for (const u of unidades) {
     porCategoria[u.categoria] = (porCategoria[u.categoria]||0) + 1;
     porLocal[u.alocacao] = (porLocal[u.alocacao]||0) + 1;
     porStatus[u.status] = (porStatus[u.status]||0) + 1;
+    porTipo[u.tipoParque] = (porTipo[u.tipoParque]||0) + 1;
   }
+
+  const macroHTML = `
+    <button type="button" class="macro-card interno" onclick="irParaTipo('Interno')">
+      <div class="macro-ic">🏠</div>
+      <div><div class="macro-n">${porTipo.Interno}</div><div class="macro-l">Parque Interno</div><div class="macro-s">PDs, Switchers, Estúdios e Estoque</div></div>
+    </button>
+    <button type="button" class="macro-card externo" onclick="irParaTipo('Externo')">
+      <div class="macro-ic">🌐</div>
+      <div><div class="macro-n">${porTipo.Externo}</div><div class="macro-l">Parque Externo</div><div class="macro-s">Locado de terceiros ou próprio fora da base</div></div>
+    </button>
+    <button type="button" class="macro-card todos" onclick="irParaTipo('')">
+      <div class="macro-ic">📦</div>
+      <div><div class="macro-n">${unidades.length}</div><div class="macro-l">Visão Geral</div><div class="macro-s">Interno + Externo combinados</div></div>
+    </button>`;
 
   const kpiHTML = [
     `<div class="stat blue-m"><div class="ic">📦</div><div><div class="n">${unidades.length}</div><div class="l">Total no parque</div></div></div>`,
@@ -511,6 +554,9 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
   const conteudo = `
 ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
 <div class="wrap">
+  <span class="section-label">🗺️ Visão macro do parque</span>
+  <div class="macro-grid">${macroHTML}</div>
+
   <div class="summary">${kpiHTML}</div>
 
   <div class="quick-nav" id="quick-nav">${quickNavHTML}</div>
@@ -531,6 +577,7 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
 
   <div class="toolbar">
     <input id="busca" placeholder="🔍 Buscar por ID, equipamento, patrimônio ou série..." style="flex:1;min-width:220px" oninput="filtrar()">
+    <select id="f-tipo" onchange="filtrar()"><option value="">Interno + Externo</option>${TIPOS_PARQUE.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
     <select id="f-categoria" onchange="filtrar()"><option value="">Todas categorias</option>${CATEGORIAS.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
     <select id="f-local" onchange="filtrar()"><option value="">Toda alocação</option>${LOCAIS.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>
     <select id="f-status" onchange="filtrar()"><option value="">Todo status</option>${STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
@@ -556,14 +603,17 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
   <div class="field"><label>Equipamento</label><input id="c-equipamento"></div>
   <div class="field"><label>Nº Patrimônio</label><input id="c-patrimonio"></div>
   <div class="field"><label>Nº Série</label><input id="c-serie"></div>
-  <div class="field"><label>Alocação inicial</label><select id="c-alocacao">${LOCAIS.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select></div>
+  <div class="field"><label>Tipo de Parque</label><select id="c-tipo" onchange="toggleTipoCadastro()">${TIPOS_PARQUE.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select></div>
+  <div class="field" id="c-alocacao-interno-wrap"><label>Alocação inicial</label><select id="c-alocacao-interno">${LOCAIS.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select></div>
+  <div class="field" id="c-alocacao-externo-wrap" style="display:none"><label>Local / cliente (parque externo)</label><input id="c-alocacao-externo" placeholder="Ex: Cliente X - Evento Y"></div>
   <div class="field"><label>Observação</label><textarea id="c-observacao" rows="2"></textarea></div>
   <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarCadastro()">Cadastrar</button></div>
 </div></div>
 
 <div class="modal-bg" id="modal-mover"><div class="modal">
   <h3>Mover equipamento</h3>
-  <div class="field"><label>Novo local</label><select id="m-local">${LOCAIS.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select></div>
+  <div class="field" id="m-local-interno-wrap"><label>Novo local</label><select id="m-local-interno">${LOCAIS.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select></div>
+  <div class="field" id="m-local-externo-wrap" style="display:none"><label>Novo local (parque externo)</label><input id="m-local-externo" placeholder="Ex: Cliente X - Evento Y"></div>
   <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarMover()">Mover</button></div>
 </div></div>
 
@@ -599,7 +649,7 @@ function linhaHTML(u){
     + '<td>'+escHtml(u.patrimonio||'—')+'</td>'
     + '<td>'+escHtml(u.serie||'—')+'</td>'
     + '<td><span class="badge '+badgeCls(u.status)+'">'+escHtml(u.status)+'</span></td>'
-    + '<td>'+escHtml(u.alocacao)+'</td>'
+    + '<td>'+(u.tipoParque==='Externo'?'🌐 ':'🏠 ')+escHtml(u.alocacao)+'</td>'
     + '<td>'+escHtml(u.dataMov||'—')+'</td>'
     + '<td>'+escHtml(u.observacao||'—')+'</td>'
     + '<td class="acoes">'
@@ -612,10 +662,12 @@ function linhaHTML(u){
 
 function filtrar(){
   const busca = document.getElementById('busca').value.toLowerCase();
+  const ft = document.getElementById('f-tipo').value;
   const fc = document.getElementById('f-categoria').value;
   const fl = document.getElementById('f-local').value;
   const fs = document.getElementById('f-status').value;
   const filtradas = UNIDADES.filter(function(u){
+    if (ft && u.tipoParque !== ft) return false;
     if (fc && u.categoria !== fc) return false;
     if (fl && u.alocacao !== fl) return false;
     if (fs && u.status !== fs) return false;
@@ -624,6 +676,26 @@ function filtrar(){
   });
   document.getElementById('tbody').innerHTML = filtradas.map(linhaHTML).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px">Nenhum equipamento encontrado</td></tr>';
   atualizarPills(fl);
+  atualizarMacroCards(ft);
+}
+
+function atualizarMacroCards(tipo){
+  document.querySelectorAll('.macro-card').forEach(function(c){ c.style.outline = 'none'; });
+  const alvo = tipo === 'Interno' ? '.macro-card.interno' : tipo === 'Externo' ? '.macro-card.externo' : '.macro-card.todos';
+  const el = document.querySelector(alvo);
+  if (el) el.style.outline = '2px solid var(--blue)';
+}
+
+function irParaTipo(tipo){
+  document.getElementById('f-tipo').value = tipo;
+  filtrar();
+  document.getElementById('tabela').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function toggleTipoCadastro(){
+  const ext = document.getElementById('c-tipo').value === 'Externo';
+  document.getElementById('c-alocacao-interno-wrap').style.display = ext ? 'none' : '';
+  document.getElementById('c-alocacao-externo-wrap').style.display = ext ? '' : 'none';
 }
 
 function atualizarPills(local){
@@ -640,15 +712,20 @@ function irParaLocal(local){
 
 function fecharModais(){ document.querySelectorAll('.modal-bg').forEach(function(m){ m.classList.remove('open'); }); idAtual = null; }
 
-function abrirCadastro(){ document.getElementById('modal-cadastro').classList.add('open'); }
+function abrirCadastro(){ toggleTipoCadastro(); document.getElementById('modal-cadastro').classList.add('open'); }
 async function salvarCadastro(){
+  const tipo = document.getElementById('c-tipo').value;
+  const alocacao = tipo === 'Externo'
+    ? document.getElementById('c-alocacao-externo').value
+    : document.getElementById('c-alocacao-interno').value;
   const body = {
     action: 'cadastrar',
     categoria: document.getElementById('c-categoria').value,
     equipamento: document.getElementById('c-equipamento').value,
     patrimonio: document.getElementById('c-patrimonio').value,
     serie: document.getElementById('c-serie').value,
-    alocacao: document.getElementById('c-alocacao').value,
+    tipoParque: tipo,
+    alocacao: alocacao,
     observacao: document.getElementById('c-observacao').value,
   };
   const r = await fetch('/api/equipamentos', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -657,9 +734,21 @@ async function salvarCadastro(){
   location.reload();
 }
 
-function abrirMover(id){ idAtual = id; document.getElementById('modal-mover').classList.add('open'); }
+function abrirMover(id){
+  idAtual = id;
+  const u = UNIDADES.find(function(x){ return x.id === id; });
+  const ext = u && u.tipoParque === 'Externo';
+  document.getElementById('m-local-interno-wrap').style.display = ext ? 'none' : '';
+  document.getElementById('m-local-externo-wrap').style.display = ext ? '' : 'none';
+  if (ext) document.getElementById('m-local-externo').value = u.alocacao || '';
+  else if (u) document.getElementById('m-local-interno').value = u.alocacao;
+  document.getElementById('modal-mover').classList.add('open');
+}
 async function salvarMover(){
-  const r = await fetch('/api/equipamentos', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'mover',id:idAtual,novaAlocacao:document.getElementById('m-local').value})});
+  const u = UNIDADES.find(function(x){ return x.id === idAtual; });
+  const ext = u && u.tipoParque === 'Externo';
+  const novaAlocacao = ext ? document.getElementById('m-local-externo').value : document.getElementById('m-local-interno').value;
+  const r = await fetch('/api/equipamentos', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'mover',id:idAtual,novaAlocacao:novaAlocacao})});
   const d = await r.json();
   if (!r.ok) return alert(d.error||'Erro ao mover');
   location.reload();
