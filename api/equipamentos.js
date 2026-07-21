@@ -298,6 +298,11 @@ a{text-decoration:none;color:inherit}
 .stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
 .stat .n{font-size:22px;font-weight:800;line-height:1}
 .stat .l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+.quick-nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.pill{border:1px solid var(--border);border-radius:999px;padding:6px 14px;font-size:12px;background:var(--card);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background .15s;font-family:inherit}
+.pill:hover{background:var(--bg3)}
+.pill.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.pill .c{font-weight:700}
 .dash-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
 @media (max-width:900px){.dash-grid{grid-template-columns:1fr}}
 .chart-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
@@ -455,6 +460,9 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
     `<div class="stat"><div class="n" style="color:var(--badge-red-c)">${porStatus['Baixado']||0}</div><div class="l">Baixados</div></div>`,
   ].join('');
 
+  const quickNavHTML = `<button type="button" class="pill active" data-local="" onclick="irParaLocal('')">Todos <span class="c">${unidades.length}</span></button>`
+    + LOCAIS.map(l => `<button type="button" class="pill" data-local="${esc(l)}" onclick="irParaLocal('${esc(l)}')">${esc(l)} <span class="c">${porLocal[l]||0}</span></button>`).join('');
+
   const chartCategoria = barChartSVG(CATEGORIAS.map(c => ({ label: c, value: porCategoria[c]||0, color: CAT_COR[c] })));
   const chartLocal = barChartSVG(LOCAIS.map(l => ({ label: l, value: porLocal[l]||0, color: 'var(--blue)' })));
   const statusItems = STATUSES.map(s => ({ label: s, value: porStatus[s]||0, color: STATUS_COR[s] }));
@@ -475,6 +483,8 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
 ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
 <div class="wrap">
   <div class="summary">${kpiHTML}</div>
+
+  <div class="quick-nav" id="quick-nav">${quickNavHTML}</div>
 
   <div class="dash-grid">
     <div class="chart-card"><h4>Por categoria</h4>${chartCategoria}</div>
@@ -584,6 +594,19 @@ function filtrar(){
     return true;
   });
   document.getElementById('tbody').innerHTML = filtradas.map(linhaHTML).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px">Nenhum equipamento encontrado</td></tr>';
+  atualizarPills(fl);
+}
+
+function atualizarPills(local){
+  document.querySelectorAll('#quick-nav .pill').forEach(function(p){
+    p.classList.toggle('active', p.getAttribute('data-local') === local);
+  });
+}
+
+function irParaLocal(local){
+  document.getElementById('f-local').value = local;
+  filtrar();
+  document.getElementById('tabela').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 function fecharModais(){ document.querySelectorAll('.modal-bg').forEach(function(m){ m.classList.remove('open'); }); idAtual = null; }
