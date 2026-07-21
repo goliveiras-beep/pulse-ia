@@ -264,6 +264,8 @@ function shellCSS() {
   --badge-amber-bg:#fef3c7;--badge-amber-c:#92400e;
   --cat-video:#3b6fa0;--cat-captacao:#6e5aa3;--cat-producao:#1e7f8c;
   --cat-perifericos:#6b7686;--cat-audio:#c97a2b;--cat-comunicacao:#a3436b;
+  --shadow:0 1px 2px rgba(20,20,20,.04), 0 6px 16px -8px rgba(20,20,20,.10);
+  --shadow-sm:0 1px 2px rgba(20,20,20,.05);
 }
 html.dark{
   --bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--card:#242836;--border:#2d3748;--border2:#2d3748;
@@ -275,6 +277,8 @@ html.dark{
   --badge-green-bg:#0d2010;--badge-green-c:#68d391;
   --badge-red-bg:#1f1010;--badge-red-c:#fc8181;
   --badge-amber-bg:#2d1f00;--badge-amber-c:#f6ad55;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 18px -8px rgba(0,0,0,.5);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.35);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
@@ -294,44 +298,58 @@ a{text-decoration:none;color:inherit}
 .badge.red{background:var(--badge-red-bg);color:var(--badge-red-c)}
 .badge.amber{background:var(--badge-amber-bg);color:var(--badge-amber-c)}
 .badge.blue{background:var(--blue-m-bg);color:var(--blue-m-v)}
-.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px}
-.stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
-.stat .n{font-size:22px;font-weight:800;line-height:1}
-.stat .l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
-.quick-nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
-.pill{border:1px solid var(--border);border-radius:999px;padding:6px 14px;font-size:12px;background:var(--card);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background .15s;font-family:inherit}
-.pill:hover{background:var(--bg3)}
-.pill.active{background:var(--blue);border-color:var(--blue);color:#fff}
-.pill .c{font-weight:700}
-.dash-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+.section-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);font-weight:700;margin:0 0 8px 2px;display:flex;align-items:center;gap:6px}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow-sm);display:flex;align-items:center;gap:12px;transition:transform .15s,box-shadow .15s}
+.stat:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+.stat .ic{font-size:20px;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:none;background:var(--bg3)}
+.stat.blue-m .ic{background:var(--blue-m-bg)}
+.stat.green-m .ic{background:var(--badge-green-bg)}
+.stat.amber-m .ic{background:var(--badge-amber-bg)}
+.stat.red-m .ic{background:var(--badge-red-bg)}
+.stat .n{font-size:24px;font-weight:800;line-height:1}
+.stat .l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px;font-weight:600}
+.quick-nav{margin-bottom:22px}
+.quick-nav-row{display:flex;flex-wrap:wrap;gap:8px}
+.pill{border:1px solid var(--border);border-radius:999px;padding:7px 15px;font-size:12px;background:var(--card);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:all .15s;font-family:inherit;box-shadow:var(--shadow-sm)}
+.pill:hover{background:var(--bg3);transform:translateY(-1px)}
+.pill.active{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:var(--shadow)}
+.pill .c{font-weight:800;background:rgba(127,127,127,.15);border-radius:999px;padding:1px 7px;font-size:11px}
+.pill.active .c{background:rgba(255,255,255,.22)}
+.dash-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
 @media (max-width:900px){.dash-grid{grid-template-columns:1fr}}
-.chart-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
-.chart-card h4{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:12px}
-.donut-wrap{display:flex;align-items:center;gap:16px}
-.donut-legend{display:flex;flex-direction:column;gap:6px;font-size:12px}
-.donut-legend .row{display:flex;align-items:center;gap:7px}
-.donut-legend i{width:9px;height:9px;border-radius:2px;flex:none}
-.donut-legend .v{margin-left:auto;font-weight:700;color:var(--text)}
-.atividade{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:6px 16px;margin-bottom:16px}
-.atividade-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2);font-size:12px}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow-sm)}
+.chart-card h4{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:14px;font-weight:700;display:flex;align-items:center;gap:6px}
+.donut-wrap{display:flex;align-items:center;gap:18px}
+.donut-legend{display:flex;flex-direction:column;gap:8px;font-size:12px}
+.donut-legend .row{display:flex;align-items:center;gap:8px}
+.donut-legend i{width:10px;height:10px;border-radius:3px;flex:none}
+.donut-legend .v{margin-left:auto;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+.atividade{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:6px 18px;margin-bottom:20px;box-shadow:var(--shadow-sm)}
+.atividade-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border2);font-size:12px}
 .atividade-item:last-child{border-bottom:none}
-.atividade-item .quando{color:var(--text3);font-size:11px;white-space:nowrap;min-width:110px}
+.atividade-item .tipo-ic{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:none;font-size:13px;background:var(--bg3)}
+.atividade-item .quando{color:var(--text3);font-size:11px;white-space:nowrap;min-width:110px;font-variant-numeric:tabular-nums}
 .atividade-item .desc{flex:1;color:var(--text)}
 .atividade-item .desc b{font-weight:700}
-.toolbar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.toolbar input,.toolbar select{border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;background:var(--bg2);color:var(--text);outline:none}
-.btn{border:1px solid var(--border);border-radius:6px;padding:7px 12px;font-size:12px;background:var(--card);color:var(--text);cursor:pointer}
-.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
-.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow-x:auto}
+.toolbar{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;box-shadow:var(--shadow-sm)}
+.toolbar input,.toolbar select{border:1px solid var(--border);border-radius:7px;padding:8px 11px;font-size:12px;background:var(--bg2);color:var(--text);outline:none}
+.toolbar input:focus,.toolbar select:focus{border-color:var(--blue)}
+.btn{border:1px solid var(--border);border-radius:7px;padding:8px 13px;font-size:12px;background:var(--card);color:var(--text);cursor:pointer;transition:background .15s}
+.btn:hover{background:var(--bg3)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow-x:auto;box-shadow:var(--shadow-sm)}
 table{width:100%;border-collapse:collapse;font-size:12px}
-th{text-align:left;padding:9px 10px;color:var(--text3);text-transform:uppercase;font-size:10px;letter-spacing:.04em;border-bottom:1px solid var(--border);white-space:nowrap}
-td{padding:8px 10px;border-bottom:1px solid var(--border2);vertical-align:middle}
+th{text-align:left;padding:11px 12px;color:var(--text3);text-transform:uppercase;font-size:10px;letter-spacing:.04em;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--bg2)}
+td{padding:10px 12px;border-bottom:1px solid var(--border2);vertical-align:middle}
+tbody tr:hover{background:var(--bg2)}
 tr:last-child td{border-bottom:none}
 .acoes{display:flex;gap:4px}
-.acoes button{border:1px solid var(--border);border-radius:5px;padding:3px 7px;font-size:11px;background:var(--bg2);color:var(--text);cursor:pointer}
+.acoes button{border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;background:var(--bg2);color:var(--text);cursor:pointer;transition:background .15s}
+.acoes button:hover{background:var(--bg3)}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
 .modal-bg.open{display:flex}
-.modal{background:var(--card);border-radius:12px;padding:22px;width:380px;max-width:calc(100vw - 32px);max-height:85vh;overflow-y:auto}
+.modal{background:var(--card);border-radius:14px;padding:22px;width:380px;max-width:calc(100vw - 32px);max-height:85vh;overflow-y:auto;box-shadow:var(--shadow)}
 .modal h3{font-size:15px;font-weight:700;margin-bottom:14px}
 .field{margin-bottom:10px}
 .field label{display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px;text-transform:uppercase}
@@ -454,14 +472,23 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
   }
 
   const kpiHTML = [
-    `<div class="stat"><div class="n">${unidades.length}</div><div class="l">Total no parque</div></div>`,
-    `<div class="stat"><div class="n" style="color:var(--badge-green-c)">${porStatus['Operacional']||0}</div><div class="l">Operacional</div></div>`,
-    `<div class="stat"><div class="n" style="color:var(--badge-amber-c)">${porStatus['Em manutenção']||0}</div><div class="l">Em manutenção</div></div>`,
-    `<div class="stat"><div class="n" style="color:var(--badge-red-c)">${porStatus['Baixado']||0}</div><div class="l">Baixados</div></div>`,
+    `<div class="stat blue-m"><div class="ic">📦</div><div><div class="n">${unidades.length}</div><div class="l">Total no parque</div></div></div>`,
+    `<div class="stat green-m"><div class="ic">✅</div><div><div class="n" style="color:var(--badge-green-c)">${porStatus['Operacional']||0}</div><div class="l">Operacional</div></div></div>`,
+    `<div class="stat amber-m"><div class="ic">🔧</div><div><div class="n" style="color:var(--badge-amber-c)">${porStatus['Em manutenção']||0}</div><div class="l">Em manutenção</div></div></div>`,
+    `<div class="stat red-m"><div class="ic">⛔</div><div><div class="n" style="color:var(--badge-red-c)">${porStatus['Baixado']||0}</div><div class="l">Baixados</div></div></div>`,
   ].join('');
 
-  const quickNavHTML = `<button type="button" class="pill active" data-local="" onclick="irParaLocal('')">Todos <span class="c">${unidades.length}</span></button>`
-    + LOCAIS.map(l => `<button type="button" class="pill" data-local="${esc(l)}" onclick="irParaLocal('${esc(l)}')">${esc(l)} <span class="c">${porLocal[l]||0}</span></button>`).join('');
+  function iconeLocal(l) {
+    if (l === 'Estoque') return '📦';
+    if (l.startsWith('PD')) return '🎬';
+    if (l.startsWith('Switcher')) return '🎛️';
+    if (l.startsWith('Estúdio')) return '🎥';
+    return '📍';
+  }
+  const quickNavHTML = `<span class="section-label">📍 Acesso rápido por local</span><div class="quick-nav-row">`
+    + `<button type="button" class="pill active" data-local="" onclick="irParaLocal('')">Todos <span class="c">${unidades.length}</span></button>`
+    + LOCAIS.map(l => `<button type="button" class="pill" data-local="${esc(l)}" onclick="irParaLocal('${esc(l)}')">${iconeLocal(l)} ${esc(l)} <span class="c">${porLocal[l]||0}</span></button>`).join('')
+    + `</div>`;
 
   const chartCategoria = barChartSVG(CATEGORIAS.map(c => ({ label: c, value: porCategoria[c]||0, color: CAT_COR[c] })));
   const chartLocal = barChartSVG(LOCAIS.map(l => ({ label: l, value: porLocal[l]||0, color: 'var(--blue)' })));
@@ -473,8 +500,10 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
     timestamp: r[0]||'', equipamento: r[2]||'', de: r[3]||'', para: r[4]||'', responsavel: r[5]||'', tipo: r[7]||''
   })).slice(-6).reverse();
   const TIPO_TXT = { cadastro: 'cadastrado', mover: 'movido', status: 'status alterado', edicao: 'editado', baixa: 'removido' };
+  const TIPO_IC = { cadastro: '🆕', mover: '🔀', status: '🔧', edicao: '✏️', baixa: '🗑️' };
   const atividadeHTML = eventosRecentes.length ? eventosRecentes.map(e => `
     <div class="atividade-item">
+      <span class="tipo-ic">${TIPO_IC[e.tipo]||'•'}</span>
       <span class="quando">${esc(e.timestamp)}</span>
       <span class="desc"><b>${esc(e.equipamento)}</b> ${TIPO_TXT[e.tipo]||esc(e.tipo)}${e.tipo==='mover'?` — ${esc(e.de)} &rarr; ${esc(e.para)}`:e.tipo==='status'?` — ${esc(e.de)} &rarr; ${esc(e.para)}`:''} <span style="color:var(--text3)">por ${esc(e.responsavel)}</span></span>
     </div>`).join('') : `<div class="atividade-item" style="color:var(--text3)">Nenhuma movimentação ainda</div>`;
@@ -487,15 +516,15 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
   <div class="quick-nav" id="quick-nav">${quickNavHTML}</div>
 
   <div class="dash-grid">
-    <div class="chart-card"><h4>Por categoria</h4>${chartCategoria}</div>
-    <div class="chart-card"><h4>Por alocação</h4>${chartLocal}</div>
-    <div class="chart-card"><h4>Status</h4><div class="donut-wrap">${chartStatus}<div class="donut-legend">${legendStatus}</div></div></div>
+    <div class="chart-card"><h4>📊 Por categoria</h4>${chartCategoria}</div>
+    <div class="chart-card"><h4>📍 Por alocação</h4>${chartLocal}</div>
+    <div class="chart-card"><h4>🩺 Status</h4><div class="donut-wrap">${chartStatus}<div class="donut-legend">${legendStatus}</div></div></div>
   </div>
 
   <div class="atividade">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 4px">
-      <h4 style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Atividade recente</h4>
-      <a href="/api/equipamentos?v=historico" style="font-size:11px;color:var(--blue)">Ver histórico completo &rarr;</a>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 4px">
+      <h4 style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);font-weight:700;display:flex;align-items:center;gap:6px">🕓 Atividade recente</h4>
+      <a href="/api/equipamentos?v=historico" style="font-size:11px;color:var(--blue);font-weight:600">Ver histórico completo &rarr;</a>
     </div>
     ${atividadeHTML}
   </div>
