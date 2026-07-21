@@ -61,37 +61,6 @@ async function appendSheet(range, values) {
   await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`,'POST',{values});
 }
 
-// Cache de frase-do-dia guardado em PulseConfig (chave/valor), não em Equipe!K1:L1 — aquela célula caía
-// bem em cima do cabeçalho da planilha de Equipe (colunas K/L) e era sobrescrita toda vez que a frase
-// era gerada de novo, apagando qualquer título que alguém tivesse colocado ali.
-async function lerCacheConfig(chave) {
-  try {
-    const cfgRaw = await getSheet('PulseConfig!A2:B50');
-    const row = (cfgRaw || []).find(r => r[0] === chave);
-    return row?.[1] ? JSON.parse(row[1]) : null;
-  } catch { return null; }
-}
-async function salvarCacheConfig(chave, valor) {
-  async function salvar() {
-    const cfgRaw = await getSheet('PulseConfig!A2:B50');
-    const idx = (cfgRaw || []).findIndex(r => r[0] === chave);
-    const json = JSON.stringify(valor);
-    if (idx >= 0) await setSheet(`PulseConfig!B${idx + 2}`, [[json]]);
-    else await appendSheet('PulseConfig!A:B', [[chave, json]]);
-  }
-  try {
-    await salvar();
-  } catch (e1) {
-    if (e1.message?.includes('Unable to parse range') || e1.message?.includes('404') || e1.message?.includes('No grid')) {
-      await sheetsRequest(process.env.GOOGLE_SHEET_ID, ':batchUpdate', 'POST', {
-        requests: [{ addSheet: { properties: { title: 'PulseConfig' } } }]
-      });
-      await setSheet('PulseConfig!A1:B1', [['chave', 'valor']]);
-      await salvar();
-    }
-  }
-}
-
 async function getEventos(dataStr) {
   // Filtra pela data de INÍCIO do evento (campo fldgNvn52DK5Yu8x9 = Início do Evento BRT)
   // fldBNl8ypKaV5hFG5 é o campo "Encerramento" (data/hora de término) — não usar para filtrar
@@ -128,8 +97,10 @@ function gerarFraseEncerrado(nomeEvento) {
 
 async function getFraseDoDia(dataStr) {
   try {
-    const cache = await lerCacheConfig('frase_dia');
-    if (cache?.[0] === dataStr && cache?.[1]) return cache[1];
+    try {
+      const cache = await getSheet('Equipe!K1:L1');
+      if (cache?.[0]?.[0] === dataStr && cache?.[0]?.[1]) return cache[0][1];
+    } catch {}
     const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
@@ -148,7 +119,7 @@ async function getFraseDoDia(dataStr) {
     const fraseOk = diasSemana.some(d => frase.toLowerCase().includes(d))
       ? 'Câmera ligada, produção no ar!'
       : frase;
-    try { await salvarCacheConfig('frase_dia', [dataStr, fraseOk]); } catch {}
+    try { await setSheet('Equipe!K1:L1', [[dataStr, fraseOk]]); } catch {}
     return fraseOk;
   } catch { return 'Camera ligada, coração acelerado, vamos nessa!'; }
 }
@@ -460,11 +431,10 @@ function dentroAusencia(aus, df) {
   if (f >= i) return n >= i && n <= f;
   return n >= i || n <= f;
 }
-function cruzarEventos(eventos, escHoje, dataStr, ausenciasDia) {
-  const ausentesDia = new Set((ausenciasDia || []).filter(a => a[0] !== 'CANCELADO' && dentroAusencia(a, dataStr)).map(a => a[1]));
+function cruzarEventos(eventos, escHoje, dataStr) {
   return eventos.map(ev => {
-    const disp = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && !ausentesDia.has(r[2]) && estaDeServico(r[3], r[4], ev.hora, ev.horaFim, r[6]));
-    const atenc = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && !ausentesDia.has(r[2]) && statusTurno(r[3], r[4], ev.hora) !== null && !disp.find(d => d[2] === r[2]));
+    const disp = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && estaDeServico(r[3], r[4], ev.hora, ev.horaFim, r[6]));
+    const atenc = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && statusTurno(r[3], r[4], ev.hora) !== null && !disp.find(d => d[2] === r[2]));
     const aus = escHoje.filter(r => !disp.find(d => d[2] === r[2]) && !atenc.find(a => a[2] === r[2]));
     const semCob = disp.length === 0;
     const semAntecedencia = atenc.length > 0 && disp.length === 0;
@@ -504,7 +474,6 @@ export default async function handler(req, res) {
   const { nome } = session;
 
   if (req.method === 'POST' && action === 'ajuste') {
-    // Equipe (12 col, layout de 13 sem tipoContrato): 0=nome, 1=cargo, 2=nucleo, 3=cpf, 4=rg, 5=nascimento, 6=endereco, 7=senha (hash), 8=perfil, 9=email, 10=status, 11=telefone
     const equipeCheck = await getSheet('Equipe!A2:L200');
     const usuarioCheck = equipeCheck.find(r => r[0] === nome);
     if (usuarioCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
@@ -541,7 +510,6 @@ export default async function handler(req, res) {
   if (req.method === 'POST' && action === 'cancelar-solicitacao') {
     const { id } = req.body || {};
     if (!id) return res.status(400).json({ error: 'ID inválido' });
-    // Ausências (6 col): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
     const ausRaw = await getSheet('Ausências!A2:F500');
     const idx = ausRaw.findIndex(r => r[0] === id && r[1] === nome);
     if (idx < 0) return res.status(404).json({ error: 'Solicitação não encontrada' });
@@ -550,7 +518,6 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST' && action === 'publicar') {
-    // Equipe (9 col): só usa 0=nome e 8=perfil aqui
     const eqCheck = await getSheet('Equipe!A2:I200');
     const uCheck = eqCheck.find(r=>r[0]===nome);
     if (uCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
@@ -603,8 +570,6 @@ export default async function handler(req, res) {
   const DIAS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
   const DIAS_FULL = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
 
-  // Equipe (12 col, layout de 13 sem tipoContrato): 0=nome, 1=cargo, 2=nucleo, 3=cpf, 4=rg, 5=nascimento, 6=endereco, 7=senha (hash), 8=perfil, 9=email, 10=status, 11=telefone
-  // Ausências (range busca 9 col, mas só 0-5 são usados): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
     getSheet('Equipe!A2:L200'),
     getSheet('Escala!A2:F2000'),
@@ -731,8 +696,10 @@ export default async function handler(req, res) {
 
       try {
         // Verificar cache
-        const cache = await lerCacheConfig('frase_colaborador');
-        if (cache?.[0] === hojeStr+nome && cache?.[1]) return cache[1];
+        try {
+          const cache = await getSheet('Equipe!K1:L1');
+          if (cache?.[0]?.[0] === hojeStr+nome && cache?.[0]?.[1]) return cache[0][1];
+        } catch {}
 
         const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
@@ -747,7 +714,7 @@ export default async function handler(req, res) {
         });
         const d = await r.json();
         const frase = d.choices?.[0]?.message?.content?.trim() || 'Câmera ligada, coração acelerado!';
-        try { await salvarCacheConfig('frase_colaborador', [hojeStr+nome, frase]); } catch {}
+        try { await setSheet('Equipe!K1:L1', [[hojeStr+nome, frase]]); } catch {}
         return frase;
       } catch {
         if (folgaAmanha) return `Amanhã é seu dia de descanso, ${nome.split(' ')[0]}! ☀️`;
@@ -768,14 +735,13 @@ export default async function handler(req, res) {
         const cores = {'Férias':['#1a2744','#2a4080','#63b3ed'],'Folga programada':['#0d2010','#166534','#68d391'],'Atestado médico':['#1f1010','#991b1b','#fc8181'],'Folga direcionada':['#2d1f00','#92400e','#f6ad55']};
         const [bg,bc,tc] = cores[tipo] || ['#1a0d2e','#6b21a8','#c084fc'];
         const ic = icones[tipo] || '📋';
-        const tipoLabel = tipo === 'Folga programada' ? 'Folga Programada' : tipo;
         const periodo = aus[4] ? `${aus[4]}${aus[5] && aus[5] !== aus[4] ? ' → '+aus[5] : ''}` : '';
         return `<div style="background:${bg};border:1px solid ${bc};border-radius:12px;padding:14px 16px">
           <div style="font-size:10px;color:${tc};font-weight:600;text-transform:uppercase;margin-bottom:6px;opacity:.8">${label}</div>
           <div style="display:flex;align-items:center;gap:10px">
             <div style="font-size:28px">${ic}</div>
             <div>
-              <div style="font-size:18px;font-weight:700;color:${tc}">${tipoLabel}</div>
+              <div style="font-size:18px;font-weight:700;color:${tc}">${tipo}</div>
               ${periodo ? `<div style="font-size:11px;color:${tc};opacity:.7;margin-top:2px">${periodo}</div>` : ''}
             </div>
           </div>
@@ -882,18 +848,18 @@ export default async function handler(req, res) {
 
     // Cruza cada dia extra com a escala (mesma lógica de hoje/amanhã), pra equipe ver quem está no turno também nesses dias
     const diasExtras = [
-      {label: fmtData(d2), sub: DIAS_PT[d2.getDay()], evs: cruzarEventos(eventosD2c, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2), ausencias)},
-      {label: fmtData(d3), sub: DIAS_PT[d3.getDay()], evs: cruzarEventos(eventosD3c, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3), ausencias)},
-      {label: fmtData(d4), sub: DIAS_PT[d4.getDay()], evs: cruzarEventos(eventosD4c, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4), ausencias)},
-      {label: fmtData(d5), sub: DIAS_PT[d5.getDay()], evs: cruzarEventos(eventosD5c, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5), ausencias)},
-      {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: cruzarEventos(eventosD6c, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6), ausencias)},
+      {label: fmtData(d2), sub: DIAS_PT[d2.getDay()], evs: cruzarEventos(eventosD2c, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2))},
+      {label: fmtData(d3), sub: DIAS_PT[d3.getDay()], evs: cruzarEventos(eventosD3c, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3))},
+      {label: fmtData(d4), sub: DIAS_PT[d4.getDay()], evs: cruzarEventos(eventosD4c, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4))},
+      {label: fmtData(d5), sub: DIAS_PT[d5.getDay()], evs: cruzarEventos(eventosD5c, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5))},
+      {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: cruzarEventos(eventosD6c, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6))},
     ];
     const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob}))})));
     // Cruzar com escala para mostrar quem está no turno (igual à visão do gestor)
     const escHoje2   = escalaComNoturnosAnteriores(escala, hojeStr);
     const escAmanha2 = escalaComNoturnosAnteriores(escala, d1Str);
-    const eventosHojeJson   = JSON.stringify(cruzarEventos(eventosHoje,  escHoje2,  hojeStr, ausencias).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob})));
-    const eventosAmanhaJson = JSON.stringify(cruzarEventos(eventosAmanha, escAmanha2, d1Str, ausencias).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob})));
+    const eventosHojeJson   = JSON.stringify(cruzarEventos(eventosHoje,  escHoje2,  hojeStr).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob})));
+    const eventosAmanhaJson = JSON.stringify(cruzarEventos(eventosAmanha, escAmanha2, d1Str).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob})));
     const hojeAno = hoje.getFullYear();
     const hojeNumMes = hoje.getMonth();
 
@@ -1413,17 +1379,17 @@ setInterval(atualizarEventos, 60000);
     getFraseDoDia(hojeStr),
   ]);
 
-  const eventosCruzadosHoje = cruzarEventos(eventosHoje, escHoje, hojeStr, ausencias);
-  const eventosCruzadosAmanha = cruzarEventos(eventosAmanha, escD1, d1Str, ausencias);
+  const eventosCruzadosHoje = cruzarEventos(eventosHoje, escHoje, hojeStr);
+  const eventosCruzadosAmanha = cruzarEventos(eventosAmanha, escD1, d1Str);
 
   const diasNav = [
     { label: '#NossoDia', sublabel: hojeStr, eventos: eventosCruzadosHoje, total: eventosHoje.length, key: 'hoje', data: hojeStr, comOpac: true },
     { label: '#NossoDiaAmanhã', sublabel: d1Str, eventos: eventosCruzadosAmanha, total: eventosAmanha.length, key: 'amanha', data: d1Str, comOpac: false },
-    { label: fmtData(d2), sublabel: DIAS_PT[d2.getDay()], eventos: cruzarEventos(eventosD2, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2), ausencias), total: eventosD2.length, key: 'd2', data: fmtData(d2), comOpac: false },
-    { label: fmtData(d3), sublabel: DIAS_PT[d3.getDay()], eventos: cruzarEventos(eventosD3, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3), ausencias), total: eventosD3.length, key: 'd3', data: fmtData(d3), comOpac: false },
-    { label: fmtData(d4), sublabel: DIAS_PT[d4.getDay()], eventos: cruzarEventos(eventosD4, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4), ausencias), total: eventosD4.length, key: 'd4', data: fmtData(d4), comOpac: false },
-    { label: fmtData(d5), sublabel: DIAS_PT[d5.getDay()], eventos: cruzarEventos(eventosD5, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5), ausencias), total: eventosD5.length, key: 'd5', data: fmtData(d5), comOpac: false },
-    { label: fmtData(d6), sublabel: DIAS_PT[d6.getDay()], eventos: cruzarEventos(eventosD6, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6), ausencias), total: eventosD6.length, key: 'd6', data: fmtData(d6), comOpac: false },
+    { label: fmtData(d2), sublabel: DIAS_PT[d2.getDay()], eventos: cruzarEventos(eventosD2, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2)), total: eventosD2.length, key: 'd2', data: fmtData(d2), comOpac: false },
+    { label: fmtData(d3), sublabel: DIAS_PT[d3.getDay()], eventos: cruzarEventos(eventosD3, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3)), total: eventosD3.length, key: 'd3', data: fmtData(d3), comOpac: false },
+    { label: fmtData(d4), sublabel: DIAS_PT[d4.getDay()], eventos: cruzarEventos(eventosD4, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4)), total: eventosD4.length, key: 'd4', data: fmtData(d4), comOpac: false },
+    { label: fmtData(d5), sublabel: DIAS_PT[d5.getDay()], eventos: cruzarEventos(eventosD5, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5)), total: eventosD5.length, key: 'd5', data: fmtData(d5), comOpac: false },
+    { label: fmtData(d6), sublabel: DIAS_PT[d6.getDay()], eventos: cruzarEventos(eventosD6, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6)), total: eventosD6.length, key: 'd6', data: fmtData(d6), comOpac: false },
   ];
 
   const semCob = eventosCruzadosAmanha.filter(e => e.semCob).length;
@@ -1562,6 +1528,7 @@ setInterval(atualizarEventos, 60000);
         <a href="/api/ausencias" class="menu-item">&#128198; Ausências${pendAusenciasGestor?` <span style="background:#dc2626;color:#fff;border-radius:50%;min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;padding:0 3px">${pendAusenciasGestor}</span>`:''}</a>
         <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
         <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
+        <a href="/api/equipamentos" class="menu-item">&#128230; Equipamentos</a>
         <div style="height:1px;background:var(--border);margin:2px 0"></div>
         <form method="POST" action="/api/app?action=logout" style="margin:0">
           <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>

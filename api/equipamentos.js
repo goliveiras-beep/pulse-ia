@@ -1,0 +1,597 @@
+// api/equipamentos.js — Catálogo e alocação de equipamentos (parque das 6 PDs)
+export const config = { maxDuration: 30 };
+import { sheetsRequest } from '../lib/google-auth.js';
+import { createHash } from 'crypto';
+
+const SHEET_ID = process.env.GOOGLE_SHEET_ID;
+const COOKIE_NAME = 'pulse_session';
+const COOKIE_MAX = 60 * 60 * 24 * 7;
+
+function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
+
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  (cookieHeader||'').split(';').forEach(c => {
+    const cookieParts = c.trim().split('=');
+    const k = cookieParts.shift();
+    cookies[k] = cookieParts.join('=');
+  });
+  return cookies;
+}
+
+function getSession(req) {
+  const token = parseCookies(req.headers.cookie)[COOKIE_NAME];
+  if (!token) return null;
+  try {
+    const d = Buffer.from(token, 'base64').toString('utf8');
+    const lastPipe = d.lastIndexOf('|');
+    const secondPipe = d.lastIndexOf('|', lastPipe - 1);
+    const data = d.slice(0, secondPipe);
+    const h = d.slice(secondPipe + 1, lastPipe);
+    const ts = d.slice(lastPipe + 1);
+    if (Date.now() - parseInt(ts, 10) > COOKIE_MAX * 1000) return null;
+    if (h !== hash(data + ts)) return null;
+    if (data.startsWith('~~OAUTH~~')) return null;
+    const nome = data.split('~~')[0];
+    if (!nome) return null;
+    return { nome };
+  } catch { return null; }
+}
+
+async function getSheet(range) {
+  try { const d = await sheetsRequest(SHEET_ID, `/values/${encodeURIComponent(range)}`); return d.values || []; }
+  catch { return []; }
+}
+async function setSheet(range, values) {
+  await sheetsRequest(SHEET_ID, `/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`, 'PUT', { values });
+}
+// Escreve na próxima linha vazia via leitura + PUT explícito (não usa values.append: ver
+// Changelog 2026-07-11 do CLAUDE.md — values.append pode contaminar o alinhamento de colunas
+// de appends futuros quando há qualquer linha desalinhada perto do fim da aba).
+async function proximaLinhaLivre(sheetName) {
+  const atual = await getSheet(`${sheetName}!A2:A5000`);
+  return atual.length + 2;
+}
+async function inserirLinhas(sheetName, colUltima, linhas, linhaInicial) {
+  const fim = linhaInicial + linhas.length - 1;
+  await setSheet(`${sheetName}!A${linhaInicial}:${colUltima}${fim}`, linhas);
+}
+
+function getBRT() {
+  const a = new Date();
+  return new Date(a.getTime() + ((-3*60) - a.getTimezoneOffset()) * 60000);
+}
+function fmtTimestamp(d) {
+  const p = n => String(n).padStart(2,'0');
+  return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function esc(s) { return String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+const LOCAIS = ['Estoque','PD 1','PD 2','PD 3','PD 4','PD 5','PD 6'];
+const STATUSES = ['Operacional','Em manutenção','Reserva','Baixado'];
+const PDS_SEED = ['PD 1','PD 2','PD 3','PD 4','PD 5','PD 6'];
+
+const CATALOGO_PADRAO = [
+  { categoria: 'Vídeo/Monitoração', equipamento: 'Monitor 50"', qtdPorPd: 5 },
+  { categoria: 'Vídeo/Monitoração', equipamento: 'Monitor 32"', qtdPorPd: 1 },
+  { categoria: 'Vídeo/Monitoração', equipamento: 'Monitor (genérico)', qtdPorPd: 4 },
+  { categoria: 'Vídeo/Monitoração', equipamento: 'Painel de LED', qtdPorPd: 4 },
+  { categoria: 'Captação', equipamento: 'Câmera AIDA', qtdPorPd: 1 },
+  { categoria: 'Switching/Produção', equipamento: 'Vmix', qtdPorPd: 2 },
+  { categoria: 'Periféricos/TI', equipamento: 'Teclado', qtdPorPd: 2 },
+  { categoria: 'Periféricos/TI', equipamento: 'Mouse', qtdPorPd: 2 },
+  { categoria: 'Áudio', equipamento: 'Mesa de áudio Yamaha DM3', qtdPorPd: 1 },
+  { categoria: 'Áudio', equipamento: 'Caixa de monitoramento Genelec', qtdPorPd: 2 },
+  { categoria: 'Áudio', equipamento: 'AEQ Olímpia 3', qtdPorPd: 1 },
+  { categoria: 'Áudio', equipamento: 'Microfone e835s', qtdPorPd: 3 },
+  { categoria: 'Comunicação/Intercom', equipamento: 'Painel de comunicação', qtdPorPd: 1 },
+  { categoria: 'Comunicação/Intercom', equipamento: 'Fone de comunicação', qtdPorPd: 1 },
+  { categoria: 'Comunicação/Intercom', equipamento: 'Fone concha', qtdPorPd: 3 },
+];
+const CATEGORIAS = [...new Set(CATALOGO_PADRAO.map(i => i.categoria))];
+
+async function garantirAbas() {
+  const spreadsheet = await sheetsRequest(SHEET_ID, '');
+  const sheets = spreadsheet.sheets || [];
+  const temEquipamentos = sheets.some(s => s.properties.title === 'Equipamentos');
+  const temMovimentacoes = sheets.some(s => s.properties.title === 'MovimentacoesEquipamento');
+
+  if (!temEquipamentos) {
+    await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
+      requests: [{ addSheet: { properties: { title: 'Equipamentos', gridProperties: { rowCount: 2000, columnCount: 10 } } } }]
+    });
+    await setSheet('Equipamentos!A1:J1', [[
+      'ID','Categoria','Equipamento','Patrimônio','Série','Status','Alocação atual','Data última movimentação','Observação','Data cadastro'
+    ]]);
+  }
+  if (!temMovimentacoes) {
+    await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
+      requests: [{ addSheet: { properties: { title: 'MovimentacoesEquipamento', gridProperties: { rowCount: 2000, columnCount: 8 } } } }]
+    });
+    await setSheet('MovimentacoesEquipamento!A1:H1', [[
+      'Timestamp','ID Equipamento','Equipamento','De','Para','Responsável','Observação','Tipo'
+    ]]);
+  }
+  return { criouEquipamentos: !temEquipamentos };
+}
+
+async function semearCatalogoPadrao() {
+  const agora = fmtTimestamp(getBRT());
+  const linhas = [];
+  let seq = 1;
+  for (const pd of PDS_SEED) {
+    for (const item of CATALOGO_PADRAO) {
+      for (let u = 0; u < item.qtdPorPd; u++) {
+        const id = 'EQP-' + String(seq).padStart(4,'0');
+        linhas.push([id, item.categoria, item.equipamento, '', '', 'Operacional', pd, agora, '', agora]);
+        seq++;
+      }
+    }
+  }
+  await inserirLinhas('Equipamentos', 'J', linhas, 2);
+  await inserirLinhas('MovimentacoesEquipamento', 'H', [[
+    agora, '—', '—', '—', 'Carga inicial', 'Sistema', `Seed automático — ${linhas.length} unidades`, 'cadastro'
+  ]], 2);
+}
+
+async function registrarMovimentacao({ id, equipamento, de, para, responsavel, observacao, tipo }) {
+  const linha = await proximaLinhaLivre('MovimentacoesEquipamento');
+  await inserirLinhas('MovimentacoesEquipamento', 'H', [[
+    fmtTimestamp(getBRT()), id, equipamento, de || '—', para || '—', responsavel, observacao || '', tipo
+  ]], linha);
+}
+
+function proximoId(equipamentosRaw) {
+  let max = 0;
+  for (const r of equipamentosRaw) {
+    const m = String(r[0]||'').match(/^EQP-(\d+)$/);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return 'EQP-' + String(max + 1).padStart(4, '0');
+}
+
+export default async function handler(req, res) {
+  const session = getSession(req);
+  if (!session) {
+    if (req.method === 'GET') return res.redirect(302, '/api/app');
+    return res.status(401).json({ error: 'Não autorizado' });
+  }
+
+  const equipeRaw = await getSheet('Equipe!A2:L200');
+  const usuario = equipeRaw.find(r => r[0] === session.nome);
+  const isGestor = usuario?.[8] === 'gestor' && (usuario?.[10]||'ativo') === 'ativo';
+  if (!isGestor) {
+    if (req.method === 'GET') return res.redirect(302, '/api/app');
+    return res.status(403).json({ error: 'Acesso negado' });
+  }
+
+  const { criouEquipamentos } = await garantirAbas();
+  if (criouEquipamentos) await semearCatalogoPadrao();
+
+  if (req.method === 'GET') {
+    if (req.query.v === 'historico') {
+      const movRaw = await getSheet('MovimentacoesEquipamento!A2:H5000');
+      return renderHistorico(res, session, movRaw);
+    }
+    const equipamentosRaw = await getSheet('Equipamentos!A2:J3000');
+    return renderInventario(res, session, equipamentosRaw);
+  }
+
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
+
+  const { action } = req.body || {};
+  const equipamentosRaw = await getSheet('Equipamentos!A2:J3000');
+
+  if (action === 'cadastrar') {
+    const { categoria, equipamento, patrimonio, serie, alocacao, observacao } = req.body || {};
+    if (!categoria?.trim() || !equipamento?.trim()) return res.status(400).json({ error: 'Categoria e equipamento são obrigatórios' });
+    const local = LOCAIS.includes(alocacao) ? alocacao : 'Estoque';
+    const id = proximoId(equipamentosRaw);
+    const agora = fmtTimestamp(getBRT());
+    const linha = await proximaLinhaLivre('Equipamentos');
+    await inserirLinhas('Equipamentos', 'J', [[
+      id, categoria.trim(), equipamento.trim(), patrimonio||'', serie||'', 'Operacional', local, agora, observacao||'', agora
+    ]], linha);
+    await registrarMovimentacao({ id, equipamento: equipamento.trim(), de: '—', para: local, responsavel: session.nome, observacao, tipo: 'cadastro' });
+    return res.status(200).json({ ok: true, id, msg: `${equipamento.trim()} cadastrado em ${local}` });
+  }
+
+  const idx = equipamentosRaw.findIndex(r => r[0] === (req.body||{}).id);
+  if (idx < 0 && ['mover','status','editar','remover'].includes(action)) {
+    return res.status(404).json({ error: 'Equipamento não encontrado' });
+  }
+  const row = equipamentosRaw[idx];
+  const linha = idx + 2;
+
+  if (action === 'mover') {
+    const { novaAlocacao } = req.body || {};
+    if (!LOCAIS.includes(novaAlocacao)) return res.status(400).json({ error: 'Alocação inválida' });
+    const de = row[6] || 'Estoque';
+    const agora = fmtTimestamp(getBRT());
+    await setSheet(`Equipamentos!G${linha}:H${linha}`, [[novaAlocacao, agora]]);
+    await registrarMovimentacao({ id: row[0], equipamento: row[2], de, para: novaAlocacao, responsavel: session.nome, tipo: 'mover' });
+    return res.status(200).json({ ok: true, msg: `${row[2]} movido para ${novaAlocacao}` });
+  }
+
+  if (action === 'status') {
+    const { novoStatus } = req.body || {};
+    if (!STATUSES.includes(novoStatus)) return res.status(400).json({ error: 'Status inválido' });
+    const de = row[5] || 'Operacional';
+    const agora = fmtTimestamp(getBRT());
+    await setSheet(`Equipamentos!F${linha}:H${linha}`, [[novoStatus, row[6]||'', agora]]);
+    await registrarMovimentacao({ id: row[0], equipamento: row[2], de, para: novoStatus, responsavel: session.nome, tipo: 'status' });
+    return res.status(200).json({ ok: true, msg: `${row[2]} agora está ${novoStatus}` });
+  }
+
+  if (action === 'editar') {
+    const { categoria, equipamento, patrimonio, serie, observacao } = req.body || {};
+    if (!categoria?.trim() || !equipamento?.trim()) return res.status(400).json({ error: 'Categoria e equipamento são obrigatórios' });
+    await setSheet(`Equipamentos!B${linha}:E${linha}`, [[categoria.trim(), equipamento.trim(), patrimonio||'', serie||'']]);
+    await setSheet(`Equipamentos!I${linha}`, [[observacao||'']]);
+    await registrarMovimentacao({ id: row[0], equipamento: equipamento.trim(), de: '—', para: '—', responsavel: session.nome, observacao: 'Dados editados', tipo: 'edicao' });
+    return res.status(200).json({ ok: true, msg: 'Dados atualizados' });
+  }
+
+  if (action === 'remover') {
+    const { motivo } = req.body || {};
+    await registrarMovimentacao({ id: row[0], equipamento: row[2], de: row[6]||'', para: '—', responsavel: session.nome, observacao: `Removido: ${motivo||'sem motivo informado'}`, tipo: 'baixa' });
+    const spreadsheet = await sheetsRequest(SHEET_ID, '');
+    const eqSheet = spreadsheet.sheets?.find(s => s.properties.title === 'Equipamentos');
+    if (!eqSheet) return res.status(500).json({ error: 'Aba Equipamentos não encontrada' });
+    await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
+      requests: [{ deleteDimension: { range: { sheetId: eqSheet.properties.sheetId, dimension: 'ROWS', startIndex: linha-1, endIndex: linha } } }]
+    });
+    return res.status(200).json({ ok: true, msg: `${row[2]} removido do parque` });
+  }
+
+  return res.status(400).json({ error: 'Ação desconhecida' });
+}
+
+// ── Renderização ──────────────────────────────────────────────────────────
+
+function shellCSS() {
+  return `
+:root{
+  --bg:#f5f5f5;--bg2:#fafafa;--bg3:#f0f0f0;--card:#fff;--border:#e5e5e5;--border2:#f0f0f0;
+  --text:#1a1a1a;--text2:#555;--text3:#888;--text4:#bbb;
+  --header:#161920;--blue:#1d4ed8;
+  --blue-m-bg:#eff6ff;--blue-m-border:#dbeafe;--blue-m-v:#1d4ed8;
+  --badge-green-bg:#dcfce7;--badge-green-c:#166534;
+  --badge-red-bg:#fee2e2;--badge-red-c:#991b1b;
+  --badge-amber-bg:#fef3c7;--badge-amber-c:#92400e;
+}
+html.dark{
+  --bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--card:#242836;--border:#2d3748;--border2:#2d3748;
+  --text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--text4:#4a5568;
+  --header:#0f1117;--blue:#63b3ed;
+  --blue-m-bg:#1a2744;--blue-m-border:#2a4080;--blue-m-v:#63b3ed;
+  --badge-green-bg:#0d2010;--badge-green-c:#68d391;
+  --badge-red-bg:#1f1010;--badge-red-c:#fc8181;
+  --badge-amber-bg:#2d1f00;--badge-amber-c:#f6ad55;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
+a{text-decoration:none;color:inherit}
+.header{background:var(--header);padding:12px 20px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
+.logo{width:32px;height:32px;border-radius:8px;background:#e53e3e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0}
+.ht{font-size:14px;font-weight:700;color:#fff}
+.hs{font-size:11px;color:#666}
+.hr{margin-left:auto;display:flex;gap:6px;align-items:center}
+.btn-sm{border:1px solid #3d4660;border-radius:5px;padding:4px 10px;font-size:11px;color:#a0aec0;background:none;cursor:pointer;text-decoration:none}
+.btn-sm:hover{border-color:#6b7280;color:#e2e8f0}
+.menu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 14px;font-size:12px;color:var(--text);text-decoration:none;white-space:nowrap}
+.menu-item:hover{background:var(--bg3)}
+.wrap{max-width:1300px;margin:0 auto;padding:16px 20px}
+.badge{border-radius:4px;padding:2px 7px;font-size:10px;font-weight:600;white-space:nowrap}
+.badge.green{background:var(--badge-green-bg);color:var(--badge-green-c)}
+.badge.red{background:var(--badge-red-bg);color:var(--badge-red-c)}
+.badge.amber{background:var(--badge-amber-bg);color:var(--badge-amber-c)}
+.badge.blue{background:var(--blue-m-bg);color:var(--blue-m-v)}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.stat .n{font-size:22px;font-weight:800;line-height:1}
+.stat .l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+.toolbar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.toolbar input,.toolbar select{border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;background:var(--bg2);color:var(--text);outline:none}
+.btn{border:1px solid var(--border);border-radius:6px;padding:7px 12px;font-size:12px;background:var(--card);color:var(--text);cursor:pointer}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:9px 10px;color:var(--text3);text-transform:uppercase;font-size:10px;letter-spacing:.04em;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--border2);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.acoes{display:flex;gap:4px}
+.acoes button{border:1px solid var(--border);border-radius:5px;padding:3px 7px;font-size:11px;background:var(--bg2);color:var(--text);cursor:pointer}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--card);border-radius:12px;padding:22px;width:380px;max-width:calc(100vw - 32px);max-height:85vh;overflow-y:auto}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:14px}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px;text-transform:uppercase}
+.field input,.field select,.field textarea{width:100%;border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;background:var(--bg2);color:var(--text);outline:none}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+`;
+}
+
+function menuHTML() {
+  return `
+    <button id="tt" class="btn-sm" onclick="(function(){var h=document.documentElement;var dk=h.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" style="font-size:14px;padding:3px 8px">&#127769;</button>
+    <div style="position:relative">
+      <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-sm" style="font-size:15px;padding:4px 10px;line-height:1">&#9776;</button>
+      <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
+        <a href="/api/app" class="menu-item">&#127968; Início</a>
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausências</a>
+        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
+        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
+        <a href="/api/equipamentos" class="menu-item">&#128230; Equipamentos</a>
+        <div style="height:1px;background:var(--border);margin:2px 0"></div>
+        <form method="POST" action="/api/app?action=logout" style="margin:0">
+          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
+        </form>
+      </div>
+    </div>`;
+}
+
+function headerHTML(nome, sub) {
+  return `
+<div class="header">
+  <div class="logo">P</div>
+  <div>
+    <div class="ht">Equipamentos</div>
+    <div class="hs">${esc(sub)}</div>
+  </div>
+  <div class="hr">${menuHTML()}</div>
+</div>`;
+}
+
+function baseHTML(titulo, conteudo, scriptExtra = '') {
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<script>(function(){var d=localStorage.getItem("pulse-theme");if(d==="dark")document.documentElement.classList.add("dark");})()</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulse - ${esc(titulo)}</title>
+<style>${shellCSS()}</style>
+</head>
+<body>
+${conteudo}
+<script>
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
+${scriptExtra}
+</script>
+</body>
+</html>`;
+}
+
+function renderInventario(res, session, equipamentosRaw) {
+  const unidades = equipamentosRaw.filter(r => r[0]).map(r => ({
+    id: r[0], categoria: r[1]||'', equipamento: r[2]||'', patrimonio: r[3]||'', serie: r[4]||'',
+    status: r[5]||'Operacional', alocacao: r[6]||'Estoque', dataMov: r[7]||'', observacao: r[8]||'', dataCadastro: r[9]||''
+  }));
+
+  const porCategoria = {};
+  const porLocal = {};
+  const porStatus = {};
+  for (const u of unidades) {
+    porCategoria[u.categoria] = (porCategoria[u.categoria]||0) + 1;
+    porLocal[u.alocacao] = (porLocal[u.alocacao]||0) + 1;
+    porStatus[u.status] = (porStatus[u.status]||0) + 1;
+  }
+
+  const resumoHTML = [
+    `<div class="stat"><div class="n">${unidades.length}</div><div class="l">Total no parque</div></div>`,
+    ...LOCAIS.map(l => `<div class="stat"><div class="n">${porLocal[l]||0}</div><div class="l">${esc(l)}</div></div>`),
+    `<div class="stat"><div class="n" style="color:var(--badge-amber-c)">${porStatus['Em manutenção']||0}</div><div class="l">Em manutenção</div></div>`,
+    `<div class="stat"><div class="n" style="color:var(--badge-red-c)">${porStatus['Baixado']||0}</div><div class="l">Baixados</div></div>`,
+  ].join('');
+
+  const conteudo = `
+${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
+<div class="wrap">
+  <div class="summary">${resumoHTML}</div>
+
+  <div class="toolbar">
+    <input id="busca" placeholder="🔍 Buscar por ID, equipamento, patrimônio ou série..." style="flex:1;min-width:220px" oninput="filtrar()">
+    <select id="f-categoria" onchange="filtrar()"><option value="">Todas categorias</option>${CATEGORIAS.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
+    <select id="f-local" onchange="filtrar()"><option value="">Toda alocação</option>${LOCAIS.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>
+    <select id="f-status" onchange="filtrar()"><option value="">Todo status</option>${STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
+    <button class="btn primary" onclick="abrirCadastro()">+ Cadastrar equipamento</button>
+    <a href="/api/equipamentos?v=historico" class="btn">Histórico de movimentações</a>
+  </div>
+
+  <div class="tbl-wrap">
+    <table id="tabela">
+      <thead><tr>
+        <th>ID</th><th>Categoria</th><th>Equipamento</th><th>Patrimônio</th><th>Série</th>
+        <th>Status</th><th>Alocação</th><th>Última movimentação</th><th>Observação</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-cadastro"><div class="modal">
+  <h3>Cadastrar equipamento</h3>
+  <div class="field"><label>Categoria</label><input id="c-categoria" list="lista-categorias"></div>
+  <datalist id="lista-categorias">${CATEGORIAS.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+  <div class="field"><label>Equipamento</label><input id="c-equipamento"></div>
+  <div class="field"><label>Nº Patrimônio</label><input id="c-patrimonio"></div>
+  <div class="field"><label>Nº Série</label><input id="c-serie"></div>
+  <div class="field"><label>Alocação inicial</label><select id="c-alocacao">${LOCAIS.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select></div>
+  <div class="field"><label>Observação</label><textarea id="c-observacao" rows="2"></textarea></div>
+  <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarCadastro()">Cadastrar</button></div>
+</div></div>
+
+<div class="modal-bg" id="modal-mover"><div class="modal">
+  <h3>Mover equipamento</h3>
+  <div class="field"><label>Novo local</label><select id="m-local">${LOCAIS.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select></div>
+  <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarMover()">Mover</button></div>
+</div></div>
+
+<div class="modal-bg" id="modal-status"><div class="modal">
+  <h3>Alterar status</h3>
+  <div class="field"><label>Novo status</label><select id="s-status">${STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select></div>
+  <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarStatus()">Salvar</button></div>
+</div></div>
+
+<div class="modal-bg" id="modal-editar"><div class="modal">
+  <h3>Editar equipamento</h3>
+  <div class="field"><label>Categoria</label><input id="e-categoria"></div>
+  <div class="field"><label>Equipamento</label><input id="e-equipamento"></div>
+  <div class="field"><label>Nº Patrimônio</label><input id="e-patrimonio"></div>
+  <div class="field"><label>Nº Série</label><input id="e-serie"></div>
+  <div class="field"><label>Observação</label><textarea id="e-observacao" rows="2"></textarea></div>
+  <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarEditar()">Salvar</button></div>
+</div></div>
+`;
+
+  const script = `
+const UNIDADES = ${JSON.stringify(unidades)};
+let idAtual = null;
+
+function badgeCls(s){ return s==='Operacional'?'green':s==='Em manutenção'?'amber':s==='Baixado'?'red':'blue'; }
+function escHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function linhaHTML(u){
+  return '<tr>'
+    + '<td>'+escHtml(u.id)+'</td>'
+    + '<td>'+escHtml(u.categoria)+'</td>'
+    + '<td>'+escHtml(u.equipamento)+'</td>'
+    + '<td>'+escHtml(u.patrimonio||'—')+'</td>'
+    + '<td>'+escHtml(u.serie||'—')+'</td>'
+    + '<td><span class="badge '+badgeCls(u.status)+'">'+escHtml(u.status)+'</span></td>'
+    + '<td>'+escHtml(u.alocacao)+'</td>'
+    + '<td>'+escHtml(u.dataMov||'—')+'</td>'
+    + '<td>'+escHtml(u.observacao||'—')+'</td>'
+    + '<td class="acoes">'
+    +   '<button onclick="abrirMover(\\''+u.id+'\\')">Mover</button>'
+    +   '<button onclick="abrirStatus(\\''+u.id+'\\')">Status</button>'
+    +   '<button onclick="abrirEditar(\\''+u.id+'\\')">Editar</button>'
+    +   '<button onclick="removerUnidade(\\''+u.id+'\\')">Remover</button>'
+    + '</td></tr>';
+}
+
+function filtrar(){
+  const busca = document.getElementById('busca').value.toLowerCase();
+  const fc = document.getElementById('f-categoria').value;
+  const fl = document.getElementById('f-local').value;
+  const fs = document.getElementById('f-status').value;
+  const filtradas = UNIDADES.filter(function(u){
+    if (fc && u.categoria !== fc) return false;
+    if (fl && u.alocacao !== fl) return false;
+    if (fs && u.status !== fs) return false;
+    if (busca && !(u.id+u.equipamento+u.patrimonio+u.serie).toLowerCase().includes(busca)) return false;
+    return true;
+  });
+  document.getElementById('tbody').innerHTML = filtradas.map(linhaHTML).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px">Nenhum equipamento encontrado</td></tr>';
+}
+
+function fecharModais(){ document.querySelectorAll('.modal-bg').forEach(function(m){ m.classList.remove('open'); }); idAtual = null; }
+
+function abrirCadastro(){ document.getElementById('modal-cadastro').classList.add('open'); }
+async function salvarCadastro(){
+  const body = {
+    action: 'cadastrar',
+    categoria: document.getElementById('c-categoria').value,
+    equipamento: document.getElementById('c-equipamento').value,
+    patrimonio: document.getElementById('c-patrimonio').value,
+    serie: document.getElementById('c-serie').value,
+    alocacao: document.getElementById('c-alocacao').value,
+    observacao: document.getElementById('c-observacao').value,
+  };
+  const r = await fetch('/api/equipamentos', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d = await r.json();
+  if (!r.ok) return alert(d.error||'Erro ao cadastrar');
+  location.reload();
+}
+
+function abrirMover(id){ idAtual = id; document.getElementById('modal-mover').classList.add('open'); }
+async function salvarMover(){
+  const r = await fetch('/api/equipamentos', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'mover',id:idAtual,novaAlocacao:document.getElementById('m-local').value})});
+  const d = await r.json();
+  if (!r.ok) return alert(d.error||'Erro ao mover');
+  location.reload();
+}
+
+function abrirStatus(id){ idAtual = id; document.getElementById('modal-status').classList.add('open'); }
+async function salvarStatus(){
+  const r = await fetch('/api/equipamentos', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',id:idAtual,novoStatus:document.getElementById('s-status').value})});
+  const d = await r.json();
+  if (!r.ok) return alert(d.error||'Erro ao alterar status');
+  location.reload();
+}
+
+function abrirEditar(id){
+  idAtual = id;
+  const u = UNIDADES.find(function(x){ return x.id === id; });
+  if (!u) return;
+  document.getElementById('e-categoria').value = u.categoria;
+  document.getElementById('e-equipamento').value = u.equipamento;
+  document.getElementById('e-patrimonio').value = u.patrimonio;
+  document.getElementById('e-serie').value = u.serie;
+  document.getElementById('e-observacao').value = u.observacao;
+  document.getElementById('modal-editar').classList.add('open');
+}
+async function salvarEditar(){
+  const body = {
+    action: 'editar', id: idAtual,
+    categoria: document.getElementById('e-categoria').value,
+    equipamento: document.getElementById('e-equipamento').value,
+    patrimonio: document.getElementById('e-patrimonio').value,
+    serie: document.getElementById('e-serie').value,
+    observacao: document.getElementById('e-observacao').value,
+  };
+  const r = await fetch('/api/equipamentos', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d = await r.json();
+  if (!r.ok) return alert(d.error||'Erro ao editar');
+  location.reload();
+}
+
+async function removerUnidade(id){
+  const motivo = prompt('Motivo da remoção (exclusão definitiva do parque):');
+  if (motivo === null) return;
+  const r = await fetch('/api/equipamentos', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'remover',id:id,motivo:motivo})});
+  const d = await r.json();
+  if (!r.ok) return alert(d.error||'Erro ao remover');
+  location.reload();
+}
+
+filtrar();
+`;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  return res.status(200).send(baseHTML('Equipamentos', conteudo, script));
+}
+
+function renderHistorico(res, session, movRaw) {
+  const eventos = movRaw.filter(r => r[0]).map(r => ({
+    timestamp: r[0]||'', id: r[1]||'', equipamento: r[2]||'', de: r[3]||'', para: r[4]||'',
+    responsavel: r[5]||'', observacao: r[6]||'', tipo: r[7]||''
+  })).reverse();
+
+  const linhas = eventos.map(e => `<tr>
+    <td>${esc(e.timestamp)}</td><td>${esc(e.id)}</td><td>${esc(e.equipamento)}</td>
+    <td><span class="badge blue">${esc(e.tipo)}</span></td>
+    <td>${esc(e.de)}</td><td>${esc(e.para)}</td><td>${esc(e.responsavel)}</td><td>${esc(e.observacao)}</td>
+  </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">Nenhuma movimentação registrada</td></tr>';
+
+  const conteudo = `
+${headerHTML(session.nome, `${eventos.length} eventos registrados`)}
+<div class="wrap">
+  <div class="toolbar"><a href="/api/equipamentos" class="btn">&larr; Voltar ao inventário</a></div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Quando</th><th>ID</th><th>Equipamento</th><th>Tipo</th><th>De</th><th>Para</th><th>Responsável</th><th>Observação</th></tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+  </div>
+</div>`;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  return res.status(200).send(baseHTML('Histórico de equipamentos', conteudo));
+}
