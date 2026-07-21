@@ -173,8 +173,11 @@ export default async function handler(req, res) {
       const movRaw = await getSheet('MovimentacoesEquipamento!A2:H5000');
       return renderHistorico(res, session, movRaw);
     }
-    const equipamentosRaw = await getSheet('Equipamentos!A2:J3000');
-    return renderInventario(res, session, equipamentosRaw);
+    const [equipamentosRaw, movRaw] = await Promise.all([
+      getSheet('Equipamentos!A2:J3000'),
+      getSheet('MovimentacoesEquipamento!A2:H5000'),
+    ]);
+    return renderInventario(res, session, equipamentosRaw, movRaw);
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
@@ -259,11 +262,15 @@ function shellCSS() {
   --badge-green-bg:#dcfce7;--badge-green-c:#166534;
   --badge-red-bg:#fee2e2;--badge-red-c:#991b1b;
   --badge-amber-bg:#fef3c7;--badge-amber-c:#92400e;
+  --cat-video:#3b6fa0;--cat-captacao:#6e5aa3;--cat-producao:#1e7f8c;
+  --cat-perifericos:#6b7686;--cat-audio:#c97a2b;--cat-comunicacao:#a3436b;
 }
 html.dark{
   --bg:#1c1f26;--bg2:#242836;--bg3:#2d3140;--card:#242836;--border:#2d3748;--border2:#2d3748;
   --text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--text4:#4a5568;
   --header:#0f1117;--blue:#63b3ed;
+  --cat-video:#6f9bcf;--cat-captacao:#a692d6;--cat-producao:#4bb8c4;
+  --cat-perifericos:#98a3ad;--cat-audio:#e4a35c;--cat-comunicacao:#d17ea1;
   --blue-m-bg:#1a2744;--blue-m-border:#2a4080;--blue-m-v:#63b3ed;
   --badge-green-bg:#0d2010;--badge-green-c:#68d391;
   --badge-red-bg:#1f1010;--badge-red-c:#fc8181;
@@ -291,6 +298,21 @@ a{text-decoration:none;color:inherit}
 .stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
 .stat .n{font-size:22px;font-weight:800;line-height:1}
 .stat .l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+.dash-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+@media (max-width:900px){.dash-grid{grid-template-columns:1fr}}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.chart-card h4{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:12px}
+.donut-wrap{display:flex;align-items:center;gap:16px}
+.donut-legend{display:flex;flex-direction:column;gap:6px;font-size:12px}
+.donut-legend .row{display:flex;align-items:center;gap:7px}
+.donut-legend i{width:9px;height:9px;border-radius:2px;flex:none}
+.donut-legend .v{margin-left:auto;font-weight:700;color:var(--text)}
+.atividade{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:6px 16px;margin-bottom:16px}
+.atividade-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border2);font-size:12px}
+.atividade-item:last-child{border-bottom:none}
+.atividade-item .quando{color:var(--text3);font-size:11px;white-space:nowrap;min-width:110px}
+.atividade-item .desc{flex:1;color:var(--text)}
+.atividade-item .desc b{font-weight:700}
 .toolbar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .toolbar input,.toolbar select{border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;background:var(--bg2);color:var(--text);outline:none}
 .btn{border:1px solid var(--border);border-radius:6px;padding:7px 12px;font-size:12px;background:var(--card);color:var(--text);cursor:pointer}
@@ -366,7 +388,52 @@ ${scriptExtra}
 </html>`;
 }
 
-function renderInventario(res, session, equipamentosRaw) {
+const CAT_COR = {
+  'Vídeo/Monitoração': 'var(--cat-video)',
+  'Captação': 'var(--cat-captacao)',
+  'Switching/Produção': 'var(--cat-producao)',
+  'Periféricos/TI': 'var(--cat-perifericos)',
+  'Áudio': 'var(--cat-audio)',
+  'Comunicação/Intercom': 'var(--cat-comunicacao)',
+};
+const STATUS_COR = {
+  'Operacional': 'var(--badge-green-c)',
+  'Em manutenção': 'var(--badge-amber-c)',
+  'Reserva': 'var(--blue-m-v)',
+  'Baixado': 'var(--badge-red-c)',
+};
+
+function barChartSVG(items) {
+  const max = Math.max(1, ...items.map(i => i.value));
+  const barH = 20, gap = 8, labelW = 140, chartW = 130;
+  const rowH = barH + gap;
+  const height = items.length * rowH - gap;
+  const rows = items.map((it, i) => {
+    const y = i * rowH;
+    const w = Math.max(2, Math.round((it.value / max) * chartW));
+    return `<text x="0" y="${y + barH*0.72}" font-size="10" style="fill:var(--text2)">${esc(it.label)}</text>
+      <rect x="${labelW}" y="${y}" width="${chartW}" height="${barH}" rx="4" style="fill:var(--bg3)"></rect>
+      <rect x="${labelW}" y="${y}" width="${w}" height="${barH}" rx="4" style="fill:${it.color}"></rect>
+      <text x="${labelW + chartW + 8}" y="${y + barH*0.72}" font-size="11" font-weight="700" style="fill:var(--text)">${it.value}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${labelW + chartW + 32} ${Math.max(height,1)}" width="100%" height="${Math.max(height,1)}">${rows}</svg>`;
+}
+
+function donutSVG(items) {
+  const total = items.reduce((s, i) => s + i.value, 0) || 1;
+  const r = 44, cx = 54, cy = 54, sw = 15;
+  const circ = 2 * Math.PI * r;
+  let offset = 0;
+  const arcos = items.filter(i => i.value > 0).map(it => {
+    const dash = (it.value / total) * circ;
+    const el = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" style="stroke:${it.color}" stroke-width="${sw}" stroke-dasharray="${dash} ${circ-dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    offset += dash;
+    return el;
+  }).join('');
+  return `<svg viewBox="0 0 108 108" width="108" height="108">${arcos}<circle cx="${cx}" cy="${cy}" r="${r-sw/2-2}" style="fill:var(--card)"/><text x="${cx}" y="${cy+6}" text-anchor="middle" font-size="20" font-weight="800" style="fill:var(--text)">${total}</text></svg>`;
+}
+
+function renderInventario(res, session, equipamentosRaw, movRaw) {
   const unidades = equipamentosRaw.filter(r => r[0]).map(r => ({
     id: r[0], categoria: r[1]||'', equipamento: r[2]||'', patrimonio: r[3]||'', serie: r[4]||'',
     status: r[5]||'Operacional', alocacao: r[6]||'Estoque', dataMov: r[7]||'', observacao: r[8]||'', dataCadastro: r[9]||''
@@ -381,17 +448,47 @@ function renderInventario(res, session, equipamentosRaw) {
     porStatus[u.status] = (porStatus[u.status]||0) + 1;
   }
 
-  const resumoHTML = [
+  const kpiHTML = [
     `<div class="stat"><div class="n">${unidades.length}</div><div class="l">Total no parque</div></div>`,
-    ...LOCAIS.map(l => `<div class="stat"><div class="n">${porLocal[l]||0}</div><div class="l">${esc(l)}</div></div>`),
+    `<div class="stat"><div class="n" style="color:var(--badge-green-c)">${porStatus['Operacional']||0}</div><div class="l">Operacional</div></div>`,
     `<div class="stat"><div class="n" style="color:var(--badge-amber-c)">${porStatus['Em manutenção']||0}</div><div class="l">Em manutenção</div></div>`,
     `<div class="stat"><div class="n" style="color:var(--badge-red-c)">${porStatus['Baixado']||0}</div><div class="l">Baixados</div></div>`,
   ].join('');
 
+  const chartCategoria = barChartSVG(CATEGORIAS.map(c => ({ label: c, value: porCategoria[c]||0, color: CAT_COR[c] })));
+  const chartLocal = barChartSVG(LOCAIS.map(l => ({ label: l, value: porLocal[l]||0, color: 'var(--blue)' })));
+  const statusItems = STATUSES.map(s => ({ label: s, value: porStatus[s]||0, color: STATUS_COR[s] }));
+  const chartStatus = donutSVG(statusItems);
+  const legendStatus = statusItems.map(it => `<div class="row"><i style="background:${it.color}"></i>${esc(it.label)}<span class="v">${it.value}</span></div>`).join('');
+
+  const eventosRecentes = movRaw.filter(r => r[0]).map(r => ({
+    timestamp: r[0]||'', equipamento: r[2]||'', de: r[3]||'', para: r[4]||'', responsavel: r[5]||'', tipo: r[7]||''
+  })).slice(-6).reverse();
+  const TIPO_TXT = { cadastro: 'cadastrado', mover: 'movido', status: 'status alterado', edicao: 'editado', baixa: 'removido' };
+  const atividadeHTML = eventosRecentes.length ? eventosRecentes.map(e => `
+    <div class="atividade-item">
+      <span class="quando">${esc(e.timestamp)}</span>
+      <span class="desc"><b>${esc(e.equipamento)}</b> ${TIPO_TXT[e.tipo]||esc(e.tipo)}${e.tipo==='mover'?` — ${esc(e.de)} &rarr; ${esc(e.para)}`:e.tipo==='status'?` — ${esc(e.de)} &rarr; ${esc(e.para)}`:''} <span style="color:var(--text3)">por ${esc(e.responsavel)}</span></span>
+    </div>`).join('') : `<div class="atividade-item" style="color:var(--text3)">Nenhuma movimentação ainda</div>`;
+
   const conteudo = `
 ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
 <div class="wrap">
-  <div class="summary">${resumoHTML}</div>
+  <div class="summary">${kpiHTML}</div>
+
+  <div class="dash-grid">
+    <div class="chart-card"><h4>Por categoria</h4>${chartCategoria}</div>
+    <div class="chart-card"><h4>Por alocação</h4>${chartLocal}</div>
+    <div class="chart-card"><h4>Status</h4><div class="donut-wrap">${chartStatus}<div class="donut-legend">${legendStatus}</div></div></div>
+  </div>
+
+  <div class="atividade">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 4px">
+      <h4 style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">Atividade recente</h4>
+      <a href="/api/equipamentos?v=historico" style="font-size:11px;color:var(--blue)">Ver histórico completo &rarr;</a>
+    </div>
+    ${atividadeHTML}
+  </div>
 
   <div class="toolbar">
     <input id="busca" placeholder="🔍 Buscar por ID, equipamento, patrimônio ou série..." style="flex:1;min-width:220px" oninput="filtrar()">
