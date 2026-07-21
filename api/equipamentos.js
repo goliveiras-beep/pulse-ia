@@ -105,11 +105,30 @@ async function garantirAbas() {
       'ID','Categoria','Equipamento','Patrimônio','Série','Status','Alocação atual','Data última movimentação','Observação','Data cadastro','Tipo de Parque'
     ]]);
   } else {
-    // Migração: abas criadas antes do campo Tipo de Parque não têm a coluna K — adiciona o
-    // cabeçalho se faltar (linhas existentes ficam sem valor, tratado como 'Interno' na leitura).
-    const cabecalhoK = await getSheet('Equipamentos!K1:K1');
-    if (!cabecalhoK[0]?.[0]) {
-      await setSheet('Equipamentos!K1', [['Tipo de Parque']]);
+    // Migração: abas criadas antes do campo Tipo de Parque não têm a coluna K — expande a
+    // grade (padrão igual ao setup-auth.js) antes de escrever, senão a API rejeita a escrita
+    // fora dos limites atuais da grade, e adiciona o cabeçalho se faltar (linhas existentes
+    // ficam sem valor, tratado como 'Interno' na leitura).
+    try {
+      const cabecalhoK = await getSheet('Equipamentos!K1:K1');
+      if (!cabecalhoK[0]?.[0]) {
+        const eqSheetMeta = sheets.find(s => s.properties.title === 'Equipamentos');
+        const colAtual = eqSheetMeta?.properties.gridProperties?.columnCount || 10;
+        if (colAtual < 11) {
+          await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
+            requests: [{
+              updateSheetProperties: {
+                properties: { sheetId: eqSheetMeta.properties.sheetId, gridProperties: { columnCount: 11 } },
+                fields: 'gridProperties.columnCount'
+              }
+            }]
+          });
+        }
+        await setSheet('Equipamentos!K1', [['Tipo de Parque']]);
+      }
+    } catch {
+      // Não deixa a página inteira cair se a migração falhar por algum motivo inesperado —
+      // linhas sem coluna K continuam sendo tratadas como 'Interno' na leitura.
     }
   }
   if (!temMovimentacoes) {
