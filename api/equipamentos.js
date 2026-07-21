@@ -67,7 +67,7 @@ function fmtTimestamp(d) {
 }
 function esc(s) { return String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-const LOCAIS = ['Estoque','PD 1','PD 2','PD 3','PD 4','PD 5','PD 6'];
+const LOCAIS = ['Estoque','PD 1','PD 2','PD 3','PD 4','PD 5','PD 6','Switcher A (SWA)','Switcher B (SWB)','Estúdio 1','Estúdio 2'];
 const STATUSES = ['Operacional','Em manutenção','Reserva','Baixado'];
 const PDS_SEED = ['PD 1','PD 2','PD 3','PD 4','PD 5','PD 6'];
 

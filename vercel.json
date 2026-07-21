@@ -15,6 +15,7 @@
     { "source": "/api/setup-equipe", "destination": "/api/setup-bundle?_route=setup-equipe" },
     { "source": "/api/setup-escala", "destination": "/api/setup-bundle?_route=setup-escala" },
     { "source": "/api/setup-sheets", "destination": "/api/setup-bundle?_route=setup-sheets" },
+    { "source": "/api/setup-equipamentos-lote", "destination": "/api/setup-bundle?_route=setup-equipamentos-lote" },
 
     { "source": "/api/equipe", "destination": "/api/gestao-bundle?_route=equipe" },
     { "source": "/api/equipe-view", "destination": "/api/gestao-bundle?_route=equipe-view" },

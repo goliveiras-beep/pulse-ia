@@ -8,6 +8,7 @@ import setupConfigHandler from '../lib/routes/setup-config.js';
 import setupEquipeHandler from '../lib/routes/setup-equipe.js';
 import setupEscalaHandler from '../lib/routes/setup-escala.js';
 import setupSheetsHandler from '../lib/routes/setup-sheets.js';
+import setupEquipamentosLoteHandler from '../lib/routes/setup-equipamentos-lote.js';
 
 const ROUTES = {
   'setup-auth': setupAuthHandler,
@@ -15,6 +16,7 @@ const ROUTES = {
   'setup-equipe': setupEquipeHandler,
   'setup-escala': setupEscalaHandler,
   'setup-sheets': setupSheetsHandler,
+  'setup-equipamentos-lote': setupEquipamentosLoteHandler,
 };
 
 export default async function handler(req, res) {
