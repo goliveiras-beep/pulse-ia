@@ -297,7 +297,7 @@ function shellCSS() {
   --badge-red-bg:#fee2e2;--badge-red-c:#991b1b;
   --badge-amber-bg:#fef3c7;--badge-amber-c:#92400e;
   --cat-video:#3b6fa0;--cat-captacao:#6e5aa3;--cat-producao:#1e7f8c;
-  --cat-perifericos:#6b7686;--cat-audio:#c97a2b;--cat-comunicacao:#a3436b;
+  --cat-perifericos:#6b7686;--cat-audio:#c97a2b;--cat-comunicacao:#a3436b;--cat-mobile:#2f9e58;
   --shadow:0 1px 2px rgba(20,20,20,.04), 0 6px 16px -8px rgba(20,20,20,.10);
   --shadow-sm:0 1px 2px rgba(20,20,20,.05);
 }
@@ -306,7 +306,7 @@ html.dark{
   --text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--text4:#4a5568;
   --header:#0f1117;--blue:#63b3ed;
   --cat-video:#6f9bcf;--cat-captacao:#a692d6;--cat-producao:#4bb8c4;
-  --cat-perifericos:#98a3ad;--cat-audio:#e4a35c;--cat-comunicacao:#d17ea1;
+  --cat-perifericos:#98a3ad;--cat-audio:#e4a35c;--cat-comunicacao:#d17ea1;--cat-mobile:#5cc588;
   --blue-m-bg:#1a2744;--blue-m-border:#2a4080;--blue-m-v:#63b3ed;
   --badge-green-bg:#0d2010;--badge-green-c:#68d391;
   --badge-red-bg:#1f1010;--badge-red-c:#fc8181;
@@ -463,7 +463,9 @@ const CAT_COR = {
   'Periféricos/TI': 'var(--cat-perifericos)',
   'Áudio': 'var(--cat-audio)',
   'Comunicação/Intercom': 'var(--cat-comunicacao)',
+  'Mobile/MoJo': 'var(--cat-mobile)',
 };
+const CAT_COR_PADRAO = 'var(--text3)'; // fallback pra categoria nova cadastrada sem cor definida acima
 const STATUS_COR = {
   'Operacional': 'var(--badge-green-c)',
   'Em manutenção': 'var(--badge-amber-c)',
@@ -518,6 +520,8 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
     porStatus[u.status] = (porStatus[u.status]||0) + 1;
     porTipo[u.tipoParque] = (porTipo[u.tipoParque]||0) + 1;
   }
+  // Categorias reais (catálogo padrão + qualquer categoria nova cadastrada, ex: Mobile/MoJo do parque externo)
+  const categoriasTodas = [...new Set([...CATEGORIAS, ...unidades.map(u => u.categoria)])].filter(Boolean).sort((a,b) => a.localeCompare(b, 'pt'));
 
   const macroHTML = `
     <button type="button" class="macro-card interno" onclick="irParaTipo('Interno')">
@@ -552,7 +556,7 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
     + LOCAIS.map(l => `<button type="button" class="pill" data-local="${esc(l)}" onclick="irParaLocal('${esc(l)}')">${iconeLocal(l)} ${esc(l)} <span class="c">${porLocal[l]||0}</span></button>`).join('')
     + `</div>`;
 
-  const chartCategoria = barChartSVG(CATEGORIAS.map(c => ({ label: c, value: porCategoria[c]||0, color: CAT_COR[c] })));
+  const chartCategoria = barChartSVG(categoriasTodas.filter(c => porCategoria[c]).map(c => ({ label: c, value: porCategoria[c]||0, color: CAT_COR[c] || CAT_COR_PADRAO })));
   const chartLocal = barChartSVG(LOCAIS.map(l => ({ label: l, value: porLocal[l]||0, color: 'var(--blue)' })));
   const statusItems = STATUSES.map(s => ({ label: s, value: porStatus[s]||0, color: STATUS_COR[s] }));
   const chartStatus = donutSVG(statusItems);
@@ -597,7 +601,7 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
   <div class="toolbar">
     <input id="busca" placeholder="🔍 Buscar por ID, equipamento, patrimônio ou série..." style="flex:1;min-width:220px" oninput="filtrar()">
     <select id="f-tipo" onchange="filtrar()"><option value="">Interno + Externo</option>${TIPOS_PARQUE.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
-    <select id="f-categoria" onchange="filtrar()"><option value="">Todas categorias</option>${CATEGORIAS.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
+    <select id="f-categoria" onchange="filtrar()"><option value="">Todas categorias</option>${categoriasTodas.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
     <select id="f-local" onchange="filtrar()"><option value="">Toda alocação</option>${LOCAIS.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>
     <select id="f-status" onchange="filtrar()"><option value="">Todo status</option>${STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
     <button class="btn primary" onclick="abrirCadastro()">+ Cadastrar equipamento</button>
@@ -618,7 +622,7 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
 <div class="modal-bg" id="modal-cadastro"><div class="modal">
   <h3>Cadastrar equipamento</h3>
   <div class="field"><label>Categoria</label><input id="c-categoria" list="lista-categorias"></div>
-  <datalist id="lista-categorias">${CATEGORIAS.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+  <datalist id="lista-categorias">${categoriasTodas.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
   <div class="field"><label>Equipamento</label><input id="c-equipamento"></div>
   <div class="field"><label>Nº Patrimônio</label><input id="c-patrimonio"></div>
   <div class="field"><label>Nº Série</label><input id="c-serie"></div>
