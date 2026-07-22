@@ -17,6 +17,7 @@
     { "source": "/api/setup-sheets", "destination": "/api/setup-bundle?_route=setup-sheets" },
     { "source": "/api/setup-equipamentos-lote", "destination": "/api/setup-bundle?_route=setup-equipamentos-lote" },
     { "source": "/api/setup-equipamentos-lote-externo", "destination": "/api/setup-bundle?_route=setup-equipamentos-lote-externo" },
+    { "source": "/api/setup-equipamentos-lote-telefones", "destination": "/api/setup-bundle?_route=setup-equipamentos-lote-telefones" },
 
     { "source": "/api/equipe", "destination": "/api/gestao-bundle?_route=equipe" },
     { "source": "/api/equipe-view", "destination": "/api/gestao-bundle?_route=equipe-view" },
