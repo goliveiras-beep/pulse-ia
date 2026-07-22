@@ -64,8 +64,8 @@ function esc(s) { return String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot
 
 const TIPOS_PROBLEMA = ['Defeito', 'Manutenção preventiva', 'Perda/Extravio', 'Dano', 'Outro'];
 const PRIORIDADES = ['Baixa', 'Média', 'Alta', 'Urgente'];
-const STATUS_CHAMADO = ['Aberto', 'Em andamento', 'Aguardando peça', 'Resolvido', 'Cancelado'];
-const STATUS_FECHADO = ['Resolvido', 'Cancelado'];
+const STATUS_CHAMADO = ['Aberto', 'Em andamento', 'Aguardando peça', 'Finalizado', 'Cancelado'];
+const STATUS_FECHADO = ['Finalizado', 'Cancelado'];
 
 async function registrarMovimentacaoEquipamento({ id, equipamento, de, para, responsavel, observacao, tipo }) {
   const linha = await proximaLinhaLivre('MovimentacoesEquipamento');
@@ -74,18 +74,47 @@ async function registrarMovimentacaoEquipamento({ id, equipamento, de, para, res
   ]], linha);
 }
 
+// Expande a grade da aba Chamados antes de escrever numa coluna nova (senão a API rejeita
+// escrita fora dos limites atuais — mesmo bug já corrigido em Equipamentos) e escreve o
+// cabeçalho se estiver faltando.
+async function garantirColunaChamados(sheets, letra, indiceColuna, nomeCabecalho) {
+  try {
+    const atual = await getSheet(`Chamados!${letra}1:${letra}1`);
+    if (atual[0]?.[0]) return;
+    const chSheetMeta = sheets.find(s => s.properties.title === 'Chamados');
+    const colAtual = chSheetMeta?.properties.gridProperties?.columnCount || 12;
+    if (colAtual < indiceColuna) {
+      await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
+        requests: [{
+          updateSheetProperties: {
+            properties: { sheetId: chSheetMeta.properties.sheetId, gridProperties: { columnCount: indiceColuna } },
+            fields: 'gridProperties.columnCount'
+          }
+        }]
+      });
+    }
+    await setSheet(`Chamados!${letra}1`, [[nomeCabecalho]]);
+  } catch {
+    // linhas sem essa coluna continuam com o campo tratado como vazio na leitura
+  }
+}
+
 async function garantirAbaChamados() {
   const spreadsheet = await sheetsRequest(SHEET_ID, '');
   const sheets = spreadsheet.sheets || [];
   const temChamados = sheets.some(s => s.properties.title === 'Chamados');
   if (!temChamados) {
     await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
-      requests: [{ addSheet: { properties: { title: 'Chamados', gridProperties: { rowCount: 2000, columnCount: 12 } } } }]
+      requests: [{ addSheet: { properties: { title: 'Chamados', gridProperties: { rowCount: 2000, columnCount: 14 } } } }]
     });
-    await setSheet('Chamados!A1:L1', [[
+    await setSheet('Chamados!A1:N1', [[
       'ID', 'ID Equipamento', 'Equipamento', 'Tipo de Problema', 'Prioridade', 'Descrição',
-      'Status', 'Aberto Por', 'Data Abertura', 'Responsável pelo Reparo', 'Data Última Atualização', 'Solução'
+      'Status', 'Aberto Por', 'Data Abertura', 'Responsável pelo Reparo', 'Data Última Atualização', 'Solução',
+      'Peças/Componentes Utilizados', 'Valor do Serviço (R$)'
     ]]);
+  } else {
+    await garantirColunaChamados(sheets, 'M', 13, 'Peças/Componentes Utilizados');
+    await garantirColunaChamados(sheets, 'N', 14, 'Valor do Serviço (R$)');
   }
 }
 
@@ -112,15 +141,16 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Acesso negado' });
   }
   const isGestor = usuario[8] === 'gestor';
+  const nomesEquipe = equipeRaw.filter(r => r[0] && (r[10]||'ativo') === 'ativo').map(r => r[0]).sort((a,b) => a.localeCompare(b,'pt'));
 
   await garantirAbaChamados();
 
   if (req.method === 'GET') {
     const [chamadosRaw, equipamentosRaw] = await Promise.all([
-      getSheet('Chamados!A2:L2000'),
+      getSheet('Chamados!A2:N2000'),
       getSheet('Equipamentos!A2:O3000'),
     ]);
-    return renderChamados(res, session, isGestor, chamadosRaw, equipamentosRaw);
+    return renderChamados(res, session, isGestor, chamadosRaw, equipamentosRaw, nomesEquipe);
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
@@ -142,13 +172,13 @@ export default async function handler(req, res) {
     const statusAnterior = equipRow[5] || 'Operacional';
     const linhaEquip = idxEquip + 2;
 
-    const chamadosRaw = await getSheet('Chamados!A2:L2000');
+    const chamadosRaw = await getSheet('Chamados!A2:N2000');
     const id = proximoChamadoId(chamadosRaw);
     const agora = fmtTimestamp(getBRT());
     const linha = await proximaLinhaLivre('Chamados');
-    await inserirLinhas('Chamados', 'L', [[
+    await inserirLinhas('Chamados', 'N', [[
       id, idEquipamento.trim(), nomeEquip, tipoProblema, prioridade, descricao.trim(),
-      'Aberto', session.nome, agora, '', agora, ''
+      'Aberto', session.nome, agora, '', agora, '', '', ''
     ]], linha);
 
     await setSheet(`Equipamentos!F${linhaEquip}:H${linhaEquip}`, [['Em manutenção', equipRow[6]||'', agora]]);
@@ -160,20 +190,40 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, id, msg: `Chamado ${id} aberto para ${nomeEquip}` });
   }
 
-  if (action === 'atualizar') {
-    if (!isGestor) return res.status(403).json({ error: 'Apenas gestores podem gerenciar chamados' });
-    const { id, novoStatus, responsavel, solucao } = req.body || {};
-    if (!STATUS_CHAMADO.includes(novoStatus)) return res.status(400).json({ error: 'Status inválido' });
-
-    const chamadosRaw = await getSheet('Chamados!A2:L2000');
+  if (action === 'pegar') {
+    // Qualquer pessoa autenticada pode pegar um chamado pra si — não precisa ser gestor pra
+    // assumir a execução do reparo. Se ainda estava só "Aberto", assumir já conta como começar
+    // a olhar o problema, então avança pra "Em andamento" sozinho.
+    const { id } = req.body || {};
+    const chamadosRaw = await getSheet('Chamados!A2:N2000');
     const idx = chamadosRaw.findIndex(r => r[0] === id);
     if (idx < 0) return res.status(404).json({ error: 'Chamado não encontrado' });
     const row = chamadosRaw[idx];
     const linha = idx + 2;
     const agora = fmtTimestamp(getBRT());
+    const novoStatus = row[6] === 'Aberto' ? 'Em andamento' : (row[6] || 'Aberto');
+    await setSheet(`Chamados!G${linha}:K${linha}`, [[novoStatus, row[7]||'', row[8]||'', session.nome, agora]]);
+    return res.status(200).json({ ok: true, msg: `Chamado ${id} atribuído a você` });
+  }
 
-    await setSheet(`Chamados!G${linha}:L${linha}`, [[
-      novoStatus, row[7]||'', row[8]||'', responsavel||row[9]||'', agora, solucao||row[11]||''
+  if (action === 'atualizar') {
+    const { id, novoStatus, responsavel, solucao, pecasUtilizadas, valorReparo } = req.body || {};
+    if (!STATUS_CHAMADO.includes(novoStatus)) return res.status(400).json({ error: 'Status inválido' });
+
+    const chamadosRaw = await getSheet('Chamados!A2:N2000');
+    const idx = chamadosRaw.findIndex(r => r[0] === id);
+    if (idx < 0) return res.status(404).json({ error: 'Chamado não encontrado' });
+    const row = chamadosRaw[idx];
+    // Só gestor ou quem já é o responsável atual pelo chamado pode gerenciá-lo.
+    if (!isGestor && row[9] !== session.nome) {
+      return res.status(403).json({ error: 'Só o gestor ou quem está com o chamado pode gerenciá-lo' });
+    }
+    const linha = idx + 2;
+    const agora = fmtTimestamp(getBRT());
+
+    await setSheet(`Chamados!G${linha}:N${linha}`, [[
+      novoStatus, row[7]||'', row[8]||'', responsavel??row[9]??'', agora, solucao??row[11]??'',
+      pecasUtilizadas??row[12]??'', valorReparo??row[13]??''
     ]]);
 
     if (STATUS_FECHADO.includes(novoStatus)) {
@@ -332,11 +382,12 @@ ${scriptExtra}
 </html>`;
 }
 
-function renderChamados(res, session, isGestor, chamadosRaw, equipamentosRaw) {
+function renderChamados(res, session, isGestor, chamadosRaw, equipamentosRaw, nomesEquipe) {
   const chamados = chamadosRaw.filter(r => r[0]).map(r => ({
     id: r[0], idEquipamento: r[1]||'', equipamento: r[2]||'', tipoProblema: r[3]||'', prioridade: r[4]||'Baixa',
     descricao: r[5]||'', status: r[6]||'Aberto', abertoPor: r[7]||'', dataAbertura: r[8]||'',
-    responsavel: r[9]||'', dataAtualizacao: r[10]||'', solucao: r[11]||''
+    responsavel: r[9]||'', dataAtualizacao: r[10]||'', solucao: r[11]||'',
+    pecasUtilizadas: r[12]||'', valorReparo: r[13]||''
   })).reverse();
 
   const equipamentosOpcoes = equipamentosRaw.filter(r => r[0]).map(r => ({ id: r[0], nome: r[2]||'', alocacao: r[6]||'' }));
@@ -344,13 +395,13 @@ function renderChamados(res, session, isGestor, chamadosRaw, equipamentosRaw) {
   const abertos = chamados.filter(c => c.status === 'Aberto').length;
   const andamento = chamados.filter(c => c.status === 'Em andamento' || c.status === 'Aguardando peça').length;
   const urgentes = chamados.filter(c => c.prioridade === 'Urgente' && !STATUS_FECHADO.includes(c.status)).length;
-  const resolvidos = chamados.filter(c => c.status === 'Resolvido').length;
+  const finalizados = chamados.filter(c => c.status === 'Finalizado').length;
 
   const kpiHTML = [
     `<div class="stat"><div class="ic" style="background:var(--blue-m-bg)">🎫</div><div><div class="n">${abertos}</div><div class="l">Abertos</div></div></div>`,
     `<div class="stat"><div class="ic" style="background:var(--badge-amber-bg)">🔧</div><div><div class="n" style="color:var(--badge-amber-c)">${andamento}</div><div class="l">Em andamento</div></div></div>`,
     `<div class="stat"><div class="ic" style="background:var(--badge-red-bg)">🔥</div><div><div class="n" style="color:var(--badge-red-c)">${urgentes}</div><div class="l">Urgentes em aberto</div></div></div>`,
-    `<div class="stat"><div class="ic" style="background:var(--badge-green-bg)">✅</div><div><div class="n" style="color:var(--badge-green-c)">${resolvidos}</div><div class="l">Resolvidos</div></div></div>`,
+    `<div class="stat"><div class="ic" style="background:var(--badge-green-bg)">✅</div><div><div class="n" style="color:var(--badge-green-c)">${finalizados}</div><div class="l">Finalizados</div></div></div>`,
   ].join('');
 
   const conteudo = `
@@ -369,7 +420,7 @@ ${headerHTML(session.nome, isGestor, `${chamados.length} chamados registrados`)}
     <table id="tabela">
       <thead><tr>
         <th>ID</th><th>Equipamento</th><th>Tipo</th><th>Prioridade</th><th>Status</th>
-        <th>Descrição</th><th>Aberto por</th><th>Quando</th><th>Responsável</th>${isGestor?'<th>Ações</th>':''}
+        <th>Descrição</th><th>Aberto por</th><th>Quando</th><th>Responsável</th><th>Ações</th>
       </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
@@ -389,7 +440,9 @@ ${headerHTML(session.nome, isGestor, `${chamados.length} chamados registrados`)}
 <div class="modal-bg" id="modal-gerenciar"><div class="modal">
   <h3>Gerenciar chamado</h3>
   <div class="field"><label>Status</label><select id="g-status">${STATUS_CHAMADO.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select></div>
-  <div class="field"><label>Responsável pelo reparo</label><input id="g-responsavel"></div>
+  <div class="field"><label>Responsável pelo reparo</label><select id="g-responsavel"><option value="">— Ninguém —</option>${nomesEquipe.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select></div>
+  <div class="field"><label>Peças/componentes utilizados</label><textarea id="g-pecas" rows="2" placeholder="Ex: 2x rolamento X, cabo Y..."></textarea></div>
+  <div class="field"><label>Valor do serviço de reparo (R$)</label><input id="g-valor" type="number" step="0.01" min="0" placeholder="0,00"></div>
   <div class="field"><label>Solução / observação</label><textarea id="g-solucao" rows="3"></textarea></div>
   <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarGerenciar()">Salvar</button></div>
 </div></div>
@@ -399,16 +452,20 @@ ${headerHTML(session.nome, isGestor, `${chamados.length} chamados registrados`)}
 const CHAMADOS = ${JSON.stringify(chamados)};
 const EQUIP_MAP = ${JSON.stringify(Object.fromEntries(equipamentosOpcoes.map(e => [e.id, e.nome])))};
 const IS_GESTOR = ${isGestor ? 'true' : 'false'};
+const MEU_NOME = ${JSON.stringify(session.nome)};
 let idAtual = null;
 let equipSelecionado = '';
 
 function escHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function prioCls(p){ return p==='Baixa'?'blue':p==='Média'?'amber':'red'; }
-function statusCls(s){ return s==='Aberto'?'blue':s==='Resolvido'?'green':s==='Cancelado'?'gray':'amber'; }
+function statusCls(s){ return s==='Aberto'?'blue':s==='Finalizado'?'green':s==='Cancelado'?'gray':'amber'; }
 
 function linhaHTML(c){
   var prioBadge = '<span class="badge '+prioCls(c.prioridade)+(c.prioridade==='Urgente'?' urgente':'')+'">'+escHtml(c.prioridade)+'</span>';
-  var acoes = IS_GESTOR ? ('<td class="acoes"><button onclick="abrirGerenciar(\\''+c.id+'\\')">Gerenciar</button></td>') : '';
+  var podeGerenciar = IS_GESTOR || c.responsavel === MEU_NOME;
+  var botoes = '';
+  if (!c.responsavel) botoes += '<button onclick="pegarChamado(\\''+c.id+'\\')">🙋 Pegar pra mim</button>';
+  if (podeGerenciar) botoes += '<button onclick="abrirGerenciar(\\''+c.id+'\\')">Gerenciar</button>';
   return '<tr>'
     + '<td>'+escHtml(c.id)+'</td>'
     + '<td>'+escHtml(c.equipamento)+' <span style="color:var(--text3);font-size:10px">'+escHtml(c.idEquipamento)+'</span></td>'
@@ -419,7 +476,7 @@ function linhaHTML(c){
     + '<td>'+escHtml(c.abertoPor)+'</td>'
     + '<td>'+escHtml(c.dataAbertura)+'</td>'
     + '<td>'+escHtml(c.responsavel||'—')+'</td>'
-    + acoes
+    + '<td class="acoes">'+(botoes||'—')+'</td>'
     + '</tr>';
 }
 
@@ -433,8 +490,14 @@ function filtrar(){
     if (busca && !(c.equipamento+' '+c.tipoProblema+' '+c.descricao+' '+c.idEquipamento).toLowerCase().includes(busca)) return false;
     return true;
   });
-  var colspan = IS_GESTOR ? 10 : 9;
-  document.getElementById('tbody').innerHTML = filtrados.map(linhaHTML).join('') || ('<tr><td colspan="'+colspan+'" style="text-align:center;color:var(--text3);padding:20px">Nenhum chamado encontrado</td></tr>');
+  document.getElementById('tbody').innerHTML = filtrados.map(linhaHTML).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px">Nenhum chamado encontrado</td></tr>';
+}
+
+async function pegarChamado(id){
+  var r = await fetch('/api/chamados', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'pegar',id:id})});
+  var d = await r.json();
+  if (!r.ok) return alert(d.error||'Erro ao pegar chamado');
+  location.reload();
 }
 
 function fecharModais(){ document.querySelectorAll('.modal-bg').forEach(function(m){ m.classList.remove('open'); }); idAtual = null; }
@@ -471,6 +534,8 @@ function abrirGerenciar(id){
   if (!c) return;
   document.getElementById('g-status').value = c.status;
   document.getElementById('g-responsavel').value = c.responsavel;
+  document.getElementById('g-pecas').value = c.pecasUtilizadas;
+  document.getElementById('g-valor').value = c.valorReparo;
   document.getElementById('g-solucao').value = c.solucao;
   document.getElementById('modal-gerenciar').classList.add('open');
 }
@@ -479,6 +544,8 @@ async function salvarGerenciar(){
     action: 'atualizar', id: idAtual,
     novoStatus: document.getElementById('g-status').value,
     responsavel: document.getElementById('g-responsavel').value,
+    pecasUtilizadas: document.getElementById('g-pecas').value,
+    valorReparo: document.getElementById('g-valor').value,
     solucao: document.getElementById('g-solucao').value,
   };
   var r = await fetch('/api/chamados', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
