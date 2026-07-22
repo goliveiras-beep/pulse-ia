@@ -620,7 +620,7 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
   </div>
 
   <div class="toolbar">
-    <input id="busca" placeholder="🔍 Buscar por ID, equipamento, patrimônio ou série..." style="flex:1;min-width:220px" oninput="filtrar()">
+    <input id="busca" placeholder="🔍 Buscar por ID, equipamento, série, local, IMEI, Anatel, chip..." style="flex:1;min-width:220px" oninput="filtrar()">
     <select id="f-tipo" onchange="filtrar()"><option value="">Interno + Externo</option>${TIPOS_PARQUE.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
     <select id="f-categoria" onchange="filtrar()"><option value="">Todas categorias</option>${categoriasTodas.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
     <select id="f-local" onchange="filtrar()"><option value="">Toda alocação</option>${locaisTodos.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>
@@ -739,7 +739,7 @@ function filtrar(){
     if (fc && u.categoria !== fc) return false;
     if (fl && u.alocacao !== fl) return false;
     if (fs && u.status !== fs) return false;
-    if (busca && !(u.id+u.equipamento+u.patrimonio+u.serie).toLowerCase().includes(busca)) return false;
+    if (busca && !(u.id+' '+u.categoria+' '+u.equipamento+' '+u.patrimonio+' '+u.serie+' '+u.alocacao+' '+u.status+' '+u.observacao+' '+(u.anatel||'')+' '+(u.imeiEsim||'')+' '+(u.imeiFisico||'')+' '+(u.chip||'')).toLowerCase().includes(busca)) return false;
     return true;
   });
   document.getElementById('tbody').innerHTML = filtradas.map(linhaHTML).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px">Nenhum equipamento encontrado</td></tr>';
