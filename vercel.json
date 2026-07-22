@@ -19,6 +19,7 @@
     { "source": "/api/setup-equipamentos-lote-externo", "destination": "/api/setup-bundle?_route=setup-equipamentos-lote-externo" },
     { "source": "/api/setup-equipamentos-lote-telefones", "destination": "/api/setup-bundle?_route=setup-equipamentos-lote-telefones" },
     { "source": "/api/setup-migrar-telefones-colunas", "destination": "/api/setup-bundle?_route=setup-migrar-telefones-colunas" },
+    { "source": "/api/setup-recategorizar-celulares", "destination": "/api/setup-bundle?_route=setup-recategorizar-celulares" },
 
     { "source": "/api/equipe", "destination": "/api/gestao-bundle?_route=equipe" },
     { "source": "/api/equipe-view", "destination": "/api/gestao-bundle?_route=equipe-view" },
