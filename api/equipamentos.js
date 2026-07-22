@@ -542,6 +542,13 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
   // Locais reais (lista fixa da base + qualquer alocação nova, ex: locais de texto livre do parque externo)
   const locaisExtras = [...new Set(unidades.map(u => u.alocacao))].filter(l => l && !LOCAIS.includes(l)).sort((a,b) => a.localeCompare(b, 'pt'));
   const locaisTodos = [...LOCAIS, ...locaisExtras];
+  // Tipo de Parque de cada local — locais fixos são sempre Interno; locais dinâmicos (texto
+  // livre do parque externo) herdam o tipo real das unidades que estão lá. Usado no cliente
+  // pra manter o filtro de Alocação coerente com o filtro de Tipo de Parque selecionado.
+  const localTipoMap = {};
+  for (const l of locaisTodos) {
+    localTipoMap[l] = LOCAIS.includes(l) ? ['Interno'] : [...new Set(unidades.filter(u => u.alocacao === l).map(u => u.tipoParque))];
+  }
 
   const macroHTML = `
     <button type="button" class="macro-card interno" onclick="irParaTipo('Interno')">
@@ -621,7 +628,7 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
 
   <div class="toolbar">
     <input id="busca" placeholder="🔍 Buscar por ID, equipamento, série, local, IMEI, Anatel, chip..." style="flex:1;min-width:220px" oninput="filtrar()">
-    <select id="f-tipo" onchange="filtrar()"><option value="">Interno + Externo</option>${TIPOS_PARQUE.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
+    <select id="f-tipo" onchange="onTipoChange()"><option value="">Interno + Externo</option>${TIPOS_PARQUE.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
     <select id="f-categoria" onchange="filtrar()"><option value="">Todas categorias</option>${categoriasTodas.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
     <select id="f-local" onchange="filtrar()"><option value="">Toda alocação</option>${locaisTodos.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>
     <select id="f-status" onchange="filtrar()"><option value="">Todo status</option>${STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
@@ -694,6 +701,8 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
 
   const script = `
 const UNIDADES = ${JSON.stringify(unidades)};
+const LOCAL_TIPO = ${JSON.stringify(localTipoMap)};
+const LOCAIS_ORDEM = ${JSON.stringify(locaisTodos)};
 let idAtual = null;
 
 function badgeCls(s){ return s==='Operacional'?'green':s==='Em manutenção'?'amber':s==='Baixado'?'red':'blue'; }
@@ -754,8 +763,31 @@ function atualizarMacroCards(tipo){
   if (el) el.style.outline = '2px solid var(--blue)';
 }
 
+// Mantém o dropdown de Alocação coerente com o Tipo de Parque selecionado — um local Interno
+// (ex: PD 5) não existe combinado com Tipo=Externo, então some da lista pra não dar "0 resultados"
+// sem explicação; se a alocação atual não existir mais nesse tipo, o filtro reseta pra "Toda alocação".
+function rebuildFiltroLocal(tipo){
+  const sel = document.getElementById('f-local');
+  const atual = sel.value;
+  let opts = '<option value="">Toda alocação</option>';
+  LOCAIS_ORDEM.forEach(function(l){
+    const tipos = LOCAL_TIPO[l] || [];
+    if (!tipo || tipos.indexOf(tipo) !== -1) opts += '<option value="'+escHtml(l)+'">'+escHtml(l)+'</option>';
+  });
+  sel.innerHTML = opts;
+  const aindaValido = Array.prototype.some.call(sel.options, function(o){ return o.value === atual; });
+  sel.value = aindaValido ? atual : '';
+}
+
+function onTipoChange(){
+  rebuildFiltroLocal(document.getElementById('f-tipo').value);
+  filtrar();
+}
+
 function irParaTipo(tipo){
   document.getElementById('f-tipo').value = tipo;
+  rebuildFiltroLocal(tipo);
+  document.getElementById('f-local').value = '';
   filtrar();
   document.getElementById('tabela').scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -773,6 +805,10 @@ function atualizarPills(local){
 }
 
 function irParaLocal(local){
+  const tipos = local ? (LOCAL_TIPO[local] || []) : [];
+  const tipoAlvo = tipos.length === 1 ? tipos[0] : '';
+  document.getElementById('f-tipo').value = tipoAlvo;
+  rebuildFiltroLocal(tipoAlvo);
   document.getElementById('f-local').value = local;
   filtrar();
   document.getElementById('tabela').scrollIntoView({behavior:'smooth', block:'start'});
