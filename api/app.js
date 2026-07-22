@@ -947,7 +947,8 @@ export default async function handler(req, res) {
     </div>
   </div>
 
-  <div style="text-align:right;margin-bottom:8px">
+  <div style="text-align:right;margin-bottom:8px;display:flex;gap:14px;justify-content:flex-end">
+    <a href="/api/chamados" style="font-size:11px;color:var(--text3);text-decoration:underline">🎫 Abrir chamado de equipamento</a>
     <a href="/api/escalas?v=semana" style="font-size:11px;color:var(--text3);text-decoration:underline">Ver escala de todos &rarr;</a>
   </div>
 
@@ -1532,6 +1533,7 @@ setInterval(atualizarEventos, 60000);
         <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
         <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
         <a href="/api/equipamentos" class="menu-item">&#128230; Equipamentos</a>
+        <a href="/api/chamados" class="menu-item">&#127915; Chamados</a>
         <div style="height:1px;background:var(--border);margin:2px 0"></div>
         <form method="POST" action="/api/app?action=logout" style="margin:0">
           <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
