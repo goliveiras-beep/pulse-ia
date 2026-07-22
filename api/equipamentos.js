@@ -91,6 +91,31 @@ const CATALOGO_PADRAO = [
 ];
 const CATEGORIAS = [...new Set(CATALOGO_PADRAO.map(i => i.categoria))];
 
+// Garante que uma coluna nova exista na aba Equipamentos: expande a grade antes de escrever
+// (padrão igual ao setup-auth.js — a API rejeita escrita fora dos limites atuais da grade) e
+// escreve o cabeçalho se estiver faltando. Nunca deixa a migração derrubar a página inteira.
+async function garantirColuna(sheets, letra, indiceColuna, nomeCabecalho) {
+  try {
+    const atual = await getSheet(`Equipamentos!${letra}1:${letra}1`);
+    if (atual[0]?.[0]) return;
+    const eqSheetMeta = sheets.find(s => s.properties.title === 'Equipamentos');
+    const colAtual = eqSheetMeta?.properties.gridProperties?.columnCount || 10;
+    if (colAtual < indiceColuna) {
+      await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
+        requests: [{
+          updateSheetProperties: {
+            properties: { sheetId: eqSheetMeta.properties.sheetId, gridProperties: { columnCount: indiceColuna } },
+            fields: 'gridProperties.columnCount'
+          }
+        }]
+      });
+    }
+    await setSheet(`Equipamentos!${letra}1`, [[nomeCabecalho]]);
+  } catch {
+    // linhas sem essa coluna continuam com o campo tratado como vazio/padrão na leitura
+  }
+}
+
 async function garantirAbas() {
   const spreadsheet = await sheetsRequest(SHEET_ID, '');
   const sheets = spreadsheet.sheets || [];
@@ -99,37 +124,20 @@ async function garantirAbas() {
 
   if (!temEquipamentos) {
     await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
-      requests: [{ addSheet: { properties: { title: 'Equipamentos', gridProperties: { rowCount: 2000, columnCount: 11 } } } }]
+      requests: [{ addSheet: { properties: { title: 'Equipamentos', gridProperties: { rowCount: 2000, columnCount: 15 } } } }]
     });
-    await setSheet('Equipamentos!A1:K1', [[
-      'ID','Categoria','Equipamento','Patrimônio','Série','Status','Alocação atual','Data última movimentação','Observação','Data cadastro','Tipo de Parque'
+    await setSheet('Equipamentos!A1:O1', [[
+      'ID','Categoria','Equipamento','Patrimônio','Série','Status','Alocação atual','Data última movimentação','Observação','Data cadastro','Tipo de Parque',
+      'Anatel','IMEI eSIM','IMEI Físico','Chip/Telefone'
     ]]);
   } else {
-    // Migração: abas criadas antes do campo Tipo de Parque não têm a coluna K — expande a
-    // grade (padrão igual ao setup-auth.js) antes de escrever, senão a API rejeita a escrita
-    // fora dos limites atuais da grade, e adiciona o cabeçalho se faltar (linhas existentes
-    // ficam sem valor, tratado como 'Interno' na leitura).
-    try {
-      const cabecalhoK = await getSheet('Equipamentos!K1:K1');
-      if (!cabecalhoK[0]?.[0]) {
-        const eqSheetMeta = sheets.find(s => s.properties.title === 'Equipamentos');
-        const colAtual = eqSheetMeta?.properties.gridProperties?.columnCount || 10;
-        if (colAtual < 11) {
-          await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
-            requests: [{
-              updateSheetProperties: {
-                properties: { sheetId: eqSheetMeta.properties.sheetId, gridProperties: { columnCount: 11 } },
-                fields: 'gridProperties.columnCount'
-              }
-            }]
-          });
-        }
-        await setSheet('Equipamentos!K1', [['Tipo de Parque']]);
-      }
-    } catch {
-      // Não deixa a página inteira cair se a migração falhar por algum motivo inesperado —
-      // linhas sem coluna K continuam sendo tratadas como 'Interno' na leitura.
-    }
+    // Migração: abas criadas antes de campos novos não têm essas colunas — adiciona uma por
+    // uma se faltar (linhas existentes ficam com o campo vazio, tratado como padrão na leitura).
+    await garantirColuna(sheets, 'K', 11, 'Tipo de Parque');
+    await garantirColuna(sheets, 'L', 12, 'Anatel');
+    await garantirColuna(sheets, 'M', 13, 'IMEI eSIM');
+    await garantirColuna(sheets, 'N', 14, 'IMEI Físico');
+    await garantirColuna(sheets, 'O', 15, 'Chip/Telefone');
   }
   if (!temMovimentacoes) {
     await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
@@ -150,12 +158,12 @@ async function semearCatalogoPadrao() {
     for (const item of CATALOGO_PADRAO) {
       for (let u = 0; u < item.qtdPorPd; u++) {
         const id = 'EQP-' + String(seq).padStart(4,'0');
-        linhas.push([id, item.categoria, item.equipamento, '', '', 'Operacional', pd, agora, '', agora, 'Interno']);
+        linhas.push([id, item.categoria, item.equipamento, '', '', 'Operacional', pd, agora, '', agora, 'Interno', '', '', '', '']);
         seq++;
       }
     }
   }
-  await inserirLinhas('Equipamentos', 'K', linhas, 2);
+  await inserirLinhas('Equipamentos', 'O', linhas, 2);
   await inserirLinhas('MovimentacoesEquipamento', 'H', [[
     agora, '—', '—', '—', 'Carga inicial', 'Sistema', `Seed automático — ${linhas.length} unidades`, 'cadastro'
   ]], 2);
@@ -201,7 +209,7 @@ export default async function handler(req, res) {
       return renderHistorico(res, session, movRaw);
     }
     const [equipamentosRaw, movRaw] = await Promise.all([
-      getSheet('Equipamentos!A2:K3000'),
+      getSheet('Equipamentos!A2:O3000'),
       getSheet('MovimentacoesEquipamento!A2:H5000'),
     ]);
     return renderInventario(res, session, equipamentosRaw, movRaw);
@@ -210,10 +218,10 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
   const { action } = req.body || {};
-  const equipamentosRaw = await getSheet('Equipamentos!A2:K3000');
+  const equipamentosRaw = await getSheet('Equipamentos!A2:O3000');
 
   if (action === 'cadastrar') {
-    const { categoria, equipamento, patrimonio, serie, alocacao, observacao, tipoParque } = req.body || {};
+    const { categoria, equipamento, patrimonio, serie, alocacao, observacao, tipoParque, anatel, imeiEsim, imeiFisico, chip } = req.body || {};
     if (!categoria?.trim() || !equipamento?.trim()) return res.status(400).json({ error: 'Categoria e equipamento são obrigatórios' });
     const tipo = TIPOS_PARQUE.includes(tipoParque) ? tipoParque : 'Interno';
     const local = tipo === 'Externo'
@@ -222,8 +230,9 @@ export default async function handler(req, res) {
     const id = proximoId(equipamentosRaw);
     const agora = fmtTimestamp(getBRT());
     const linha = await proximaLinhaLivre('Equipamentos');
-    await inserirLinhas('Equipamentos', 'K', [[
-      id, categoria.trim(), equipamento.trim(), patrimonio||'', serie||'', 'Operacional', local, agora, observacao||'', agora, tipo
+    await inserirLinhas('Equipamentos', 'O', [[
+      id, categoria.trim(), equipamento.trim(), patrimonio||'', serie||'', 'Operacional', local, agora, observacao||'', agora, tipo,
+      anatel||'', imeiEsim||'', imeiFisico||'', chip||''
     ]], linha);
     await registrarMovimentacao({ id, equipamento: equipamento.trim(), de: '—', para: `${local} (${tipo})`, responsavel: session.nome, observacao, tipo: 'cadastro' });
     return res.status(200).json({ ok: true, id, msg: `${equipamento.trim()} cadastrado em ${local}` });
@@ -261,10 +270,11 @@ export default async function handler(req, res) {
   }
 
   if (action === 'editar') {
-    const { categoria, equipamento, patrimonio, serie, observacao } = req.body || {};
+    const { categoria, equipamento, patrimonio, serie, observacao, anatel, imeiEsim, imeiFisico, chip } = req.body || {};
     if (!categoria?.trim() || !equipamento?.trim()) return res.status(400).json({ error: 'Categoria e equipamento são obrigatórios' });
     await setSheet(`Equipamentos!B${linha}:E${linha}`, [[categoria.trim(), equipamento.trim(), patrimonio||'', serie||'']]);
     await setSheet(`Equipamentos!I${linha}`, [[observacao||'']]);
+    await setSheet(`Equipamentos!L${linha}:O${linha}`, [[anatel||'', imeiEsim||'', imeiFisico||'', chip||'']]);
     await registrarMovimentacao({ id: row[0], equipamento: equipamento.trim(), de: '—', para: '—', responsavel: session.nome, observacao: 'Dados editados', tipo: 'edicao' });
     return res.status(200).json({ ok: true, msg: 'Dados atualizados' });
   }
@@ -400,6 +410,12 @@ tr:last-child td{border-bottom:none}
 .field label{display:block;font-size:11px;font-weight:600;color:var(--text3);margin-bottom:4px;text-transform:uppercase}
 .field input,.field select,.field textarea{width:100%;border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;background:var(--bg2);color:var(--text);outline:none}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.tel-details{margin:4px 0 10px;border:1px solid var(--border);border-radius:8px;padding:2px 10px}
+.tel-details summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--text2);padding:8px 0;list-style:none}
+.tel-details summary::-webkit-details-marker{display:none}
+.tel-details[open] summary{border-bottom:1px solid var(--border2);margin-bottom:8px}
+.tel-details .field{margin-bottom:8px}
+.info-ic{cursor:help;font-size:11px;color:var(--text3);margin-left:4px}
 `;
 }
 
@@ -507,7 +523,8 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
   const unidades = equipamentosRaw.filter(r => r[0]).map(r => ({
     id: r[0], categoria: r[1]||'', equipamento: r[2]||'', patrimonio: r[3]||'', serie: r[4]||'',
     status: r[5]||'Operacional', alocacao: r[6]||'Estoque', dataMov: r[7]||'', observacao: r[8]||'', dataCadastro: r[9]||'',
-    tipoParque: TIPOS_PARQUE.includes(r[10]) ? r[10] : 'Interno'
+    tipoParque: TIPOS_PARQUE.includes(r[10]) ? r[10] : 'Interno',
+    anatel: r[11]||'', imeiEsim: r[12]||'', imeiFisico: r[13]||'', chip: r[14]||''
   }));
 
   const porCategoria = {};
@@ -634,6 +651,13 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
   <div class="field" id="c-alocacao-interno-wrap"><label>Alocação inicial</label><select id="c-alocacao-interno">${LOCAIS.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select></div>
   <div class="field" id="c-alocacao-externo-wrap" style="display:none"><label>Local / cliente (parque externo)</label><input id="c-alocacao-externo" placeholder="Ex: Cliente X - Evento Y"></div>
   <div class="field"><label>Observação</label><textarea id="c-observacao" rows="2"></textarea></div>
+  <details class="tel-details">
+    <summary>📱 Dados do telefone (opcional)</summary>
+    <div class="field"><label>Anatel</label><input id="c-anatel"></div>
+    <div class="field"><label>IMEI eSIM</label><input id="c-imei-esim"></div>
+    <div class="field"><label>IMEI Físico</label><input id="c-imei-fisico"></div>
+    <div class="field"><label>Chip/Telefone</label><input id="c-chip"></div>
+  </details>
   <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarCadastro()">Cadastrar</button></div>
 </div></div>
 
@@ -657,6 +681,13 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
   <div class="field"><label>Nº Patrimônio</label><input id="e-patrimonio"></div>
   <div class="field"><label>Nº Série</label><input id="e-serie"></div>
   <div class="field"><label>Observação</label><textarea id="e-observacao" rows="2"></textarea></div>
+  <details class="tel-details">
+    <summary>📱 Dados do telefone (opcional)</summary>
+    <div class="field"><label>Anatel</label><input id="e-anatel"></div>
+    <div class="field"><label>IMEI eSIM</label><input id="e-imei-esim"></div>
+    <div class="field"><label>IMEI Físico</label><input id="e-imei-fisico"></div>
+    <div class="field"><label>Chip/Telefone</label><input id="e-chip"></div>
+  </details>
   <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarEditar()">Salvar</button></div>
 </div></div>
 `;
@@ -668,7 +699,17 @@ let idAtual = null;
 function badgeCls(s){ return s==='Operacional'?'green':s==='Em manutenção'?'amber':s==='Baixado'?'red':'blue'; }
 function escHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+function telInfo(u){
+  var partes = [];
+  if (u.anatel) partes.push('Anatel: '+u.anatel);
+  if (u.imeiEsim) partes.push('IMEI eSIM: '+u.imeiEsim);
+  if (u.imeiFisico) partes.push('IMEI Físico: '+u.imeiFisico);
+  if (u.chip) partes.push('Chip: '+u.chip);
+  return partes.join(' | ');
+}
+
 function linhaHTML(u){
+  var tel = telInfo(u);
   return '<tr>'
     + '<td>'+escHtml(u.id)+'</td>'
     + '<td>'+escHtml(u.categoria)+'</td>'
@@ -678,7 +719,7 @@ function linhaHTML(u){
     + '<td><span class="badge '+badgeCls(u.status)+'">'+escHtml(u.status)+'</span></td>'
     + '<td>'+(u.tipoParque==='Externo'?'🌐 ':'🏠 ')+escHtml(u.alocacao)+'</td>'
     + '<td>'+escHtml(u.dataMov||'—')+'</td>'
-    + '<td>'+escHtml(u.observacao||'—')+'</td>'
+    + '<td>'+escHtml(u.observacao||'—')+(tel?' <span class="info-ic" title="'+escHtml(tel)+'">📱</span>':'')+'</td>'
     + '<td class="acoes">'
     +   '<button onclick="abrirMover(\\''+u.id+'\\')">Mover</button>'
     +   '<button onclick="abrirStatus(\\''+u.id+'\\')">Status</button>'
@@ -754,6 +795,10 @@ async function salvarCadastro(){
     tipoParque: tipo,
     alocacao: alocacao,
     observacao: document.getElementById('c-observacao').value,
+    anatel: document.getElementById('c-anatel').value,
+    imeiEsim: document.getElementById('c-imei-esim').value,
+    imeiFisico: document.getElementById('c-imei-fisico').value,
+    chip: document.getElementById('c-chip').value,
   };
   const r = await fetch('/api/equipamentos', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const d = await r.json();
@@ -798,6 +843,10 @@ function abrirEditar(id){
   document.getElementById('e-patrimonio').value = u.patrimonio;
   document.getElementById('e-serie').value = u.serie;
   document.getElementById('e-observacao').value = u.observacao;
+  document.getElementById('e-anatel').value = u.anatel||'';
+  document.getElementById('e-imei-esim').value = u.imeiEsim||'';
+  document.getElementById('e-imei-fisico').value = u.imeiFisico||'';
+  document.getElementById('e-chip').value = u.chip||'';
   document.getElementById('modal-editar').classList.add('open');
 }
 async function salvarEditar(){
@@ -808,6 +857,10 @@ async function salvarEditar(){
     patrimonio: document.getElementById('e-patrimonio').value,
     serie: document.getElementById('e-serie').value,
     observacao: document.getElementById('e-observacao').value,
+    anatel: document.getElementById('e-anatel').value,
+    imeiEsim: document.getElementById('e-imei-esim').value,
+    imeiFisico: document.getElementById('e-imei-fisico').value,
+    chip: document.getElementById('e-chip').value,
   };
   const r = await fetch('/api/equipamentos', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   const d = await r.json();

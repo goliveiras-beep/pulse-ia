@@ -11,6 +11,7 @@ import setupSheetsHandler from '../lib/routes/setup-sheets.js';
 import setupEquipamentosLoteHandler from '../lib/routes/setup-equipamentos-lote.js';
 import setupEquipamentosLoteExternoHandler from '../lib/routes/setup-equipamentos-lote-externo.js';
 import setupEquipamentosLoteTelefonesHandler from '../lib/routes/setup-equipamentos-lote-telefones.js';
+import setupMigrarTelefonesColunasHandler from '../lib/routes/setup-migrar-telefones-colunas.js';
 
 const ROUTES = {
   'setup-auth': setupAuthHandler,
@@ -21,6 +22,7 @@ const ROUTES = {
   'setup-equipamentos-lote': setupEquipamentosLoteHandler,
   'setup-equipamentos-lote-externo': setupEquipamentosLoteExternoHandler,
   'setup-equipamentos-lote-telefones': setupEquipamentosLoteTelefonesHandler,
+  'setup-migrar-telefones-colunas': setupMigrarTelefonesColunasHandler,
 };
 
 export default async function handler(req, res) {
