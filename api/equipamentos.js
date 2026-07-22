@@ -522,6 +522,9 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
   }
   // Categorias reais (catálogo padrão + qualquer categoria nova cadastrada, ex: Mobile/MoJo do parque externo)
   const categoriasTodas = [...new Set([...CATEGORIAS, ...unidades.map(u => u.categoria)])].filter(Boolean).sort((a,b) => a.localeCompare(b, 'pt'));
+  // Locais reais (lista fixa da base + qualquer alocação nova, ex: locais de texto livre do parque externo)
+  const locaisExtras = [...new Set(unidades.map(u => u.alocacao))].filter(l => l && !LOCAIS.includes(l)).sort((a,b) => a.localeCompare(b, 'pt'));
+  const locaisTodos = [...LOCAIS, ...locaisExtras];
 
   const macroHTML = `
     <button type="button" class="macro-card interno" onclick="irParaTipo('Interno')">
@@ -549,15 +552,16 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
     if (l.startsWith('PD')) return '🎬';
     if (l.startsWith('Switcher')) return '🎛️';
     if (l.startsWith('Estúdio')) return '🎥';
+    if (/KIT\s*MOJO/i.test(l)) return '🎒';
     return '📍';
   }
   const quickNavHTML = `<span class="section-label">📍 Acesso rápido por local</span><div class="quick-nav-row">`
     + `<button type="button" class="pill active" data-local="" onclick="irParaLocal('')">Todos <span class="c">${unidades.length}</span></button>`
-    + LOCAIS.map(l => `<button type="button" class="pill" data-local="${esc(l)}" onclick="irParaLocal('${esc(l)}')">${iconeLocal(l)} ${esc(l)} <span class="c">${porLocal[l]||0}</span></button>`).join('')
+    + locaisTodos.map(l => `<button type="button" class="pill" data-local="${esc(l)}" onclick="irParaLocal('${esc(l)}')">${iconeLocal(l)} ${esc(l)} <span class="c">${porLocal[l]||0}</span></button>`).join('')
     + `</div>`;
 
   const chartCategoria = barChartSVG(categoriasTodas.filter(c => porCategoria[c]).map(c => ({ label: c, value: porCategoria[c]||0, color: CAT_COR[c] || CAT_COR_PADRAO })));
-  const chartLocal = barChartSVG(LOCAIS.map(l => ({ label: l, value: porLocal[l]||0, color: 'var(--blue)' })));
+  const chartLocal = barChartSVG(locaisTodos.map(l => ({ label: l, value: porLocal[l]||0, color: 'var(--blue)' })));
   const statusItems = STATUSES.map(s => ({ label: s, value: porStatus[s]||0, color: STATUS_COR[s] }));
   const chartStatus = donutSVG(statusItems);
   const legendStatus = statusItems.map(it => `<div class="row"><i style="background:${it.color}"></i>${esc(it.label)}<span class="v">${it.value}</span></div>`).join('');
@@ -602,7 +606,7 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
     <input id="busca" placeholder="🔍 Buscar por ID, equipamento, patrimônio ou série..." style="flex:1;min-width:220px" oninput="filtrar()">
     <select id="f-tipo" onchange="filtrar()"><option value="">Interno + Externo</option>${TIPOS_PARQUE.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
     <select id="f-categoria" onchange="filtrar()"><option value="">Todas categorias</option>${categoriasTodas.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
-    <select id="f-local" onchange="filtrar()"><option value="">Toda alocação</option>${LOCAIS.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>
+    <select id="f-local" onchange="filtrar()"><option value="">Toda alocação</option>${locaisTodos.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>
     <select id="f-status" onchange="filtrar()"><option value="">Todo status</option>${STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
     <button class="btn primary" onclick="abrirCadastro()">+ Cadastrar equipamento</button>
     <a href="/api/equipamentos?v=historico" class="btn">Histórico de movimentações</a>
