@@ -342,7 +342,7 @@ export default async function handler(req, res) {
 
   const dfRepresentativo = datas.length ? (datas.includes(fmtData(hoje)) ? fmtData(hoje) : datas[0]) : fmtData(hoje);
 
-  const nomes = equipeRaw.map(r => r[0]);
+  const nomes = equipeRaw.filter(r => r[0]).map(r => r[0]);
   const analise = analisarEscala(escalaRaw, ausenciasRaw, nomes, datas);
 
   const resumoPessoa = {};
