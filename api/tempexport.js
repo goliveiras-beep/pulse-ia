@@ -4,7 +4,7 @@ export const config = { maxDuration: 30 };
 import { sheetsRequest } from '../lib/google-auth.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
-const NOMES = ['Alan Veiga', 'Rodrigo Cesar', 'Rodrigo Alcantara', 'Fabio Silva'];
+const NOMES = ['Alan Veiga', 'Rodrigo Cesar de Oliveira Pinheiro', 'Rodrigo Alcantara da Rocha', 'Fabio Silva'];
 
 function normalizar(s) { return String(s||'').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'').trim(); }
 function dfParaNum(df) { const [d,m] = String(df||'').split('/').map(Number); return m*100+d; }
