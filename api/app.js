@@ -431,14 +431,16 @@ function dentroAusencia(aus, df) {
   if (f >= i) return n >= i && n <= f;
   return n >= i || n <= f;
 }
-function cruzarEventos(eventos, escHoje, dataStr, ausencias) {
+function cruzarEventos(eventos, escHoje, dataStr, ausencias, equipeAtivos) {
   // Quem tem ausência aprovada (Férias/Folga/Atestado/etc, não-cancelada) cobrindo essa data
   // não deve aparecer como "cobrindo" o evento, mesmo que ainda tenha uma linha na Escala.
   const ausentesHoje = new Set((ausencias||[]).filter(a => a[0] !== 'CANCELADO' && dentroAusencia(a, dataStr)).map(a => a[1]));
+  // Linhas da Escala de gente que já saiu/foi desativada na Equipe não contam mais como cobertura.
+  const escValida = equipeAtivos ? escHoje.filter(r => equipeAtivos.has(r[2])) : escHoje;
   return eventos.map(ev => {
-    const disp = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && !ausentesHoje.has(r[2]) && estaDeServico(r[3], r[4], ev.hora, ev.horaFim, r[6]));
-    const atenc = escHoje.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && !ausentesHoje.has(r[2]) && statusTurno(r[3], r[4], ev.hora) !== null && !disp.find(d => d[2] === r[2]));
-    const aus = escHoje.filter(r => !disp.find(d => d[2] === r[2]) && !atenc.find(a => a[2] === r[2]));
+    const disp = escValida.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && !ausentesHoje.has(r[2]) && estaDeServico(r[3], r[4], ev.hora, ev.horaFim, r[6]));
+    const atenc = escValida.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && !ausentesHoje.has(r[2]) && statusTurno(r[3], r[4], ev.hora) !== null && !disp.find(d => d[2] === r[2]));
+    const aus = escValida.filter(r => !disp.find(d => d[2] === r[2]) && !atenc.find(a => a[2] === r[2]));
     const semCob = disp.length === 0;
     const semAntecedencia = atenc.length > 0 && disp.length === 0;
 
@@ -612,6 +614,9 @@ export default async function handler(req, res) {
   const escSem = escala.filter(r => dias.some(d => fmtData(d) === r[0]));
   const ausSem = ausencias;
   const nomes = equipeRaw.map(r => r[0]);
+  // Nomes que ainda são membros ativos da equipe — linhas antigas da Escala de gente
+  // removida/desativada não devem mais aparecer como "cobrindo" um evento.
+  const equipeAtivos = new Set(equipeRaw.filter(r => r[0] && (r[10]||'ativo').toLowerCase()==='ativo').map(r => r[0]));
 
   // Inclui turnos noturnos do dia anterior que ainda estão de serviço no dia atual
   // Ex: turno 23:00–07:00 de ontem cobre eventos de 00:00–07:00 de hoje
@@ -851,18 +856,18 @@ export default async function handler(req, res) {
 
     // Cruza cada dia extra com a escala (mesma lógica de hoje/amanhã), pra equipe ver quem está no turno também nesses dias
     const diasExtras = [
-      {label: fmtData(d2), sub: DIAS_PT[d2.getDay()], evs: cruzarEventos(eventosD2c, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2), ausencias)},
-      {label: fmtData(d3), sub: DIAS_PT[d3.getDay()], evs: cruzarEventos(eventosD3c, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3), ausencias)},
-      {label: fmtData(d4), sub: DIAS_PT[d4.getDay()], evs: cruzarEventos(eventosD4c, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4), ausencias)},
-      {label: fmtData(d5), sub: DIAS_PT[d5.getDay()], evs: cruzarEventos(eventosD5c, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5), ausencias)},
-      {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: cruzarEventos(eventosD6c, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6), ausencias)},
+      {label: fmtData(d2), sub: DIAS_PT[d2.getDay()], evs: cruzarEventos(eventosD2c, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2), ausencias, equipeAtivos)},
+      {label: fmtData(d3), sub: DIAS_PT[d3.getDay()], evs: cruzarEventos(eventosD3c, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3), ausencias, equipeAtivos)},
+      {label: fmtData(d4), sub: DIAS_PT[d4.getDay()], evs: cruzarEventos(eventosD4c, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4), ausencias, equipeAtivos)},
+      {label: fmtData(d5), sub: DIAS_PT[d5.getDay()], evs: cruzarEventos(eventosD5c, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5), ausencias, equipeAtivos)},
+      {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: cruzarEventos(eventosD6c, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6), ausencias, equipeAtivos)},
     ];
     const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob}))})));
     // Cruzar com escala para mostrar quem está no turno (igual à visão do gestor)
     const escHoje2   = escalaComNoturnosAnteriores(escala, hojeStr);
     const escAmanha2 = escalaComNoturnosAnteriores(escala, d1Str);
-    const eventosHojeJson   = JSON.stringify(cruzarEventos(eventosHoje,  escHoje2,  hojeStr, ausencias).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob})));
-    const eventosAmanhaJson = JSON.stringify(cruzarEventos(eventosAmanha, escAmanha2, d1Str, ausencias).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob})));
+    const eventosHojeJson   = JSON.stringify(cruzarEventos(eventosHoje,  escHoje2,  hojeStr, ausencias, equipeAtivos).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob})));
+    const eventosAmanhaJson = JSON.stringify(cruzarEventos(eventosAmanha, escAmanha2, d1Str, ausencias, equipeAtivos).map(e => ({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob})));
     const hojeAno = hoje.getFullYear();
     const hojeNumMes = hoje.getMonth();
 
@@ -1383,17 +1388,17 @@ setInterval(atualizarEventos, 60000);
     getFraseDoDia(hojeStr),
   ]);
 
-  const eventosCruzadosHoje = cruzarEventos(eventosHoje, escHoje, hojeStr, ausencias);
-  const eventosCruzadosAmanha = cruzarEventos(eventosAmanha, escD1, d1Str, ausencias);
+  const eventosCruzadosHoje = cruzarEventos(eventosHoje, escHoje, hojeStr, ausencias, equipeAtivos);
+  const eventosCruzadosAmanha = cruzarEventos(eventosAmanha, escD1, d1Str, ausencias, equipeAtivos);
 
   const diasNav = [
     { label: '#NossoDia', sublabel: hojeStr, eventos: eventosCruzadosHoje, total: eventosHoje.length, key: 'hoje', data: hojeStr, comOpac: true },
     { label: '#NossoDiaAmanhã', sublabel: d1Str, eventos: eventosCruzadosAmanha, total: eventosAmanha.length, key: 'amanha', data: d1Str, comOpac: false },
-    { label: fmtData(d2), sublabel: DIAS_PT[d2.getDay()], eventos: cruzarEventos(eventosD2, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2), ausencias), total: eventosD2.length, key: 'd2', data: fmtData(d2), comOpac: false },
-    { label: fmtData(d3), sublabel: DIAS_PT[d3.getDay()], eventos: cruzarEventos(eventosD3, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3), ausencias), total: eventosD3.length, key: 'd3', data: fmtData(d3), comOpac: false },
-    { label: fmtData(d4), sublabel: DIAS_PT[d4.getDay()], eventos: cruzarEventos(eventosD4, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4), ausencias), total: eventosD4.length, key: 'd4', data: fmtData(d4), comOpac: false },
-    { label: fmtData(d5), sublabel: DIAS_PT[d5.getDay()], eventos: cruzarEventos(eventosD5, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5), ausencias), total: eventosD5.length, key: 'd5', data: fmtData(d5), comOpac: false },
-    { label: fmtData(d6), sublabel: DIAS_PT[d6.getDay()], eventos: cruzarEventos(eventosD6, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6), ausencias), total: eventosD6.length, key: 'd6', data: fmtData(d6), comOpac: false },
+    { label: fmtData(d2), sublabel: DIAS_PT[d2.getDay()], eventos: cruzarEventos(eventosD2, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2), ausencias, equipeAtivos), total: eventosD2.length, key: 'd2', data: fmtData(d2), comOpac: false },
+    { label: fmtData(d3), sublabel: DIAS_PT[d3.getDay()], eventos: cruzarEventos(eventosD3, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3), ausencias, equipeAtivos), total: eventosD3.length, key: 'd3', data: fmtData(d3), comOpac: false },
+    { label: fmtData(d4), sublabel: DIAS_PT[d4.getDay()], eventos: cruzarEventos(eventosD4, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4), ausencias, equipeAtivos), total: eventosD4.length, key: 'd4', data: fmtData(d4), comOpac: false },
+    { label: fmtData(d5), sublabel: DIAS_PT[d5.getDay()], eventos: cruzarEventos(eventosD5, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5), ausencias, equipeAtivos), total: eventosD5.length, key: 'd5', data: fmtData(d5), comOpac: false },
+    { label: fmtData(d6), sublabel: DIAS_PT[d6.getDay()], eventos: cruzarEventos(eventosD6, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6), ausencias, equipeAtivos), total: eventosD6.length, key: 'd6', data: fmtData(d6), comOpac: false },
   ];
 
   const semCob = eventosCruzadosAmanha.filter(e => e.semCob).length;
