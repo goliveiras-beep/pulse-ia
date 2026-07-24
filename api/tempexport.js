@@ -35,6 +35,8 @@ export default async function handler(req, res) {
     .filter(a => a[1] && nomesNorm.includes(normalizar(a[1])) && a[0] !== 'CANCELADO')
     .map(a => ({ nome: a[1], tipo: a[2]||'', motivo: a[3]||'', inicio: a[4]||'', fim: a[5]||'', status: a[7]||'' }));
 
+  const nomesNoPeriodo = [...new Set(escalaRaw.filter(r => r[0] && r[2] && dfParaNum(r[0]) >= 616 && dfParaNum(r[0]) <= 715).map(r => r[2]))].sort();
+
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  return res.status(200).json({ totalEscala: linhas.length, linhas, ausencias });
+  return res.status(200).json({ totalEscala: linhas.length, linhas, ausencias, nomesNoPeriodo });
 }
