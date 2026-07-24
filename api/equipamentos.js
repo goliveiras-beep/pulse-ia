@@ -194,11 +194,11 @@ export default async function handler(req, res) {
 
   const equipeRaw = await getSheet('Equipe!A2:L200');
   const usuario = equipeRaw.find(r => r[0] === session.nome);
-  const isGestor = usuario?.[8] === 'gestor' && (usuario?.[10]||'ativo') === 'ativo';
-  if (!isGestor) {
+  if (!usuario || (usuario[10]||'ativo') !== 'ativo') {
     if (req.method === 'GET') return res.redirect(302, '/api/app');
     return res.status(403).json({ error: 'Acesso negado' });
   }
+  const isGestor = usuario[8] === 'gestor';
 
   const { criouEquipamentos } = await garantirAbas();
   if (criouEquipamentos) await semearCatalogoPadrao();
@@ -206,16 +206,20 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     if (req.query.v === 'historico') {
       const movRaw = await getSheet('MovimentacoesEquipamento!A2:H5000');
-      return renderHistorico(res, session, movRaw);
+      return renderHistorico(res, session, movRaw, isGestor);
     }
     const [equipamentosRaw, movRaw] = await Promise.all([
       getSheet('Equipamentos!A2:O3000'),
       getSheet('MovimentacoesEquipamento!A2:H5000'),
     ]);
-    return renderInventario(res, session, equipamentosRaw, movRaw);
+    return renderInventario(res, session, equipamentosRaw, movRaw, isGestor);
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
+
+  // Ver o parque é liberado pra qualquer colaborador ativo; alterar (cadastrar/mover/
+  // status/editar/remover) continua exclusivo do gestor.
+  if (!isGestor) return res.status(403).json({ error: 'Apenas gestores podem alterar o parque de equipamentos' });
 
   const { action } = req.body || {};
   const equipamentosRaw = await getSheet('Equipamentos!A2:O3000');
@@ -419,19 +423,21 @@ tr:last-child td{border-bottom:none}
 `;
 }
 
-function menuHTML() {
+function menuHTML(isGestor) {
+  const itensGestor = isGestor ? `
+        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
+        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
+        <a href="/api/ausencias" class="menu-item">&#128198; Ausências</a>
+        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
+  ` : '';
   return `
     <button id="tt" class="btn-sm" onclick="(function(){var h=document.documentElement;var dk=h.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" style="font-size:14px;padding:3px 8px">&#127769;</button>
     <div style="position:relative">
       <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-sm" style="font-size:15px;padding:4px 10px;line-height:1">&#9776;</button>
       <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
-        <a href="/api/app" class="menu-item">&#127968; Início</a>
-        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
-        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
-        <a href="/api/ausencias" class="menu-item">&#128198; Ausências</a>
+        <a href="/api/app" class="menu-item">&#127968; Início</a>${itensGestor}
         <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
-        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
-        <a href="/api/equipamentos" class="menu-item">&#128230; Equipamentos</a>
+        <a href="/api/chamados" class="menu-item">&#127915; Chamados</a>
         <div style="height:1px;background:var(--border);margin:2px 0"></div>
         <form method="POST" action="/api/app?action=logout" style="margin:0">
           <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
@@ -440,7 +446,7 @@ function menuHTML() {
     </div>`;
 }
 
-function headerHTML(nome, sub) {
+function headerHTML(nome, sub, isGestor) {
   return `
 <div class="header">
   <div class="logo">P</div>
@@ -448,7 +454,7 @@ function headerHTML(nome, sub) {
     <div class="ht">Equipamentos</div>
     <div class="hs">${esc(sub)}</div>
   </div>
-  <div class="hr">${menuHTML()}</div>
+  <div class="hr">${menuHTML(isGestor)}</div>
 </div>`;
 }
 
@@ -519,7 +525,7 @@ function donutSVG(items) {
   return `<svg viewBox="0 0 108 108" width="108" height="108">${arcos}<circle cx="${cx}" cy="${cy}" r="${r-sw/2-2}" style="fill:var(--card)"/><text x="${cx}" y="${cy+6}" text-anchor="middle" font-size="20" font-weight="800" style="fill:var(--text)">${total}</text></svg>`;
 }
 
-function renderInventario(res, session, equipamentosRaw, movRaw) {
+function renderInventario(res, session, equipamentosRaw, movRaw, isGestor) {
   const unidades = equipamentosRaw.filter(r => r[0]).map(r => ({
     id: r[0], categoria: r[1]||'', equipamento: r[2]||'', patrimonio: r[3]||'', serie: r[4]||'',
     status: r[5]||'Operacional', alocacao: r[6]||'Estoque', dataMov: r[7]||'', observacao: r[8]||'', dataCadastro: r[9]||'',
@@ -603,7 +609,7 @@ function renderInventario(res, session, equipamentosRaw, movRaw) {
     </div>`).join('') : `<div class="atividade-item" style="color:var(--text3)">Nenhuma movimentação ainda</div>`;
 
   const conteudo = `
-${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
+${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`, isGestor)}
 <div class="wrap">
   <span class="section-label">🗺️ Visão macro do parque</span>
   <div class="macro-grid">${macroHTML}</div>
@@ -632,7 +638,7 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
     <select id="f-categoria" onchange="filtrar()"><option value="">Todas categorias</option>${categoriasTodas.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
     <select id="f-local" onchange="filtrar()"><option value="">Toda alocação</option>${locaisTodos.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>
     <select id="f-status" onchange="filtrar()"><option value="">Todo status</option>${STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
-    <button class="btn primary" onclick="abrirCadastro()">+ Cadastrar equipamento</button>
+    ${isGestor ? `<button class="btn primary" onclick="abrirCadastro()">+ Cadastrar equipamento</button>` : ''}
     <a href="/api/equipamentos?v=historico" class="btn">Histórico de movimentações</a>
   </div>
 
@@ -703,6 +709,7 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`)}
 const UNIDADES = ${JSON.stringify(unidades)};
 const LOCAL_TIPO = ${JSON.stringify(localTipoMap)};
 const LOCAIS_ORDEM = ${JSON.stringify(locaisTodos)};
+const IS_GESTOR = ${isGestor ? 'true' : 'false'};
 let idAtual = null;
 
 function badgeCls(s){ return s==='Operacional'?'green':s==='Em manutenção'?'amber':s==='Baixado'?'red':'blue'; }
@@ -730,10 +737,12 @@ function linhaHTML(u){
     + '<td>'+escHtml(u.dataMov||'—')+'</td>'
     + '<td>'+escHtml(u.observacao||'—')+(tel?' <span class="info-ic" title="'+escHtml(tel)+'">📱</span>':'')+'</td>'
     + '<td class="acoes">'
-    +   '<button onclick="abrirMover(\\''+u.id+'\\')">Mover</button>'
-    +   '<button onclick="abrirStatus(\\''+u.id+'\\')">Status</button>'
-    +   '<button onclick="abrirEditar(\\''+u.id+'\\')">Editar</button>'
-    +   '<button onclick="removerUnidade(\\''+u.id+'\\')">Remover</button>'
+    +   (IS_GESTOR ? (
+          '<button onclick="abrirMover(\\''+u.id+'\\')">Mover</button>'
+        + '<button onclick="abrirStatus(\\''+u.id+'\\')">Status</button>'
+        + '<button onclick="abrirEditar(\\''+u.id+'\\')">Editar</button>'
+        + '<button onclick="removerUnidade(\\''+u.id+'\\')">Remover</button>'
+        ) : '—')
     + '</td></tr>';
 }
 
@@ -921,7 +930,7 @@ filtrar();
   return res.status(200).send(baseHTML('Equipamentos', conteudo, script));
 }
 
-function renderHistorico(res, session, movRaw) {
+function renderHistorico(res, session, movRaw, isGestor) {
   const eventos = movRaw.filter(r => r[0]).map(r => ({
     timestamp: r[0]||'', id: r[1]||'', equipamento: r[2]||'', de: r[3]||'', para: r[4]||'',
     responsavel: r[5]||'', observacao: r[6]||'', tipo: r[7]||''
@@ -934,7 +943,7 @@ function renderHistorico(res, session, movRaw) {
   </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">Nenhuma movimentação registrada</td></tr>';
 
   const conteudo = `
-${headerHTML(session.nome, `${eventos.length} eventos registrados`)}
+${headerHTML(session.nome, `${eventos.length} eventos registrados`, isGestor)}
 <div class="wrap">
   <div class="toolbar"><a href="/api/equipamentos" class="btn">&larr; Voltar ao inventário</a></div>
   <div class="tbl-wrap">
