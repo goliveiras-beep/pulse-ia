@@ -5,149 +5,114 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pulse IA — Portal Operacional Livemode</title>
   <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0c12;color:#e2e8f0;overflow-x:hidden}
+    :root{
+      --bg:#1f140f; --bg2:#261a13; --ink:#f7ede4; --muted:rgba(247,237,228,.68); --muted-dim:rgba(247,237,228,.42);
+      --terracotta:#d9705a; --rose:#c9677a; --violet:#8a3540; --amber:#d9a15c;
+      --line:rgba(247,237,228,.10); --line-strong:rgba(247,237,228,.16);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);overflow-x:hidden}
+    a{color:inherit}
 
     /* ── Hero ── */
-    .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;position:relative;overflow:hidden}
-    .hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(229,62,62,.12) 0%,transparent 70%);pointer-events:none}
-    .hero::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 40% at 50% 100%,rgba(29,78,216,.08) 0%,transparent 70%);pointer-events:none}
+    .hero{
+      position:relative;padding:96px 24px 0;overflow:hidden;
+      background:
+        radial-gradient(ellipse 90% 55% at 12% -10%, rgba(217,112,90,.30) 0%, transparent 55%),
+        radial-gradient(ellipse 75% 55% at 100% 0%, rgba(201,103,122,.24) 0%, transparent 50%),
+        radial-gradient(ellipse 100% 75% at 50% 115%, rgba(138,53,64,.34) 0%, transparent 60%),
+        var(--bg);
+    }
+    .noise{position:absolute;inset:0;opacity:.3;background-image:radial-gradient(rgba(255,255,255,.04) 1px, transparent 1px);background-size:22px 22px;pointer-events:none}
+    .inner{max-width:880px;margin:0 auto;text-align:center;position:relative}
 
     /* ── Logo ── */
-    .logo-wrap{display:flex;align-items:center;gap:16px;margin-bottom:24px}
-    .pulse-svg{animation:heartbeat 1.4s ease-in-out infinite;filter:drop-shadow(0 0 20px rgba(229,62,62,.5))}
-    @keyframes heartbeat{0%,100%{transform:scale(1)}14%{transform:scale(1.15)}28%{transform:scale(1)}42%{transform:scale(1.08)}70%{transform:scale(1)}}
-    .logo-text{text-align:left}
-    .logo-name{font-size:40px;font-weight:800;color:#fff;letter-spacing:-1.5px;line-height:1}
-    .logo-name span{color:#e53e3e}
-    .logo-sub{font-size:13px;color:#718096;letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+    .brand{display:inline-flex;align-items:center;gap:14px;margin-bottom:38px}
+    .pulse-svg{animation:heartbeat 1.5s ease-in-out infinite;filter:drop-shadow(0 0 18px rgba(217,161,92,.4))}
+    @keyframes heartbeat{0%,100%{transform:scale(1)}14%{transform:scale(1.14)}28%{transform:scale(1)}42%{transform:scale(1.07)}70%{transform:scale(1)}}
+    @media(prefers-reduced-motion:reduce){.pulse-svg{animation:none}}
+    .brand-text{text-align:left}
+    .brand-name{font-size:20px;font-weight:800;letter-spacing:-.4px;line-height:1;color:var(--ink)}
+    .brand-name .grad-i{background:linear-gradient(120deg,var(--amber),var(--rose) 60%,var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .brand-sub{font-size:11px;color:var(--muted-dim);letter-spacing:.1em;text-transform:uppercase;margin-top:3px}
 
-    /* ── Tagline ── */
-    .badge{display:inline-flex;align-items:center;gap:6px;background:rgba(229,62,62,.1);border:1px solid rgba(229,62,62,.25);border-radius:20px;padding:5px 14px;font-size:12px;font-weight:600;color:#fc8181;letter-spacing:.04em;margin-bottom:28px}
-    h1{font-size:clamp(28px,5vw,52px);font-weight:800;color:#fff;line-height:1.15;letter-spacing:-1px;margin-bottom:20px;max-width:700px}
-    h1 em{font-style:normal;color:#e53e3e}
-    .desc{font-size:16px;color:#a0aec0;line-height:1.8;max-width:520px;margin:0 auto 40px}
+    h1{font-size:clamp(32px,5.6vw,58px);font-weight:800;letter-spacing:-1.6px;line-height:1.1;margin:0 0 22px;text-wrap:balance}
+    h1 .grad{background:linear-gradient(120deg,var(--amber),var(--rose) 55%,var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .desc{font-size:16px;color:var(--muted);line-height:1.8;max-width:520px;margin:0 auto 38px}
 
     /* ── CTA ── */
-    .cta-wrap{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:70px}
-    .btn-primary{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#e53e3e,#c53030);color:#fff;padding:14px 32px;border-radius:10px;font-size:15px;font-weight:700;text-decoration:none;box-shadow:0 4px 24px rgba(229,62,62,.35);transition:transform .2s,box-shadow .2s}
-    .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(229,62,62,.5)}
-    .btn-secondary{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#e2e8f0;padding:14px 28px;border-radius:10px;font-size:15px;font-weight:600;text-decoration:none;transition:background .2s,border-color .2s}
-    .btn-secondary:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.2)}
+    .cta{display:inline-flex;align-items:center;gap:9px;background:var(--ink);color:var(--bg);padding:15px 32px;border-radius:13px;font-weight:700;font-size:14.5px;text-decoration:none;box-shadow:0 20px 45px -18px rgba(217,161,92,.5);transition:transform .2s}
+    .cta:hover{transform:translateY(-2px)}
+    .cta-hint{font-size:11.5px;color:var(--muted-dim);margin-top:14px}
 
-    /* ── Stats ── */
-    .stats{display:flex;gap:40px;justify-content:center;flex-wrap:wrap;margin-bottom:32px}
-    .stat{text-align:center}
-    .stat-n{font-size:32px;font-weight:800;color:#fff;line-height:1}
-    .stat-n span{color:#e53e3e}
-    .stat-l{font-size:12px;color:#718096;margin-top:4px;text-transform:uppercase;letter-spacing:.06em}
-
-    /* ── Features ── */
-    .section{max-width:960px;margin:0 auto;padding:80px 24px}
-    .section-title{font-size:11px;font-weight:700;color:#e53e3e;text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;text-align:center}
-    .section-h{font-size:clamp(22px,3vw,32px);font-weight:800;color:#fff;text-align:center;margin-bottom:48px;line-height:1.2}
-    .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
-    .feature{background:#111420;border:1px solid #1e2535;border-radius:14px;padding:24px;transition:border-color .2s,transform .2s;position:relative;overflow:hidden}
-    .feature::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--ac,#e53e3e),transparent);opacity:0;transition:opacity .2s}
-    .feature:hover{border-color:#2d3748;transform:translateY(-3px)}
-    .feature:hover::before{opacity:1}
-    .feature .icon{font-size:28px;margin-bottom:14px;display:block}
-    .feature h3{font-size:15px;font-weight:700;color:#e2e8f0;margin-bottom:8px}
-    .feature p{font-size:13px;color:#718096;line-height:1.7}
+    /* ── Feature cards (inside hero) ── */
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;padding:56px 0 90px;position:relative}
+    .card{background:rgba(255,255,255,.045);backdrop-filter:blur(16px);border:1px solid var(--line);border-radius:16px;padding:24px;text-align:left;transition:border-color .2s,transform .2s}
+    .card:hover{border-color:var(--line-strong);transform:translateY(-2px)}
+    .card .ic{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;margin-bottom:15px}
+    .card h3{font-size:14.5px;font-weight:700;margin:0 0 7px}
+    .card p{font-size:12.5px;color:var(--muted);line-height:1.65;margin:0}
 
     /* ── Pulse Live ── */
-    .live-section{background:linear-gradient(135deg,#0f1117 0%,#1a0d0d 50%,#0f1117 100%);border-top:1px solid #1e2535;border-bottom:1px solid #1e2535;padding:80px 24px;text-align:center}
+    .live-section{background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:72px 24px;text-align:center}
     .live-inner{max-width:640px;margin:0 auto}
-    .live-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);border-radius:20px;padding:6px 16px;font-size:12px;font-weight:700;color:#22c55e;margin-bottom:24px}
-    .live-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;animation:blink 1s ease-in-out infinite}
-    @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
-    .live-h{font-size:28px;font-weight:800;color:#fff;margin-bottom:16px}
-    .live-p{font-size:15px;color:#a0aec0;line-height:1.8}
+    .live-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid var(--line-strong);border-radius:20px;padding:6px 16px;font-size:11.5px;font-weight:700;color:var(--rose);letter-spacing:.03em;margin-bottom:22px}
+    .live-h{font-size:25px;font-weight:800;letter-spacing:-.5px;margin-bottom:14px}
+    .live-p{font-size:13.5px;color:var(--muted);line-height:1.8}
+
+    /* ── Data / privacy section ── */
+    .section{max-width:960px;margin:0 auto;padding:64px 24px}
+    .section-title{font-size:11px;font-weight:700;color:var(--terracotta);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;text-align:center}
+    .section-h{font-size:22px;font-weight:800;color:var(--ink);text-align:center;margin-bottom:20px}
 
     /* ── Footer ── */
-    .footer-section{background:#0a0c12;border-top:1px solid #1e2535;padding:40px 24px;text-align:center}
+    .footer-section{background:var(--bg);border-top:1px solid var(--line);padding:40px 24px;text-align:center}
     .footer-logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px}
-    .footer-logo .pulse-svg-sm{animation:heartbeat 1.4s ease-in-out infinite}
-    .footer-name{font-size:18px;font-weight:800;color:#fff}
-    .footer-name span{color:#e53e3e}
-    footer{font-size:12px;color:#4a5568;margin-top:12px}
-    footer a{color:#718096;text-decoration:none}
-    footer a:hover{color:#a0aec0}
+    .footer-name{font-size:18px;font-weight:800;color:var(--ink)}
+    .footer-name .grad-i{background:linear-gradient(120deg,var(--amber),var(--rose) 60%,var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+    footer{font-size:12px;color:var(--muted-dim);margin-top:12px}
+    footer a{color:var(--muted);text-decoration:none}
+    footer a:hover{color:var(--ink)}
   </style>
 </head>
 <body>
 
   <!-- HERO -->
   <div class="hero">
-    <div class="logo-wrap">
-      <svg class="pulse-svg" width="64" height="64" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
-        <defs><radialGradient id="hg" cx="38%" cy="35%" r="62%"><stop offset="0%" stop-color="#ff6b6b"/><stop offset="45%" stop-color="#e53e3e"/><stop offset="100%" stop-color="#7f1d1d"/></radialGradient></defs>
-        <rect x="0" y="0" width="72" height="72" rx="18" fill="url(#hg)"/>
-        <rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/>
-        <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
-        <polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <div class="logo-text">
-        <div class="logo-name">Pulse <span>IA</span></div>
-        <div class="logo-sub">Portal Operacional · Livemode</div>
+    <div class="noise"></div>
+    <div class="inner">
+      <div class="brand">
+        <svg class="pulse-svg" width="60" height="60" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+          <defs><radialGradient id="hg" cx="38%" cy="35%" r="62%"><stop offset="0%" stop-color="#f0a978"/><stop offset="45%" stop-color="#d9705a"/><stop offset="100%" stop-color="#4a2016"/></radialGradient></defs>
+          <rect x="0" y="0" width="72" height="72" rx="18" fill="url(#hg)"/>
+          <rect x="0" y="36" width="72" height="36" rx="18" fill="#3a1610" opacity="0.35"/>
+          <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
+          <polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#7a2f24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="brand-text">
+          <div class="brand-name">Pulse <span class="grad-i">IA</span></div>
+          <div class="brand-sub">Portal operacional · Livemode</div>
+        </div>
       </div>
-    </div>
 
-    <div class="badge">🔴 Operação em tempo real</div>
+      <h1>A operação inteira<br>num <span class="grad">único pulso.</span></h1>
+      <p class="desc">Escala, eventos ao vivo, ausências, chat com IA, o parque de equipamentos e os chamados de manutenção — tudo vivo, tudo num só lugar.</p>
 
-    <h1>A central de operações<br>da <em>Livemode</em></h1>
-    <p class="desc">
-      Escalas, eventos ao vivo, ausências e cobertura em tempo real. Tudo que a equipe de TV precisa, num só lugar — com IA integrada.
-    </p>
-
-    <div class="cta-wrap">
-      <a class="btn-primary" href="/api/app">
-        <svg width="16" height="16" viewBox="0 0 72 72" fill="none"><path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.9"/><polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <a class="cta" href="/api/app">
+        <svg width="16" height="16" viewBox="0 0 72 72" fill="none"><path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="currentColor" opacity="0.9"/></svg>
         Acessar o portal
       </a>
-    </div>
+      <div class="cta-hint">Conta Google corporativa Livemode · ~10 segundos</div>
 
-    <div class="stats">
-      <div class="stat"><div class="stat-n">24<span>/7</span></div><div class="stat-l">Monitoramento</div></div>
-      <div class="stat"><div class="stat-n"><span>⚡</span> IA</div><div class="stat-l">Ajustes por voz</div></div>
-      <div class="stat"><div class="stat-n">🔴<span> Live</span></div><div class="stat-l">Status em tempo real</div></div>
-    </div>
-  </div>
-
-  <!-- FEATURES -->
-  <div class="section">
-    <div class="section-title">O que o Pulse faz</div>
-    <div class="section-h">Tudo que a operação precisa</div>
-    <div class="features">
-      <div class="feature" style="--ac:#3b82f6">
-        <span class="icon">📅</span>
-        <h3>Escala inteligente</h3>
-        <p>Visão diária, semanal e mensal dos turnos. Navegue pelos próximos 7 dias e veja quem está escalado em cada evento.</p>
-      </div>
-      <div class="feature" style="--ac:#22c55e">
-        <span class="icon">🟢 AO VIVO</span>
-        <h3>Eventos em tempo real</h3>
-        <p>Status dinâmico: AO VIVO, próximo em 30min, próximo em 60min. A operação sabe exatamente o que está no ar.</p>
-      </div>
-      <div class="feature" style="--ac:#f59e0b">
-        <span class="icon">🏖️</span>
-        <h3>Solicitações de ausência</h3>
-        <p>Férias com validação CLT, folgas, atestados com upload direto para o Drive. Aprovação pelo gestor no portal.</p>
-      </div>
-      <div class="feature" style="--ac:#a855f7">
-        <span class="icon">✨</span>
-        <h3>Chat IA operacional</h3>
-        <p>Pergunte quem está escalado, ajuste turnos por linguagem natural. "Coloca fulano de folga amanhã" — e está feito.</p>
-      </div>
-      <div class="feature" style="--ac:#e53e3e">
-        <span class="icon">🌡️</span>
-        <h3>Contexto do dia</h3>
-        <p>Hora Brasil e GMT, temperatura local, frase do dia personalizada com IA. A equipe sempre conectada ao momento.</p>
-      </div>
-      <div class="feature" style="--ac:#06b6d4">
-        <span class="icon">🔒</span>
-        <h3>Login com Google</h3>
-        <p>Acesso seguro via conta Google corporativa. Gestores e colaboradores com visões diferentes e permissões separadas.</p>
+      <div class="cards">
+        <div class="card"><div class="ic" style="background:rgba(138,53,64,.22);color:var(--violet)">📅</div><h3>Escala inteligente</h3><p>Visão diária, semanal e mensal dos turnos. Veja quem está escalado em cada evento.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(217,112,90,.22);color:var(--terracotta)">🎥</div><h3>Eventos em tempo real</h3><p>Status automático: ao vivo, próximo em 30min, próximo em 60min.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(201,103,122,.22);color:var(--rose)">🏖️</div><h3>Solicitações de ausência</h3><p>Férias com validação CLT, folgas, atestados com upload direto pro Drive.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(138,53,64,.22);color:var(--violet)">✨</div><h3>Chat IA operacional</h3><p>"Coloca fulano de folga amanhã" — e está feito, sem planilha.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(217,161,92,.22);color:var(--amber)">🎛️</div><h3>Equipamentos</h3><p>Parque interno e externo — alocação, status e histórico de cada unidade.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(217,112,90,.22);color:var(--terracotta)">🛠️</div><h3>Chamados</h3><p>Abre, atribui e acompanha o reparo — peças e valor do serviço registrados.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(201,103,122,.22);color:var(--rose)">🌡️</div><h3>Contexto do dia</h3><p>Hora Brasil e GMT, temperatura local, frase do dia com IA.</p></div>
+        <div class="card"><div class="ic" style="background:rgba(217,161,92,.22);color:var(--amber)">🔒</div><h3>Login com Google</h3><p>Acesso seguro via conta corporativa. Gestores e colaboradores com visões separadas.</p></div>
       </div>
     </div>
   </div>
@@ -155,35 +120,36 @@
   <!-- LIVE SECTION -->
   <div class="live-section">
     <div class="live-inner">
-      <div class="live-badge"><span class="live-dot"></span> Sempre pulsando</div>
+      <div class="live-badge">💓 Sempre pulsando</div>
       <div class="live-h">O coração da operação<br>nunca para</div>
       <p class="live-p">
-        O Pulse IA acompanha cada evento, cada turno, cada ausência — em tempo real.<br>
+        O Pulse IA acompanha cada evento, cada turno, cada equipamento — em tempo real.<br>
         Para a equipe que vive de segundos e transmissões ao vivo.
       </p>
     </div>
   </div>
 
   <!-- DATA SECTION -->
-  <div class="section" style="padding:60px 24px">
+  <div class="section">
     <div class="section-title">Privacidade</div>
-    <div class="section-h" style="font-size:22px">Dados coletados via Google</div>
-    <p style="font-size:14px;color:#718096;text-align:center;max-width:480px;margin:0 auto 20px;line-height:1.8">
-      O Pulse IA utiliza login com Google apenas para identificar o colaborador no sistema. Coletamos somente <strong style="color:#a0aec0">nome</strong> e <strong style="color:#a0aec0">e-mail</strong>. Nenhum outro dado é acessado ou armazenado.
+    <div class="section-h">Dados coletados via Google</div>
+    <p style="font-size:14px;color:var(--muted);text-align:center;max-width:480px;margin:0 auto 20px;line-height:1.8">
+      O Pulse IA utiliza login com Google apenas para identificar o colaborador no sistema. Coletamos somente <strong style="color:var(--ink)">nome</strong> e <strong style="color:var(--ink)">e-mail</strong>. Nenhum outro dado é acessado ou armazenado.
     </p>
-    <p style="text-align:center"><a href="privacy.html" style="color:#e53e3e;font-size:14px;text-decoration:none">Leia nossa Política de Privacidade →</a></p>
+    <p style="text-align:center"><a href="privacy.html" style="color:var(--terracotta);font-size:14px;text-decoration:none">Leia nossa Política de Privacidade →</a></p>
   </div>
 
   <!-- FOOTER -->
   <div class="footer-section">
     <div class="footer-logo">
       <svg class="pulse-svg-sm" width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
-        <rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/>
-        <rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/>
+        <defs><radialGradient id="hgf" cx="38%" cy="35%" r="62%"><stop offset="0%" stop-color="#f0a978"/><stop offset="45%" stop-color="#d9705a"/><stop offset="100%" stop-color="#4a2016"/></radialGradient></defs>
+        <rect x="0" y="0" width="72" height="72" rx="18" fill="url(#hgf)"/>
+        <rect x="0" y="36" width="72" height="36" rx="18" fill="#3a1610" opacity="0.35"/>
         <path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/>
-        <polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#7a2f24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <div class="footer-name">Pulse <span>IA</span></div>
+      <div class="footer-name">Pulse <span class="grad-i">IA</span></div>
     </div>
     <footer>
       &copy; 2026 Livemode &nbsp;·&nbsp;
