@@ -292,6 +292,7 @@ export default async function handler(req, res) {
 
   const visao = req.query.v || 'semana';
   const hoje = getBRT();
+  const hojeISO = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
 
   // Horizonte de publicação — até quando a equipe consegue ver a escala
   const configMap = Object.fromEntries((configRaw||[]).filter(r=>r[0]).map(r=>[r[0],r[1]||'']));
@@ -318,11 +319,13 @@ export default async function handler(req, res) {
   const offset = parseInt(req.query.offset || '0');
   let datas = [], titulo = '', subtitulo = '';
 
+  let diaISO = '';
   if (visao === 'dia') {
     const dia = new Date(hoje); dia.setDate(hoje.getDate() + offset);
     datas = [fmtData(dia)];
     titulo = `${DIAS_FULL[dia.getDay()]}, ${dia.getDate()} de ${MESES[dia.getMonth()]}`;
     subtitulo = 'Visao do dia';
+    diaISO = `${dia.getFullYear()}-${String(dia.getMonth()+1).padStart(2,'0')}-${String(dia.getDate()).padStart(2,'0')}`;
   } else if (visao === 'semana') {
     const dow = hoje.getDay();
     const seg = new Date(hoje); seg.setDate(hoje.getDate() - dow + 1 + offset * 7);
@@ -599,6 +602,7 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
     <a href="/api/escalas?v=${visao}&offset=${offset-1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Anterior</a>
     <a href="/api/escalas?v=${visao}&offset=0" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)${offset===0?';background:var(--bg3)':''}">Atual</a>
     <a href="/api/escalas?v=${visao}&offset=${offset+1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Proximo</a>
+    ${visao==='dia' ? `<input type="date" id="dia-picker" value="${diaISO}" onchange="irParaDia(this.value)" style="border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text2);background:var(--card)">` : ''}
     <div style="margin-left:auto;font-size:11px;color:#888;font-weight:600">${titulo}</div>
   </div>
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -639,6 +643,12 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
 </div>
 <script>
 var viewAtual=localStorage.getItem('esc-view')||'grid',sortAtual=localStorage.getItem('esc-sort')||'default',visaoAtual='${visao}';
+function irParaDia(v){
+  if(!v) return;
+  var d1=new Date('${hojeISO}T00:00:00'),d2=new Date(v+'T00:00:00');
+  var offset=Math.round((d2-d1)/86400000);
+  location.href='/api/escalas?v=dia&offset='+offset;
+}
 function getItens(){if(visaoAtual==='semana')return Array.from(document.querySelectorAll('#tbody-semana tr[data-nome-busca]'));return Array.from(document.querySelectorAll('#grid-principal [data-nome-busca]'));}
 function aplicarFiltros(){
   var busca=document.getElementById('busca').value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
