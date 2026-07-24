@@ -319,24 +319,27 @@ export default async function handler(req, res) {
   const offset = parseInt(req.query.offset || '0');
   let datas = [], titulo = '', subtitulo = '';
 
-  let diaISO = '';
+  const isoData = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  let diaISO = '', semanaISO = '', mesISO = '';
   if (visao === 'dia') {
     const dia = new Date(hoje); dia.setDate(hoje.getDate() + offset);
     datas = [fmtData(dia)];
     titulo = `${DIAS_FULL[dia.getDay()]}, ${dia.getDate()} de ${MESES[dia.getMonth()]}`;
     subtitulo = 'Visao do dia';
-    diaISO = `${dia.getFullYear()}-${String(dia.getMonth()+1).padStart(2,'0')}-${String(dia.getDate()).padStart(2,'0')}`;
+    diaISO = isoData(dia);
   } else if (visao === 'semana') {
     const dow = hoje.getDay();
     const seg = new Date(hoje); seg.setDate(hoje.getDate() - dow + 1 + offset * 7);
     for (let i = 0; i < 7; i++) { const d = new Date(seg); d.setDate(seg.getDate()+i); datas.push(fmtData(d)); }
     titulo = `Semana ${datas[0]} -- ${datas[6]}`;
     subtitulo = offset === 0 ? 'Semana atual' : offset > 0 ? `+${offset} semana` : `${Math.abs(offset)} semana(s) atras`;
+    semanaISO = isoData(seg);
   } else {
     const mes = new Date(hoje.getFullYear(), hoje.getMonth() + offset, 1);
     const ultimo = new Date(mes.getFullYear(), mes.getMonth()+1, 0);
     for (let d = new Date(mes); d <= ultimo; d.setDate(d.getDate()+1)) datas.push(fmtData(new Date(d)));
     titulo = `${MESES[mes.getMonth()]} ${mes.getFullYear()}`;
+    mesISO = `${mes.getFullYear()}-${String(mes.getMonth()+1).padStart(2,'0')}`;
     subtitulo = 'Visao do mes';
   }
 
@@ -602,7 +605,9 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
     <a href="/api/escalas?v=${visao}&offset=${offset-1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Anterior</a>
     <a href="/api/escalas?v=${visao}&offset=0" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)${offset===0?';background:var(--bg3)':''}">Atual</a>
     <a href="/api/escalas?v=${visao}&offset=${offset+1}" style="border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--text2)">Proximo</a>
-    ${visao==='dia' ? `<input type="date" id="dia-picker" value="${diaISO}" onchange="irParaDia(this.value)" style="border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text2);background:var(--card)">` : ''}
+    ${visao==='dia' ? `<input type="date" id="data-picker" value="${diaISO}" onchange="irParaDia(this.value)" style="border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text2);background:var(--card)">` : ''}
+    ${visao==='semana' ? `<input type="date" id="data-picker" value="${semanaISO}" onchange="irParaSemana(this.value)" title="Escolha qualquer dia da semana desejada" style="border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text2);background:var(--card)">` : ''}
+    ${visao==='mes' ? `<input type="month" id="data-picker" value="${mesISO}" onchange="irParaMes(this.value)" style="border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text2);background:var(--card)">` : ''}
     <div style="margin-left:auto;font-size:11px;color:#888;font-weight:600">${titulo}</div>
   </div>
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -648,6 +653,20 @@ function irParaDia(v){
   var d1=new Date('${hojeISO}T00:00:00'),d2=new Date(v+'T00:00:00');
   var offset=Math.round((d2-d1)/86400000);
   location.href='/api/escalas?v=dia&offset='+offset;
+}
+function segundaDe(d){var dow=d.getDay();var m=new Date(d);m.setDate(d.getDate()-dow+1);m.setHours(0,0,0,0);return m;}
+function irParaSemana(v){
+  if(!v) return;
+  var hoje=new Date('${hojeISO}T00:00:00'),sel=new Date(v+'T00:00:00');
+  var offset=Math.round((segundaDe(sel)-segundaDe(hoje))/(7*86400000));
+  location.href='/api/escalas?v=semana&offset='+offset;
+}
+function irParaMes(v){
+  if(!v) return;
+  var p=v.split('-');var anoSel=parseInt(p[0],10),mesSel=parseInt(p[1],10)-1;
+  var hoje=new Date('${hojeISO}T00:00:00');
+  var offset=(anoSel*12+mesSel)-(hoje.getFullYear()*12+hoje.getMonth());
+  location.href='/api/escalas?v=mes&offset='+offset;
 }
 function getItens(){if(visaoAtual==='semana')return Array.from(document.querySelectorAll('#tbody-semana tr[data-nome-busca]'));return Array.from(document.querySelectorAll('#grid-principal [data-nome-busca]'));}
 function aplicarFiltros(){
