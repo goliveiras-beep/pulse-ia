@@ -385,8 +385,8 @@ export default async function handler(req, res) {
       const cargo = equipeRaw.find(r=>r[0]===nome)?.[1]||'';
       const { perigo, atencao } = resumoPessoa[nome];
       const escRegDia=escalaIndex.get(`${df}|${nome}`);
-      const editAttrs = isGestor ? ` onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome2,e.dataset.ent,e.dataset.sai,e.dataset.obs)"` : '';
-      return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-df="${df}" data-nome2="${nome}" data-ent="${escRegDia?.[3]||''}" data-sai="${escRegDia?.[4]||''}" data-obs="${escRegDia?.[5]||''}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;${isGestor?'cursor:pointer':''}"${editAttrs}>
+      const editAttrs = isGestor ? ` onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome2,e.dataset.ent,e.dataset.sai,e.dataset.obs,e.dataset.alertas)"` : '';
+      return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-df="${df}" data-nome2="${nome}" data-ent="${escRegDia?.[3]||''}" data-sai="${escRegDia?.[4]||''}" data-obs="${escRegDia?.[5]||''}" data-alertas="${esc(JSON.stringify(a?.alertas||[]))}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;${isGestor?'cursor:pointer':''}"${editAttrs}>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <div style="width:32px;height:32px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
           <div style="flex:1"><div style="font-size:13px;font-weight:600">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
@@ -442,8 +442,8 @@ export default async function handler(req, res) {
           const escReg=escalaIndex.get(`${df}|${nome}`);
           const _ent=(escReg?.[3]||'');const _sai=(escReg?.[4]||'');const _obs=(escReg?.[5]||'');
           const cellBg = isHoje ? 'var(--today-bg)' : isFds2 ? 'var(--fds-bg)' : '';
-          const editAttrsCel = isGestor ? ` onclick="var el=this;abrirEditor(el,el.dataset.df,el.dataset.nome,el.dataset.ent,el.dataset.sai,el.dataset.obs)"` : '';
-          return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${cellBg};${isGestor?'cursor:pointer':''}${isFds2?';border-left:2px solid var(--fds-border)':''}" data-df="${df}" data-nome="${nome}" data-ent="${_ent}" data-sai="${_sai}" data-obs="${_obs}"${editAttrsCel}>${celulaAnalise(a,null,true,isGestor)}</td>`;
+          const editAttrsCel = isGestor ? ` onclick="var el=this;abrirEditor(el,el.dataset.df,el.dataset.nome,el.dataset.ent,el.dataset.sai,el.dataset.obs,el.dataset.alertas)"` : '';
+          return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${cellBg};${isGestor?'cursor:pointer':''}${isFds2?';border-left:2px solid var(--fds-border)':''}" data-df="${df}" data-nome="${nome}" data-ent="${_ent}" data-sai="${_sai}" data-obs="${_obs}" data-alertas="${esc(JSON.stringify(a?.alertas||[]))}"${editAttrsCel}>${celulaAnalise(a,null,true,isGestor)}</td>`;
         }).join('')}
       </tr>`;
     }).join('');
@@ -470,8 +470,8 @@ export default async function handler(req, res) {
         const temAlerta=isGestor && a?.alertas?.length>0;
         const escRegMes=escalaIndex.get(`${df}|${nome}`);
         const _mEnt=escRegMes?.[3]||'';const _mSai=escRegMes?.[4]||'';const _mObs=(escRegMes?.[5]||'').replace(/['"]/g,'');
-        const editAttrsMes = isGestor ? ` onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome,e.dataset.ent,e.dataset.sai,e.dataset.obs)"` : '';
-        cal+=`<div style="min-width:0;background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;${isGestor?'cursor:pointer':''}overflow:hidden" data-df="${df}" data-nome="${nome}" data-ent="${_mEnt}" data-sai="${_mSai}" data-obs="${_mObs}"${editAttrsMes}>
+        const editAttrsMes = isGestor ? ` onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome,e.dataset.ent,e.dataset.sai,e.dataset.obs,e.dataset.alertas)"` : '';
+        cal+=`<div style="min-width:0;background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;${isGestor?'cursor:pointer':''}overflow:hidden" data-df="${df}" data-nome="${nome}" data-ent="${_mEnt}" data-sai="${_mSai}" data-obs="${_mObs}" data-alertas="${esc(JSON.stringify(a?.alertas||[]))}"${editAttrsMes}>
           <div style="font-size:9px;font-weight:${isHoje?700:500};color:${c.txt}">${d}</div>
           ${a?.status&&a.tipo!=='livre'?(_mEnt&&_mSai?`<div style="font-size:7px;line-height:1.15;color:${c.txt}">${_mEnt}<br>${_mSai}</div>`:`<div style="font-size:7px;color:${c.txt};overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${a.status}">${a.status}</div>`):''}
           ${temAlerta?`<div style="width:5px;height:5px;border-radius:50%;background:${c.dot};margin:1px auto 0"></div>`:''}
@@ -739,6 +739,7 @@ function baixarImagemEscala(){
     <div style="font-size:11px;font-weight:600;color:#a0aec0" id="editor-titulo">Editar turno</div>
     <span style="font-size:9px;color:#4a5568;background:#1e2230;border-radius:4px;padding:2px 6px">Del = excluir rápido</span>
   </div>
+  <div id="editor-alertas" style="display:none;margin-bottom:10px"></div>
   <div id="editor-tipo-btns" style="display:flex;gap:4px;margin-bottom:12px">
     <button onclick="setTipo('turno')" id="btn-tipo-turno" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:#1a2744;color:#63b3ed">Turno</button>
     <button onclick="setTipo('folga')" id="btn-tipo-folga" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:none;color:#a0aec0">Folga</button>
@@ -762,9 +763,22 @@ function baixarImagemEscala(){
 <div id="toast-esc" style="position:fixed;bottom:20px;right:20px;background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:8px;font-size:12px;font-weight:500;z-index:600;display:none;max-width:280px"></div>
 <script>
 var editorData={},clipboard=null;
-function abrirEditor(el,data,nome,ent,sai,obs){
+function abrirEditor(el,data,nome,ent,sai,obs,alertasJson){
   editorData={el,data,nome,ent,sai,obs};
   document.getElementById('editor-titulo').textContent=nome+' · '+data;
+  var alertasBox=document.getElementById('editor-alertas'),alertas=[];
+  try{alertas=JSON.parse(alertasJson||'[]');}catch(e){alertas=[];}
+  if(alertas.length){
+    alertasBox.style.display='block';
+    alertasBox.innerHTML=alertas.map(function(a){
+      var danger=a.nivel==='danger'||a.nivel==='perigo';
+      var bg=danger?'#2a1212':'#2a2210',bd=danger?'#7f1d1d':'#78350f',tx=danger?'#fc8181':'#f6ad55';
+      return '<div style="background:'+bg+';border:1px solid '+bd+';border-radius:5px;padding:5px 8px;font-size:11px;color:'+tx+';font-weight:600;margin-bottom:4px;line-height:1.4">'+
+        (danger?'&#128308; ':'&#128993; ')+a.msg+'</div>';
+    }).join('');
+  }else{
+    alertasBox.style.display='none';alertasBox.innerHTML='';
+  }
   var tipo='turno';
   if(obs==='Folga')tipo='folga';
   else if(obs==='Dispensa Médica')tipo='dispensa';
