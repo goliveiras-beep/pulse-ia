@@ -217,10 +217,8 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
-  // Ver o parque é liberado pra qualquer colaborador ativo; alterar (cadastrar/mover/
-  // status/editar/remover) continua exclusivo do gestor.
-  if (!isGestor) return res.status(403).json({ error: 'Apenas gestores podem alterar o parque de equipamentos' });
-
+  // Cadastrar/mover/status/editar/remover é liberado pra qualquer colaborador ativo,
+  // igual ao gestor — o parque é gerido pela equipe toda, não só pela gestão.
   const { action } = req.body || {};
   const equipamentosRaw = await getSheet('Equipamentos!A2:O3000');
 
@@ -638,7 +636,7 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`, 
     <select id="f-categoria" onchange="filtrar()"><option value="">Todas categorias</option>${categoriasTodas.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
     <select id="f-local" onchange="filtrar()"><option value="">Toda alocação</option>${locaisTodos.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>
     <select id="f-status" onchange="filtrar()"><option value="">Todo status</option>${STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
-    ${isGestor ? `<button class="btn primary" onclick="abrirCadastro()">+ Cadastrar equipamento</button>` : ''}
+    <button class="btn primary" onclick="abrirCadastro()">+ Cadastrar equipamento</button>
     <a href="/api/equipamentos?v=historico" class="btn">Histórico de movimentações</a>
   </div>
 
@@ -709,7 +707,6 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`, 
 const UNIDADES = ${JSON.stringify(unidades)};
 const LOCAL_TIPO = ${JSON.stringify(localTipoMap)};
 const LOCAIS_ORDEM = ${JSON.stringify(locaisTodos)};
-const IS_GESTOR = ${isGestor ? 'true' : 'false'};
 let idAtual = null;
 
 function badgeCls(s){ return s==='Operacional'?'green':s==='Em manutenção'?'amber':s==='Baixado'?'red':'blue'; }
@@ -737,12 +734,10 @@ function linhaHTML(u){
     + '<td>'+escHtml(u.dataMov||'—')+'</td>'
     + '<td>'+escHtml(u.observacao||'—')+(tel?' <span class="info-ic" title="'+escHtml(tel)+'">📱</span>':'')+'</td>'
     + '<td class="acoes">'
-    +   (IS_GESTOR ? (
-          '<button onclick="abrirMover(\\''+u.id+'\\')">Mover</button>'
-        + '<button onclick="abrirStatus(\\''+u.id+'\\')">Status</button>'
-        + '<button onclick="abrirEditar(\\''+u.id+'\\')">Editar</button>'
-        + '<button onclick="removerUnidade(\\''+u.id+'\\')">Remover</button>'
-        ) : '—')
+    +   '<button onclick="abrirMover(\\''+u.id+'\\')">Mover</button>'
+    +   '<button onclick="abrirStatus(\\''+u.id+'\\')">Status</button>'
+    +   '<button onclick="abrirEditar(\\''+u.id+'\\')">Editar</button>'
+    +   '<button onclick="removerUnidade(\\''+u.id+'\\')">Remover</button>'
     + '</td></tr>';
 }
 
