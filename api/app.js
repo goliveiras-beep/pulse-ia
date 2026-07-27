@@ -377,7 +377,7 @@ ${script}
 function loginPage(erro = '') {
   const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
   const BASE_URL = process.env.PULSE_BASE_URL || 'https://pulse-ia-six.vercel.app';
-  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=email%20profile&access_type=offline&prompt=consent`;
+  const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URL + '/api/auth/callback')}&response_type=code&scope=${encodeURIComponent('email profile https://www.googleapis.com/auth/calendar.events')}&access_type=offline&prompt=consent`;
 
   const erroMsg = erro === 'usuario_nao_encontrado' ? 'Sua conta Google não está na equipe. Fale com o gestor.'
     : erro === 'acesso_negado' ? 'Acesso negado pelo Google.'
@@ -582,7 +582,7 @@ export default async function handler(req, res) {
   const DIAS_FULL = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
 
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
-    getSheet('Equipe!A2:L200'),
+    getSheet('Equipe!A2:M200'),
     getSheet('Escala!A2:F2000'),
     getSheet('Ausências!A2:I500'),
     getSheet('PulseConfig!A2:B20'),
@@ -949,6 +949,16 @@ export default async function handler(req, res) {
 }
 </style>
 <div class="wrap">
+  ${!usuario[12] ? `<div style="background:var(--blue-m-bg,#1a2744);border:1px solid var(--blue-m-border,#2a4080);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:20px">📅</span>
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:12px;font-weight:700;color:var(--blue-m-v,#63b3ed)">Veja seus turnos direto na Agenda do Google</div>
+      <div style="font-size:11px;color:var(--text2)">Saia e entre de novo pra autorizar — sua escala passa a aparecer automaticamente na sua agenda.</div>
+    </div>
+    <form method="POST" action="/api/app?action=logout" style="margin:0">
+      <button type="submit" style="background:#1d4ed8;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">Ativar agora</button>
+    </form>
+  </div>` : ''}
   <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
     <div style="display:flex;align-items:center;gap:12px">
       <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);color:#fff;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(99,102,241,.4)">${iniciais(nome)}</div>
@@ -1568,7 +1578,17 @@ setInterval(atualizarEventos, 60000);
   </div>
 </div>
 <div class="wrap">
-  
+  ${!usuario[12] ? `<div style="background:var(--blue-m-bg,#1a2744);border:1px solid var(--blue-m-border,#2a4080);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:20px">📅</span>
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:12px;font-weight:700;color:var(--blue-m-v,#63b3ed)">Veja seus turnos direto na Agenda do Google</div>
+      <div style="font-size:11px;color:var(--text2)">Saia e entre de novo pra autorizar — sua escala passa a aparecer automaticamente na sua agenda.</div>
+    </div>
+    <form method="POST" action="/api/app?action=logout" style="margin:0">
+      <button type="submit" style="background:#1d4ed8;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">Ativar agora</button>
+    </form>
+  </div>` : ''}
+
   <div class="frase-banner">
     <div class="frase-ic">
       <svg class="pulse-heart-anim" width="32" height="32" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="72" height="72" rx="18" fill="#e53e3e"/><rect x="0" y="36" width="72" height="36" rx="18" fill="#7f1d1d" opacity="0.3"/><path d="M36 54 C18 44 13 30 16 18 C19 7 30 3 36 10 C42 3 53 7 56 18 C59 30 54 44 36 54Z" fill="#fff" opacity="0.95"/><polyline points="10,34 16,34 19,28 22,40 25,22 28,46 31,33 41,33 44,27 47,39 50,34 62,34" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>

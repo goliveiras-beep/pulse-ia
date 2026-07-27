@@ -1,7 +1,9 @@
 // api/gestao-bundle.js — agrupa rotas de gestão de equipe/escala (equipe, equipe-view, dashboard,
 // banco-horas, publicar) em uma única Serverless Function, para caber no limite de 12 functions
 // do plano Hobby da Vercel. URLs públicas inalteradas (rewrite no vercel.json).
-export const config = { maxDuration: 30 };
+// maxDuration 60 porque publicar (rota /api/publicar) agora sincroniza a Agenda do Google de
+// cada colaborador ao publicar o horizonte — ver lib/google-calendar.js.
+export const config = { maxDuration: 60 };
 
 import equipeHandler from '../lib/routes/equipe.js';
 import equipeViewHandler from '../lib/routes/equipe-view.js';

@@ -596,6 +596,7 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
         <button onclick="publicarHorizonte('15 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+15d</button>
         <button onclick="publicarHorizonte('1 mês')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1mês</button>
         <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
+        <button onclick="sincronizarAgendas()" title="Atualiza a Agenda do Google de quem ja autorizou, sem mudar a data publicada" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--blue-m-border,#2a4080);background:var(--card);cursor:pointer;color:var(--blue-m-v,#63b3ed)">🔄 Sincronizar agenda</button>
       </div>
     </div>
   </div>` : `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-size:11px;color:var(--text2);margin-bottom:16px;display:flex;align-items:center;gap:6px">
@@ -831,6 +832,18 @@ async function publicarHorizonte(opcao){
     if(data.ok){
       toast(opcao==='limpar'?'🔒 Publicação removida':'✓ Escala publicada até '+horizonte,'#166534');
       setTimeout(function(){location.reload();},1200);
+    } else {
+      toast('Erro: '+(data.error||'?'),'#dc2626');
+    }
+  } catch(e){ toast('Erro de conexão: '+e.message,'#dc2626'); }
+}
+async function sincronizarAgendas(){
+  toast('Sincronizando agendas...','#374151');
+  try{
+    var r=await fetch('/api/publicar',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'sync'})});
+    var data=await r.json();
+    if(data.ok){
+      toast('✓ '+data.sincronizados+' agenda(s) sincronizada(s)','#166534');
     } else {
       toast('Erro: '+(data.error||'?'),'#dc2626');
     }
