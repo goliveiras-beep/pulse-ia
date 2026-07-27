@@ -690,12 +690,6 @@ export default async function handler(req, res) {
         }
       }
 
-      // Colegas de folga amanhã
-      const colegasFolgaAmanha = ausencias.filter(a =>
-        a[1] !== nome && dentroAusencia(a, d1Str) && a[0] !== 'CANCELADO' &&
-        (a[2] === 'Folga programada' || a[2] === 'Folga direcionada')
-      ).map(a => a[1].split(' ')[0]);
-
       // Turno de amanhã
       const turnoD1Str = turnoD1 ? `${turnoD1[3]}–${turnoD1[4]}` : null;
 
@@ -706,7 +700,6 @@ export default async function handler(req, res) {
       if (folgaAmanha) contexto += ` AMANHÃ TEM FOLGA!`;
       else if (turnoD1Str) contexto += ` Amanhã: ${turnoD1Str}.`;
       if (feriasBreve) contexto += ` FÉRIAS em ${feriasBreve.dias} dias (${feriasBreve.inicio})!`;
-      if (colegasFolgaAmanha.length) contexto += ` Colegas de folga amanhã: ${colegasFolgaAmanha.slice(0,3).join(', ')}.`;
 
       try {
         // Verificar cache
@@ -721,7 +714,7 @@ export default async function handler(req, res) {
           body: JSON.stringify({
             model: 'llama-3.1-8b-instant', max_tokens: 100,
             messages: [
-              { role: 'system', content: 'Voce e o assistente do Pulse, app interno de uma empresa de TV. Gere UMA mensagem curta (max 12 palavras) e animada para o colaborador. Se houver info sobre ferias proximas, folga amanha ou colegas de folga, use isso de forma criativa e personalizada. Sem explicacoes, so a mensagem. Use o primeiro nome do colaborador quando relevante.' },
+              { role: 'system', content: 'Voce e o assistente do Pulse, app interno de uma empresa de TV. Gere UMA mensagem curta (max 12 palavras) e animada para o colaborador. Se houver info sobre ferias proximas ou folga amanha (do proprio colaborador), use isso de forma criativa e personalizada. Nao mencione outros colegas. Sem explicacoes, so a mensagem. Use o primeiro nome do colaborador quando relevante.' },
               { role: 'user', content: contexto }
             ]
           })
