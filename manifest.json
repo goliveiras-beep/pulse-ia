@@ -1,0 +1,13 @@
+{
+  "name": "Pulse IA — Portal Operacional Livemode",
+  "short_name": "Pulse IA",
+  "description": "Central de operações da Livemode — escalas, eventos ao vivo, ausências e IA integrada.",
+  "start_url": "/api/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#e53e3e",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

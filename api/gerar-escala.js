@@ -549,6 +549,9 @@ Responda SOMENTE JSON (sem texto):
 <script>(function(){var d=localStorage.getItem("pulse-theme");if(d==="dark")document.documentElement.classList.add("dark");})()</script>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse — Gerar Escala IA</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#e53e3e">
 <style>
 :root{--bg:#f5f5f5;--header:#1a1a1a;--card:#fff;--border:#e5e5e5;--text:#1a1a1a;--text2:#555;--text3:#888;--input:#fff;--btn-border:#ccc;--muted:#f0f0f0;--fds-bg:#fff7ed;--ajustado-bg:#fffbeb;}
 html.dark{--bg:#1c1f26;--header:#161920;--card:#242836;--border:#2d3748;--text:#e2e8f0;--text2:#a0aec0;--text3:#718096;--input:#1e2230;--btn-border:#3d4660;--muted:#10131a;--fds-bg:#1a1f2e;--ajustado-bg:#1f1a0d;}
