@@ -582,7 +582,7 @@ export default async function handler(req, res) {
   const DIAS_FULL = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
 
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
-    getSheet('Equipe!A2:M200'),
+    getSheet('Equipe!A2:N200'),
     getSheet('Escala!A2:F2000'),
     getSheet('Ausências!A2:I500'),
     getSheet('PulseConfig!A2:B20'),
@@ -949,7 +949,7 @@ export default async function handler(req, res) {
 }
 </style>
 <div class="wrap">
-  ${!usuario[12] ? `<div style="background:var(--blue-m-bg,#1a2744);border:1px solid var(--blue-m-border,#2a4080);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+  ${!usuario[13] ? `<div style="background:var(--blue-m-bg,#1a2744);border:1px solid var(--blue-m-border,#2a4080);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <span style="font-size:20px">📅</span>
     <div style="flex:1;min-width:200px">
       <div style="font-size:12px;font-weight:700;color:var(--blue-m-v,#63b3ed)">Veja seus turnos direto na Agenda do Google</div>
@@ -1578,7 +1578,7 @@ setInterval(atualizarEventos, 60000);
   </div>
 </div>
 <div class="wrap">
-  ${!usuario[12] ? `<div style="background:var(--blue-m-bg,#1a2744);border:1px solid var(--blue-m-border,#2a4080);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+  ${!usuario[13] ? `<div style="background:var(--blue-m-bg,#1a2744);border:1px solid var(--blue-m-border,#2a4080);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <span style="font-size:20px">📅</span>
     <div style="flex:1;min-width:200px">
       <div style="font-size:12px;font-weight:700;color:var(--blue-m-v,#63b3ed)">Veja seus turnos direto na Agenda do Google</div>
