@@ -981,12 +981,6 @@ export default async function handler(req, res) {
     </div>
   </div>
 
-  <div style="text-align:right;margin-bottom:8px;display:flex;gap:14px;justify-content:flex-end">
-    <a href="/api/equipamentos" style="font-size:11px;color:var(--text3);text-decoration:underline">🎛️ Ver equipamentos</a>
-    <a href="/api/chamados" style="font-size:11px;color:var(--text3);text-decoration:underline">🎫 Abrir chamado de equipamento</a>
-    <a href="/api/escalas?v=semana" style="font-size:11px;color:var(--text3);text-decoration:underline">Ver escala de todos &rarr;</a>
-  </div>
-
   <div class="tab-nav-colab">
     <button class="tab-btn-colab ativo" onclick="trocarAba('dia')" id="tab-dia">📅 Hoje / Amanhã</button>
     <button class="tab-btn-colab" onclick="trocarAba('semana')" id="tab-semana">📆 Semana</button>
