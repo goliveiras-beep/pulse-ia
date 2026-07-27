@@ -1066,6 +1066,8 @@ export default async function handler(req, res) {
 </div>
 
 <script>
+function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
+document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
 var _evHoje = ${eventosHojeJson};
 var _evAmanha = ${eventosAmanhaJson};
 var _diasExtras = ${diasExtrasJson};
