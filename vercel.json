@@ -32,6 +32,7 @@
     { "source": "/api/meu-turno", "destination": "/api/extras-bundle?_route=meu-turno" },
     { "source": "/api/import-escala", "destination": "/api/extras-bundle?_route=import-escala" },
     { "source": "/api/upload-atestado", "destination": "/api/extras-bundle?_route=upload-atestado" },
-    { "source": "/api/fix-gestor", "destination": "/api/extras-bundle?_route=fix-gestor" }
+    { "source": "/api/fix-gestor", "destination": "/api/extras-bundle?_route=fix-gestor" },
+    { "source": "/api/compasso", "destination": "/api/extras-bundle?_route=compasso" }
   ]
 }
