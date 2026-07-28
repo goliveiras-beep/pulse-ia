@@ -563,6 +563,7 @@ a{text-decoration:none}
       <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" style="border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:15px;background:none;cursor:pointer;color:var(--btn-c);line-height:1">&#9776;</button>
       <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:190px;overflow:hidden;z-index:200">
         <a href="/api/app" class="menu-item">&#127968; Inicio</a>
+        <a href="/api/compasso" class="menu-item">&#129517; Compasso</a>
         ${isGestor ? `
         <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
         <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
