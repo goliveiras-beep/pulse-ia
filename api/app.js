@@ -581,11 +581,12 @@ export default async function handler(req, res) {
   const DIAS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
   const DIAS_FULL = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
 
-  const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
+  const [equipeRaw, escalaRaw, ausenciasRaw, configRaw, ajustesRaw] = await Promise.all([
     getSheet('Equipe!A2:N200'),
     getSheet('Escala!A2:F2000'),
     getSheet('Ausências!A2:I500'),
     getSheet('PulseConfig!A2:B20'),
+    getSheet('Ajustes!A2:G500'),
   ]);
 
   const usuario = equipeRaw.find(r => r[0] === nome && (r[10]||'ativo') === 'ativo');
@@ -597,6 +598,13 @@ export default async function handler(req, res) {
   }
 
   const isGestor = usuario?.[8] === 'gestor' && (usuario?.[10]||'ativo') === 'ativo';
+
+  // Ajuste mais recente envolvendo essa pessoa (troca de turno pelo chat de IA, edição
+  // manual do gestor etc.) — vira um banner na visão do colaborador. A coluna B (Colaborador)
+  // pode ser um nome só ou "Fulano → Beltrano" no caso de troca entre duas pessoas.
+  const meusAjustes = (ajustesRaw||[]).filter(r => r[1] && (r[1] === nome || r[1].includes(nome))).reverse();
+  const ultimoAjuste = meusAjustes[0] || null;
+  const ajusteSig = ultimoAjuste ? ultimoAjuste.join('|') : '';
 
   // Horizonte de publicação: gestores veem tudo, colaboradores só até a data publicada
   const configMap = Object.fromEntries((configRaw||[]).filter(r=>r[0]).map(r=>[r[0],r[1]||'']));
@@ -952,6 +960,21 @@ export default async function handler(req, res) {
       <button type="submit" style="background:#1d4ed8;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">Ativar agora</button>
     </form>
   </div>` : ''}
+  ${ultimoAjuste ? `<div id="banner-ajuste" style="background:var(--blue-m-bg,#1a2744);border:1px solid var(--blue-m-border,#2a4080);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:20px">🔄</span>
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:12px;font-weight:700;color:var(--blue-m-v,#63b3ed)">Seu turno foi ajustado</div>
+      <div style="font-size:11px;color:var(--text2)">${ultimoAjuste[2]||''}${ultimoAjuste[3]?` — novo horário ${ultimoAjuste[3]}–${ultimoAjuste[4]}`:''}${ultimoAjuste[5]?` (${ultimoAjuste[5]})`:''}</div>
+    </div>
+    <button onclick="dismissAjuste()" style="background:none;border:1px solid var(--blue-m-border,#2a4080);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;color:var(--blue-m-v,#63b3ed);cursor:pointer">Ok, entendi</button>
+  </div>
+  <script>
+  (function(){
+    var sig=${JSON.stringify(ajusteSig)};
+    if(localStorage.getItem('pulse-ajuste-lido')===sig){var b=document.getElementById('banner-ajuste');if(b)b.style.display='none';}
+  })();
+  function dismissAjuste(){localStorage.setItem('pulse-ajuste-lido',${JSON.stringify(ajusteSig)});document.getElementById('banner-ajuste').style.display='none';}
+  </script>` : ''}
   <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:center">
     <div style="display:flex;align-items:center;gap:12px">
       <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);color:#fff;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(99,102,241,.4)">${iniciais(nome)}</div>
