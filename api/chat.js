@@ -1,4 +1,5 @@
 import { createHash, createSign } from 'crypto';
+import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
 
 // ── helpers de sessão ────────────────────────────────────────────────────────
 
@@ -479,17 +480,21 @@ function validarUpdateShift(comando, equipeRows) {
 }
 
 async function executarAcaoPendente(token, action) {
-  if (action.action === 'add_shift') { const qtd = await gravarTurnos(token, { colaborador: action.colaborador, entrada: action.entrada, saida: action.saida, datas: action.datas, obs: action.obs||'Ajustado IA' }); return { action: 'add_shift', status: 'success', colaborador: action.colaborador, entrada: action.entrada, saida: action.saida, datas: action.datas, linhasGravadas: qtd }; }
-  if (action.action === 'remove_shift') { const qtd = await removerTurnos(token, { colaborador: action.colaborador, datas: action.datas }); return { action: 'remove_shift', status: qtd > 0 ? 'success' : 'not_found', colaborador: action.colaborador, datas: action.datas, linhasAlteradas: qtd }; }
-  if (action.action === 'swap_employee') { const qtd = await trocarColaborador(token, { fromColaborador: action.fromColaborador, toColaborador: action.toColaborador, datas: action.datas, obs: action.obs }); return { action: 'swap_employee', status: qtd > 0 ? 'success' : 'not_found', fromColaborador: action.fromColaborador, toColaborador: action.toColaborador, datas: action.datas, linhasAlteradas: qtd }; }
-  if (action.action === 'update_shift') { const qtd = await atualizarHorario(token, { colaborador: action.colaborador, entrada: action.entrada, saida: action.saida, datas: action.datas, obs: action.obs||'Ajustado IA' }); return { action: 'update_shift', status: 'success', colaborador: action.colaborador, entrada: action.entrada, saida: action.saida, datas: action.datas, linhasAlteradas: qtd }; }
-  if (['set_dayoff','set_vacation','set_medical_leave'].includes(action.action)) { const qtd = await marcarAusencia(token, { colaborador: action.colaborador, datas: action.datas, obs: action.obs }); return { action: action.action, status: 'success', colaborador: action.colaborador, datas: action.datas, obs: action.obs, linhasGravadas: qtd }; }
+  // Depois de qualquer ação que altere a Escala/Ausências de alguém, sincroniza a Agenda do
+  // Google dela na hora — sem isso, só atualizaria no próximo "Sincronizar agenda" manual.
+  if (action.action === 'add_shift') { const qtd = await gravarTurnos(token, { colaborador: action.colaborador, entrada: action.entrada, saida: action.saida, datas: action.datas, obs: action.obs||'Ajustado IA' }); await sincronizarUmaPessoa(action.colaborador); return { action: 'add_shift', status: 'success', colaborador: action.colaborador, entrada: action.entrada, saida: action.saida, datas: action.datas, linhasGravadas: qtd }; }
+  if (action.action === 'remove_shift') { const qtd = await removerTurnos(token, { colaborador: action.colaborador, datas: action.datas }); if (qtd > 0) await sincronizarUmaPessoa(action.colaborador); return { action: 'remove_shift', status: qtd > 0 ? 'success' : 'not_found', colaborador: action.colaborador, datas: action.datas, linhasAlteradas: qtd }; }
+  if (action.action === 'swap_employee') { const qtd = await trocarColaborador(token, { fromColaborador: action.fromColaborador, toColaborador: action.toColaborador, datas: action.datas, obs: action.obs }); if (qtd > 0) await Promise.all([sincronizarUmaPessoa(action.fromColaborador), sincronizarUmaPessoa(action.toColaborador)]); return { action: 'swap_employee', status: qtd > 0 ? 'success' : 'not_found', fromColaborador: action.fromColaborador, toColaborador: action.toColaborador, datas: action.datas, linhasAlteradas: qtd }; }
+  if (action.action === 'update_shift') { const qtd = await atualizarHorario(token, { colaborador: action.colaborador, entrada: action.entrada, saida: action.saida, datas: action.datas, obs: action.obs||'Ajustado IA' }); await sincronizarUmaPessoa(action.colaborador); return { action: 'update_shift', status: 'success', colaborador: action.colaborador, entrada: action.entrada, saida: action.saida, datas: action.datas, linhasAlteradas: qtd }; }
+  if (['set_dayoff','set_vacation','set_medical_leave'].includes(action.action)) { const qtd = await marcarAusencia(token, { colaborador: action.colaborador, datas: action.datas, obs: action.obs }); await sincronizarUmaPessoa(action.colaborador); return { action: action.action, status: 'success', colaborador: action.colaborador, datas: action.datas, obs: action.obs, linhasGravadas: qtd }; }
   return { action: 'query', status: 'consulta' };
 }
 
 // ── handler principal ────────────────────────────────────────────────────────
 
-export const config = { maxDuration: 30 };
+// maxDuration 60 porque executarAcaoPendente agora espera a sincronização da Agenda do
+// Google terminar antes de responder (ver sincronizarUmaPessoa em lib/google-calendar.js).
+export const config = { maxDuration: 60 };
 
 export default async function handler(req, res) {
   const session = getSession(req);

@@ -1,7 +1,10 @@
 // api/app.js — Portal único com login, visão gestor e visão equipe
-export const config = { maxDuration: 30 };
+// maxDuration 60 porque ajuste/aceitar-troca agora esperam a sincronização da Agenda do
+// Google terminar antes de responder (ver sincronizarUmaPessoa em lib/google-calendar.js).
+export const config = { maxDuration: 60 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
+import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
 import { createHash } from 'crypto';
 
 const AIRTABLE_BASE = 'appqPBoDUYfX2edOp';
@@ -506,6 +509,7 @@ export default async function handler(req, res) {
     if (acao === 'folga') { entVal = ''; saiVal = ''; obsVal = 'Folga'; }
     if (acao === 'remover') {
       if (idx >= 0) await setSheet(`Escala!D${idx + 2}:F${idx + 2}`, [['', '', '']]);
+      await sincronizarUmaPessoa(colaborador);
       return res.status(200).json({ ok: true });
     }
     if (idx >= 0) {
@@ -513,6 +517,9 @@ export default async function handler(req, res) {
     } else {
       await appendSheet('Escala!A:F', [[data, '', colaborador, entVal, saiVal, obsVal]]);
     }
+    // Reflete a mudança na Agenda do Google da pessoa na hora — sem isso, ela só apareceria
+    // atualizada no próximo "Sincronizar agenda" manual ou na próxima publicação de horizonte.
+    await sincronizarUmaPessoa(colaborador);
     return res.status(200).json({ ok: true });
   }
 
@@ -562,6 +569,7 @@ export default async function handler(req, res) {
       await setSheet(`Ausências!A${idx + 2}`, [['ACEITO-' + id]]);
       const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
       await appendSheet('Ajustes!A:G', [[agora, `${requester} ↔ ${colegaNome}`, `${meuDiaRequester}, ${colegaDia}`, '', '', 'Troca de horário aceita', 'Solicitações']]);
+      await Promise.all([sincronizarUmaPessoa(requester), sincronizarUmaPessoa(colegaNome)]);
       return res.status(200).json({ ok: true });
     } catch(err) {
       return res.status(500).json({ error: String(err.message || err) });
