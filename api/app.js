@@ -583,31 +583,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // TEMPORÁRIO — corrige linhas da Escala que ficaram com nome trocado por causa de um bug
-  // de teste (linha duplicada). Remover depois de usar.
-  if (req.method === 'POST' && action === 'corrigir-linha-temp') {
-    const equipeCheck = await getSheet('Equipe!A2:L200');
-    const usuarioCheck = equipeCheck.find(r => r[0] === nome);
-    if (usuarioCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
-    const { data, entrada, saida, novoNome } = req.body || {};
-    const escalaRaw2 = await getSheet('Escala!A2:F2000');
-    const idx = escalaRaw2.findIndex(r => r[0] === data && r[3] === entrada && r[4] === saida);
-    if (idx < 0) return res.status(404).json({ error: 'Linha não encontrada' });
-    await setSheet(`Escala!C${idx + 2}`, [[novoNome]]);
-    return res.status(200).json({ ok: true, linha: idx + 2 });
-  }
-
-  // TEMPORÁRIO — diagnóstico read-only, ver linhas reais de uma data. Remover depois de usar.
-  if (req.method === 'GET' && action === 'debug-escala-dia') {
-    const equipeCheck = await getSheet('Equipe!A2:L200');
-    const usuarioCheck = equipeCheck.find(r => r[0] === nome);
-    if (usuarioCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
-    const dataQ = req.query.data;
-    const escalaRaw2 = await getSheet('Escala!A2:F2000');
-    const linhas = escalaRaw2.map((r, i) => ({ linha: i + 2, r })).filter(x => x.r[0] === dataQ);
-    return res.status(200).json({ ok: true, linhas });
-  }
-
   if (req.method === 'POST' && action === 'cancelar-solicitacao') {
     const { id } = req.body || {};
     if (!id) return res.status(400).json({ error: 'ID inválido' });
