@@ -550,6 +550,12 @@ export default async function handler(req, res) {
       const idxReq = escalaRaw.findIndex(r => r[0] === meuDiaRequester && r[2] === requester);
       const idxColega = escalaRaw.findIndex(r => r[0] === colegaDia && r[2] === nome);
       if (idxReq < 0 || idxColega < 0) return res.status(400).json({ error: 'Não encontrei o turno de um dos dois dias na escala — confira com o gestor.' });
+      // Se a pessoa que vai assumir o dia já tem turno próprio nesse mesmo dia, renomear a
+      // linha criaria duas linhas com o mesmo nome+data na Escala (ambíguo, já vi isso dar
+      // problema num teste). Nesse caso a troca não pode ser feita sozinha — precisa do gestor.
+      const conflitoColega = escalaRaw.some((r, i) => i !== idxReq && r[0] === meuDiaRequester && r[2] === colegaNome);
+      const conflitoRequester = escalaRaw.some((r, i) => i !== idxColega && r[0] === colegaDia && r[2] === requester);
+      if (conflitoColega || conflitoRequester) return res.status(400).json({ error: 'Um de vocês já tem turno próprio no dia do outro — essa troca precisa ser feita manualmente pelo gestor pra não gerar conflito na escala.' });
       // Troca quem está escalado em cada dia, mantendo o horário que já estava naquele dia
       await setSheet(`Escala!C${idxReq + 2}`, [[colegaNome]]);
       await setSheet(`Escala!C${idxColega + 2}`, [[requester]]);
@@ -575,6 +581,20 @@ export default async function handler(req, res) {
     } catch(err) {
       return res.status(500).json({ error: String(err.message || err) });
     }
+  }
+
+  // TEMPORÁRIO — corrige linhas da Escala que ficaram com nome trocado por causa de um bug
+  // de teste (linha duplicada). Remover depois de usar.
+  if (req.method === 'POST' && action === 'corrigir-linha-temp') {
+    const equipeCheck = await getSheet('Equipe!A2:L200');
+    const usuarioCheck = equipeCheck.find(r => r[0] === nome);
+    if (usuarioCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
+    const { data, entrada, saida, novoNome } = req.body || {};
+    const escalaRaw2 = await getSheet('Escala!A2:F2000');
+    const idx = escalaRaw2.findIndex(r => r[0] === data && r[3] === entrada && r[4] === saida);
+    if (idx < 0) return res.status(404).json({ error: 'Linha não encontrada' });
+    await setSheet(`Escala!C${idx + 2}`, [[novoNome]]);
+    return res.status(200).json({ ok: true, linha: idx + 2 });
   }
 
   if (req.method === 'POST' && action === 'cancelar-solicitacao') {
