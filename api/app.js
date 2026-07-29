@@ -508,11 +508,60 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST' && action === 'solicitar') {
     try {
-      const { tipo, motivo, dataInicio, dataFim } = req.body || {};
+      const { tipo, motivo, dataInicio, dataFim, colega, colegaDia } = req.body || {};
       if (!tipo || !dataInicio) return res.status(400).json({ error: 'Dados inválidos' });
+      if (tipo === 'Troca de horário' && (!colega || !colegaDia)) return res.status(400).json({ error: 'Informe o colega e a data dele' });
       const novoId = 'PLS-' + String(Date.now()).slice(-6);
-      await appendSheet('Ausências!A:F', [[novoId, nome, tipo, motivo || '', dataInicio, dataFim || dataInicio]]);
+      // Coluna I guarda "colega|dataDoColega" só pra Troca de horário — usada pra notificar
+      // o colega e executar a troca automaticamente quando ele aceitar (ver aceitar-troca).
+      const extI = tipo === 'Troca de horário' ? `${colega}|${colegaDia}` : '';
+      await appendSheet('Ausências!A:I', [[novoId, nome, tipo, motivo || '', dataInicio, dataFim || dataInicio, '', '', extI]]);
       return res.status(200).json({ ok: true, id: novoId });
+    } catch(err) {
+      return res.status(500).json({ error: String(err.message || err) });
+    }
+  }
+
+  // Troca de horário: o colega (não o gestor) aceita ou recusa. Aceitar já executa a
+  // inversão dos turnos direto na Escala — gestor só fica sinalizado no histórico, não
+  // precisa aprovar nada.
+  if (req.method === 'POST' && action === 'aceitar-troca') {
+    try {
+      const { id } = req.body || {};
+      const ausRaw = await getSheet('Ausências!A2:I500');
+      const idx = ausRaw.findIndex(r => r[0] === id && r[2] === 'Troca de horário');
+      if (idx < 0) return res.status(404).json({ error: 'Solicitação não encontrada' });
+      const row = ausRaw[idx];
+      const [colegaNome, colegaDia] = (row[8] || '').split('|');
+      if (colegaNome !== nome) return res.status(403).json({ error: 'Essa troca não é destinada a você' });
+      const requester = row[1];
+      const meuDiaRequester = row[4];
+      const escalaRaw = await getSheet('Escala!A2:F2000');
+      const idxReq = escalaRaw.findIndex(r => r[0] === meuDiaRequester && r[2] === requester);
+      const idxColega = escalaRaw.findIndex(r => r[0] === colegaDia && r[2] === nome);
+      if (idxReq < 0 || idxColega < 0) return res.status(400).json({ error: 'Não encontrei o turno de um dos dois dias na escala — confira com o gestor.' });
+      // Troca quem está escalado em cada dia, mantendo o horário que já estava naquele dia
+      await setSheet(`Escala!C${idxReq + 2}`, [[colegaNome]]);
+      await setSheet(`Escala!C${idxColega + 2}`, [[requester]]);
+      await setSheet(`Ausências!A${idx + 2}`, [['ACEITO-' + id]]);
+      const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      await appendSheet('Ajustes!A:G', [[agora, `${requester} ↔ ${colegaNome}`, `${meuDiaRequester}, ${colegaDia}`, '', '', 'Troca de horário aceita', 'Solicitações']]);
+      return res.status(200).json({ ok: true });
+    } catch(err) {
+      return res.status(500).json({ error: String(err.message || err) });
+    }
+  }
+
+  if (req.method === 'POST' && action === 'recusar-troca') {
+    try {
+      const { id } = req.body || {};
+      const ausRaw = await getSheet('Ausências!A2:I500');
+      const idx = ausRaw.findIndex(r => r[0] === id && r[2] === 'Troca de horário');
+      if (idx < 0) return res.status(404).json({ error: 'Solicitação não encontrada' });
+      const [colegaNome] = (ausRaw[idx][8] || '').split('|');
+      if (colegaNome !== nome) return res.status(403).json({ error: 'Essa troca não é destinada a você' });
+      await setSheet(`Ausências!A${idx + 2}`, [['RECUSADO-' + id]]);
+      return res.status(200).json({ ok: true });
     } catch(err) {
       return res.status(500).json({ error: String(err.message || err) });
     }
@@ -623,6 +672,16 @@ export default async function handler(req, res) {
 
   const escala = isGestor ? escalaRaw.map(r=>r) : escalaRaw.filter(r=>!r[0]||dentroHorizonte(r[0]));
   const ausencias = ausenciasRaw.map(r => r);
+
+  // Trocas de horário pendentes esperando ESSA pessoa aceitar/recusar (não o gestor).
+  const trocasPendentes = ausencias.filter(a => {
+    if (!a[0] || !a[0].startsWith('PLS-') || a[2] !== 'Troca de horário') return false;
+    const [colegaNome] = (a[8] || '').split('|');
+    return colegaNome === nome;
+  }).map(a => {
+    const [, colegaDia] = (a[8] || '').split('|');
+    return { id: a[0], requester: a[1], meuDiaRequester: a[4], colegaDia };
+  });
 
   const dias = [hoje, d1, d2, d3, d4, d5, d6];
   const escSem = escala.filter(r => dias.some(d => fmtData(d) === r[0]));
@@ -961,6 +1020,15 @@ export default async function handler(req, res) {
       <button type="submit" style="background:#1d4ed8;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">Ativar agora</button>
     </form>
   </div>` : ''}
+  ${trocasPendentes.map(t => `<div id="banner-troca-${t.id}" style="background:var(--blue-m-bg,#1a2744);border:1px solid var(--blue-m-border,#2a4080);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:20px">🔁</span>
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:12px;font-weight:700;color:var(--blue-m-v,#63b3ed)">${t.requester} quer trocar de turno com você</div>
+      <div style="font-size:11px;color:var(--text2)">O dia ${t.meuDiaRequester} de ${t.requester} pelo seu dia ${t.colegaDia}</div>
+    </div>
+    <button onclick="responderTroca('${t.id}',true)" style="background:#16a34a;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">Aceitar</button>
+    <button onclick="responderTroca('${t.id}',false)" style="background:none;border:1px solid var(--blue-m-border,#2a4080);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;color:var(--blue-m-v,#63b3ed);cursor:pointer">Recusar</button>
+  </div>`).join('')}
   ${ultimoAjuste ? `<div id="banner-ajuste" style="background:var(--blue-m-bg,#1a2744);border:1px solid var(--blue-m-border,#2a4080);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <span style="font-size:20px">🔄</span>
     <div style="flex:1;min-width:200px">
@@ -1085,6 +1153,15 @@ export default async function handler(req, res) {
 <script>
 function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
 document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
+async function responderTroca(id,aceitar){
+  var banner=document.getElementById('banner-troca-'+id);
+  try{
+    var r=await fetch('/api/app?action='+(aceitar?'aceitar-troca':'recusar-troca'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})});
+    var d=await r.json();
+    if(d.ok){if(banner){banner.innerHTML='<span style="font-size:20px">'+(aceitar?'✅':'🙅')+'</span><div style="flex:1;font-size:12px;font-weight:700;color:var(--blue-m-v,#63b3ed)">'+(aceitar?'Troca aceita! Já ajustamos a escala.':'Troca recusada.')+'</div>';}setTimeout(function(){location.reload();},1400);}
+    else alert('Erro: '+(d.error||'?'));
+  }catch(e){alert('Erro de conexão: '+e.message);}
+}
 var _evHoje = ${eventosHojeJson};
 var _evAmanha = ${eventosAmanhaJson};
 var _diasExtras = ${diasExtrasJson};
@@ -1534,7 +1611,9 @@ setInterval(atualizarEventos, 60000);
   const pulseSpeedGestor = eventosHoje.length >= 15 ? '0.6s' : eventosHoje.length >= 10 ? '1s' : eventosHoje.length >= 5 ? '1.5s' : '2.5s';
 
   // Contador de requisições pendentes (solicitações de ausência + novos membros aguardando aprovação)
-  const pendAusenciasGestor = ausencias.filter(a => a[0] && a[0].startsWith('PLS-')).length;
+  // Troca de horário não entra nessa contagem — quem resolve é o colega (aceitar/recusar),
+  // o gestor só é sinalizado no histórico, não precisa aprovar.
+  const pendAusenciasGestor = ausencias.filter(a => a[0] && a[0].startsWith('PLS-') && a[2] !== 'Troca de horário').length;
   const pendEquipeGestor = equipeRaw.filter(r => (r[10] || 'ativo').toLowerCase() === 'pendente').length;
   const totalPendentesGestor = pendAusenciasGestor + pendEquipeGestor;
   const badgeEquipeGestor = totalPendentesGestor > 0
