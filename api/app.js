@@ -591,6 +591,17 @@ export default async function handler(req, res) {
     }
   }
 
+  // TEMPORÁRIO — marca uma troca como resolvida sem re-executar a inversão (usado só pra
+  // limpar pedidos que o gestor já ajustou manualmente por causa de conflito). Remover depois.
+  if (req.method === 'POST' && action === 'marcar-troca-resolvida-temp') {
+    const { id } = req.body || {};
+    const ausRaw = await getSheet('Ausências!A2:I500');
+    const idx = ausRaw.findIndex(r => r[0] === id && r[2] === 'Troca de horário');
+    if (idx < 0) return res.status(404).json({ error: 'Não encontrado' });
+    await setSheet(`Ausências!A${idx + 2}`, [['ACEITO-' + id]]);
+    return res.status(200).json({ ok: true });
+  }
+
   if (req.method === 'POST' && action === 'cancelar-solicitacao') {
     const { id } = req.body || {};
     if (!id) return res.status(400).json({ error: 'ID inválido' });
