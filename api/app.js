@@ -1705,6 +1705,15 @@ setInterval(atualizarEventos, 60000);
       <button type="submit" style="background:#1d4ed8;border:none;border-radius:6px;padding:7px 14px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">Ativar agora</button>
     </form>
   </div>` : ''}
+  ${trocasPendentes.map(t => `<div id="banner-troca-${t.id}" style="background:var(--blue-m-bg,#1a2744);border:1px solid var(--blue-m-border,#2a4080);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:20px">🔁</span>
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:12px;font-weight:700;color:var(--blue-m-v,#63b3ed)">${t.requester} quer trocar de turno com você</div>
+      <div style="font-size:11px;color:var(--text2)">O dia ${t.meuDiaRequester} de ${t.requester} pelo seu dia ${t.colegaDia}</div>
+    </div>
+    <button onclick="responderTroca('${t.id}',true)" style="background:#16a34a;border:none;border-radius:6px;padding:6px 14px;font-size:11px;font-weight:600;color:#fff;cursor:pointer">Aceitar</button>
+    <button onclick="responderTroca('${t.id}',false)" style="background:none;border:1px solid var(--blue-m-border,#2a4080);border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;color:var(--blue-m-v,#63b3ed);cursor:pointer">Recusar</button>
+  </div>`).join('')}
 
   <div class="frase-banner">
     <div class="frase-ic">
@@ -1913,6 +1922,15 @@ window.addEventListener('load', initMobileGestor);
 window.addEventListener('resize', initMobileGestor);
 function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
 document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
+async function responderTroca(id,aceitar){
+  var banner=document.getElementById('banner-troca-'+id);
+  try{
+    var r=await fetch('/api/app?action='+(aceitar?'aceitar-troca':'recusar-troca'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id})});
+    var d=await r.json();
+    if(d.ok){if(banner){banner.innerHTML='<span style="font-size:20px">'+(aceitar?'✅':'🙅')+'</span><div style="flex:1;font-size:12px;font-weight:700;color:var(--blue-m-v,#63b3ed)">'+(aceitar?'Troca aceita! Já ajustamos a escala.':'Troca recusada.')+'</div>';}setTimeout(function(){location.reload();},1400);}
+    else alert('Erro: '+(d.error||'?'));
+  }catch(e){alert('Erro de conexão: '+e.message);}
+}
 </script>`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
