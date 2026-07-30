@@ -836,7 +836,12 @@ export default async function handler(req, res) {
 
     // ── Helpers de card ───────────────────────────────────────────────────
     function cardTurno(turno, aus, label, isAmanha = false) {
-      if (aus) {
+      // Troca de horário: o turno original continua valendo até o colega aceitar,
+      // então mostra o horário real (com um selo de troca pendente) em vez de
+      // esconder tudo atrás de um card genérico "Troca de horário".
+      const isTroca = aus && aus[2] === 'Troca de horário';
+      const trocaBadge = isTroca ? `<div style="font-size:11px;color:#c084fc;margin-top:6px">🔄 ${aus[0] && aus[0].startsWith('PLS-') ? 'Troca de horário pendente' : 'Troca de horário aceita'}</div>` : '';
+      if (aus && !isTroca) {
         const tipo = aus[2] || 'Ausencia';
         const icones = {'Férias':'🏖️','Folga programada':'☀️','Atestado médico':'🏥','Troca de horário':'🔄','Folga direcionada':'📌'};
         const cores = {'Férias':['#1a2744','#2a4080','#63b3ed'],'Folga programada':['#0d2010','#166534','#68d391'],'Atestado médico':['#1f1010','#991b1b','#fc8181'],'Folga direcionada':['#2d1f00','#92400e','#f6ad55']};
@@ -854,8 +859,8 @@ export default async function handler(req, res) {
           </div>
         </div>`;
       }
-      if (!turno || (!turno[3] && !turno[4])) return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:6px">${label}</div><div style="font-size:15px;color:var(--text4)">Sem escala</div></div>`;
-      if (turno[5] === 'Folga') return `<div style="background:#1f1a0d;border:1px solid #3d3010;border-radius:12px;padding:14px 16px"><div style="font-size:10px;color:#f6ad55;font-weight:600;text-transform:uppercase;margin-bottom:6px;opacity:.8">${label}</div><div style="display:flex;align-items:center;gap:10px"><div style="font-size:28px">☀️</div><div style="font-size:18px;font-weight:700;color:#f6ad55">Folga</div></div></div>`;
+      if (!turno || (!turno[3] && !turno[4])) return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:6px">${label}</div><div style="font-size:15px;color:var(--text4)">Sem escala</div>${trocaBadge}</div>`;
+      if (turno[5] === 'Folga') return `<div style="background:#1f1a0d;border:1px solid #3d3010;border-radius:12px;padding:14px 16px"><div style="font-size:10px;color:#f6ad55;font-weight:600;text-transform:uppercase;margin-bottom:6px;opacity:.8">${label}</div><div style="display:flex;align-items:center;gap:10px"><div style="font-size:28px">☀️</div><div style="font-size:18px;font-weight:700;color:#f6ad55">Folga</div></div>${trocaBadge}</div>`;
       const obsVal = turno[5] || '';
       const temAnexo = obsVal.includes('Anexo:') || obsVal.startsWith('http');
       const anexoUrl = temAnexo ? (obsVal.includes('Anexo:') ? obsVal.split('Anexo:')[1].trim() : obsVal) : '';
@@ -865,7 +870,7 @@ export default async function handler(req, res) {
       return `<div style="background:${bg};border:1px solid ${bc};border-radius:12px;padding:14px 16px">
         <div style="font-size:10px;color:${isAmanha?'#63b3ed':'var(--text3)'};font-weight:600;text-transform:uppercase;margin-bottom:6px">${label}</div>
         <div style="font-size:26px;font-weight:800;color:${tc};letter-spacing:1px">${turno[3]} <span style="font-size:18px;opacity:.5">→</span> ${turno[4]}</div>
-        ${obsDisplay}${anexoDisplay}
+        ${obsDisplay}${anexoDisplay}${trocaBadge}
       </div>`;
     }
 
