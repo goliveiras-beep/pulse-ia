@@ -557,15 +557,24 @@ export default async function handler(req, res) {
       const idxReq = escalaRaw.findIndex(r => r[0] === meuDiaRequester && r[2] === requester);
       const idxColega = escalaRaw.findIndex(r => r[0] === colegaDia && r[2] === nome);
       if (idxReq < 0 || idxColega < 0) return res.status(400).json({ error: 'Não encontrei o turno de um dos dois dias na escala — confira com o gestor.' });
-      // Se a pessoa que vai assumir o dia já tem turno próprio nesse mesmo dia, renomear a
-      // linha criaria duas linhas com o mesmo nome+data na Escala (ambíguo, já vi isso dar
-      // problema num teste). Nesse caso a troca não pode ser feita sozinha — precisa do gestor.
-      const conflitoColega = escalaRaw.some((r, i) => i !== idxReq && r[0] === meuDiaRequester && r[2] === colegaNome);
-      const conflitoRequester = escalaRaw.some((r, i) => i !== idxColega && r[0] === colegaDia && r[2] === requester);
-      if (conflitoColega || conflitoRequester) return res.status(400).json({ error: 'Um de vocês já tem turno próprio no dia do outro — essa troca precisa ser feita manualmente pelo gestor pra não gerar conflito na escala.' });
-      // Troca quem está escalado em cada dia, mantendo o horário que já estava naquele dia
-      await setSheet(`Escala!C${idxReq + 2}`, [[colegaNome]]);
-      await setSheet(`Escala!C${idxColega + 2}`, [[requester]]);
+      if (meuDiaRequester === colegaDia) {
+        // Caso mais comum na prática: os dois já trabalham no MESMO dia, só em horários
+        // diferentes, e querem trocar o horário entre si. Aqui não tem duplicidade possível
+        // (são duas linhas diferentes, uma de cada, no mesmo dia) — só troca D:F entre elas.
+        const rowReq = escalaRaw[idxReq], rowColega = escalaRaw[idxColega];
+        await setSheet(`Escala!D${idxReq + 2}:F${idxReq + 2}`, [[rowColega[3] || '', rowColega[4] || '', rowColega[5] || '']]);
+        await setSheet(`Escala!D${idxColega + 2}:F${idxColega + 2}`, [[rowReq[3] || '', rowReq[4] || '', rowReq[5] || '']]);
+      } else {
+        // Dias diferentes: se qualquer um dos dois já tem turno próprio no dia do outro,
+        // renomear a linha criaria duas linhas com o mesmo nome+data (ambíguo — já vi isso
+        // corromper dado real num teste). Só troca limpo (sem conflito) é seguro sozinho.
+        const conflitoColega = escalaRaw.some(r => r[0] === meuDiaRequester && r[2] === colegaNome);
+        const conflitoRequester = escalaRaw.some(r => r[0] === colegaDia && r[2] === requester);
+        if (conflitoColega || conflitoRequester) return res.status(400).json({ error: 'Um de vocês já tem turno próprio no dia do outro (em datas diferentes) — essa troca é mais complexa e precisa ser feita manualmente pelo gestor.' });
+        // Troca quem está escalado em cada dia, mantendo o horário que já estava naquele dia
+        await setSheet(`Escala!C${idxReq + 2}`, [[colegaNome]]);
+        await setSheet(`Escala!C${idxColega + 2}`, [[requester]]);
+      }
       await setSheet(`Ausências!A${idx + 2}`, [['ACEITO-' + id]]);
       const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
       await appendSheet('Ajustes!A:G', [[agora, `${requester} ↔ ${colegaNome}`, `${meuDiaRequester}, ${colegaDia}`, '', '', 'Troca de horário aceita', 'Solicitações']]);
