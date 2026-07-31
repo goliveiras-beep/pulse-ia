@@ -136,6 +136,14 @@ async function checarDevice(device) {
   return { item, categoria: 'Encoder', status, observacao };
 }
 
+// InetAddress do SNMP vem como bytes crus (Buffer), nao como texto - precisa
+// converter pra notacao decimal (ex: [192,168,1,1] -> "192.168.1.1").
+function ipFromValue(v) {
+  if (v == null) return null;
+  if (Buffer.isBuffer(v)) return Array.from(v).join('.');
+  return String(v);
+}
+
 async function coletarDetalhe(device) {
   const oids = [
     OID_VIDEO_CODEC, OID_VIDEO_BITRATE, OID_VIDEO_WIDTH, OID_VIDEO_HEIGHT,
@@ -153,8 +161,8 @@ async function coletarDetalhe(device) {
       videoResolucao: val(2) && val(3) ? `${val(2)}x${val(3)}` : null,
       videoFps: fpsNum && fpsDen ? Number(fpsNum) / Number(fpsDen) : null,
       redeNome: val(6) ? String(val(6)) : null,
-      redeEndereco: val(7) ? String(val(7)) : null,
-      redeGateway: val(8) ? String(val(8)) : null,
+      redeEndereco: ipFromValue(val(7)),
+      redeGateway: ipFromValue(val(8)),
       versaoSoftware: val(9) ? String(val(9)) : null,
     };
   } catch (err) {
