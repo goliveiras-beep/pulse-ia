@@ -52,7 +52,29 @@ const OID_NETWORK_ADDRESS_1 = '1.3.6.1.4.1.27338.5.8.1.1.1.5.1';
 const OID_NETWORK_GATEWAY_1 = '1.3.6.1.4.1.27338.5.8.1.1.1.7.1';
 const OID_SOFTWARE_VERSION = '1.3.6.1.4.1.27338.5.6.1.0';
 
+// status geral de entrada + grupo satelite (dr5000StatusInput / dr5000StatusInputSat) -
+// bate com a aba "Bitrate/Advanced" da interface web do proprio equipamento.
+const OID_INPUT_BITRATE = '1.3.6.1.4.1.27338.5.5.3.1.0';
+const OID_INPUT_TYPE_ATUAL = '1.3.6.1.4.1.27338.5.5.3.2.0';
+const OID_SAT_LOCKED = '1.3.6.1.4.1.27338.5.5.3.3.1.0';
+const OID_SAT_SNR = '1.3.6.1.4.1.27338.5.5.3.3.2.0';
+const OID_SAT_SNR_MARGIN = '1.3.6.1.4.1.27338.5.5.3.3.3.0';
+const OID_SAT_BER = '1.3.6.1.4.1.27338.5.5.3.3.4.0';
+const OID_SAT_POWER = '1.3.6.1.4.1.27338.5.5.3.3.5.0';
+const OID_SAT_FREQUENCY = '1.3.6.1.4.1.27338.5.5.3.3.6.0';
+const OID_SAT_SYMBOL_RATE = '1.3.6.1.4.1.27338.5.5.3.3.7.0';
+const OID_SAT_MODULATION = '1.3.6.1.4.1.27338.5.5.3.3.8.0';
+const OID_SAT_FEC = '1.3.6.1.4.1.27338.5.5.3.3.9.0';
+const OID_SAT_MODE = '1.3.6.1.4.1.27338.5.5.3.3.10.0';
+const OID_SAT_ROLLOFF = '1.3.6.1.4.1.27338.5.5.3.3.11.0';
+const OID_SAT_PILOTS = '1.3.6.1.4.1.27338.5.5.3.3.12.0';
+
 const VIDEO_CODEC_MAP = { 1: 'unknown', 2: 'h264', 3: 'mp2v' };
+const INPUT_TYPE_MAP = { 1: 'ip', 2: 'asi', 3: 'sat', 4: 'ds3', 5: 'zixi', 6: 'ultraIp', 7: 'srt', 8: 'rist' };
+const SAT_MODULATION_MAP = { 1: 'unknown', 2: 'QPSK', 3: '8PSK', 4: '16APSK', 5: '32APSK', 6: '8PSK-L', 7: '16APSK-L', 8: '32APSK-L' };
+const SAT_MODE_MAP = { 1: 'Automático', 2: 'DVB-S', 3: 'DVB-S2', 4: 'DVB-S2X' };
+const SAT_ROLLOFF_MAP = { 1: 'unknown', 2: '0.35', 3: '0.25', 4: '0.20', 5: '0.15', 6: '0.10', 7: '0.05' };
+const SAT_FEC_MAP = { 1: 'unknown', 2: '1/4', 3: '1/3', 4: '2/5', 5: '1/2', 6: '3/5', 7: '2/3', 8: '3/4', 9: '4/5', 10: '5/6', 11: '6/7', 12: '7/8', 13: '8/9', 14: '9/10' };
 
 // comandos de controle (dr5000ChannelCommand, dr5000ChannelConfigurationInput)
 const OID_PRESET_LOAD_INDEX = '1.3.6.1.4.1.27338.5.3.1.2.1.0';
@@ -145,29 +167,66 @@ function ipFromValue(v) {
 }
 
 async function coletarDetalhe(device) {
-  const oids = [
-    OID_VIDEO_CODEC, OID_VIDEO_BITRATE, OID_VIDEO_WIDTH, OID_VIDEO_HEIGHT,
-    OID_VIDEO_FPS_NUM, OID_VIDEO_FPS_DEN, OID_NETWORK_NAME_1, OID_NETWORK_ADDRESS_1,
-    OID_NETWORK_GATEWAY_1, OID_SOFTWARE_VERSION,
-  ];
+  const detalhe = {};
+
   try {
+    const oids = [
+      OID_VIDEO_CODEC, OID_VIDEO_BITRATE, OID_VIDEO_WIDTH, OID_VIDEO_HEIGHT,
+      OID_VIDEO_FPS_NUM, OID_VIDEO_FPS_DEN, OID_NETWORK_NAME_1, OID_NETWORK_ADDRESS_1,
+      OID_NETWORK_GATEWAY_1, OID_SOFTWARE_VERSION,
+    ];
     const vb = await snmpGet(device.host, device.community, oids);
     const val = (i) => (vb[i] && !snmp.isVarbindError(vb[i]) ? vb[i].value : null);
     const fpsNum = val(4);
     const fpsDen = val(5);
-    return {
-      videoCodec: VIDEO_CODEC_MAP[Number(val(0))] || val(0),
-      videoBitrateBps: val(1),
-      videoResolucao: val(2) && val(3) ? `${val(2)}x${val(3)}` : null,
-      videoFps: fpsNum && fpsDen ? Number(fpsNum) / Number(fpsDen) : null,
-      redeNome: val(6) ? String(val(6)) : null,
-      redeEndereco: ipFromValue(val(7)),
-      redeGateway: ipFromValue(val(8)),
-      versaoSoftware: val(9) ? String(val(9)) : null,
+    detalhe.videoCodec = VIDEO_CODEC_MAP[Number(val(0))] || val(0);
+    detalhe.videoBitrateBps = val(1);
+    detalhe.videoResolucao = val(2) && val(3) ? `${val(2)}x${val(3)}` : null;
+    detalhe.videoFps = fpsNum && fpsDen ? Number(fpsNum) / Number(fpsDen) : null;
+    detalhe.redeNome = val(6) ? String(val(6)) : null;
+    detalhe.redeEndereco = ipFromValue(val(7));
+    detalhe.redeGateway = ipFromValue(val(8));
+    detalhe.versaoSoftware = val(9) ? String(val(9)) : null;
+  } catch (err) {
+    detalhe.erroVideoRede = err.message;
+  }
+
+  // grupo de entrada/satelite - campos so fazem sentido quando o tipo de entrada
+  // atual e "sat", mas le sempre (best-effort, NoSuchInstance vira null) pra nao
+  // depender de mais uma chamada condicional.
+  try {
+    const oids = [
+      OID_INPUT_TYPE_ATUAL, OID_INPUT_BITRATE, OID_SAT_LOCKED, OID_SAT_SNR,
+      OID_SAT_SNR_MARGIN, OID_SAT_BER, OID_SAT_POWER, OID_SAT_FREQUENCY,
+      OID_SAT_SYMBOL_RATE, OID_SAT_MODULATION, OID_SAT_FEC, OID_SAT_MODE,
+      OID_SAT_ROLLOFF, OID_SAT_PILOTS,
+    ];
+    const vb = await snmpGet(device.host, device.community, oids);
+    const val = (i) => (vb[i] && !snmp.isVarbindError(vb[i]) ? vb[i].value : null);
+
+    detalhe.entrada = {
+      tipo: INPUT_TYPE_MAP[Number(val(0))] || val(0),
+      bitrateKbps: val(1),
+    };
+    detalhe.satelite = {
+      travado: val(2) != null ? Number(val(2)) === 1 : null,
+      cnDb: val(3) != null ? Number(val(3)) / 10 : null,
+      cnMargemDb: val(4) != null ? Number(val(4)) / 10 : null,
+      berE8: val(5), // multiplos de 1e-8, conforme a MIB
+      potenciaDbm: val(6) != null ? Number(val(6)) / 10 : null,
+      frequenciaKHz: val(7),
+      taxaSimbolos: val(8),
+      modulacao: SAT_MODULATION_MAP[Number(val(9))] || val(9),
+      fec: SAT_FEC_MAP[Number(val(10))] || val(10),
+      modo: SAT_MODE_MAP[Number(val(11))] || val(11),
+      rollOff: SAT_ROLLOFF_MAP[Number(val(12))] || val(12),
+      pilots: val(13) != null ? Number(val(13)) === 1 : null,
     };
   } catch (err) {
-    return { erro: err.message };
+    detalhe.erroEntradaSatelite = err.message;
   }
+
+  return detalhe;
 }
 
 async function executarComando(device, comando) {
