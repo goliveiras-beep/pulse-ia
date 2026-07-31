@@ -37,6 +37,11 @@
 
     { "source": "/api/maestro-painel", "destination": "/api/maestro-bundle?_route=painel" },
     { "source": "/api/maestro-telemetria", "destination": "/api/maestro-bundle?_route=telemetria" },
-    { "source": "/api/maestro-ingest", "destination": "/api/maestro-bundle?_route=ingest" }
+    { "source": "/api/maestro-ingest", "destination": "/api/maestro-bundle?_route=ingest" },
+    { "source": "/api/maestro-comando", "destination": "/api/maestro-bundle?_route=comando" },
+    { "source": "/api/maestro-comandos-pendentes", "destination": "/api/maestro-bundle?_route=comandos-pendentes" },
+    { "source": "/api/maestro-comando-resultado", "destination": "/api/maestro-bundle?_route=comando-resultado" },
+    { "source": "/api/maestro-detalhe", "destination": "/api/maestro-bundle?_route=detalhe" },
+    { "source": "/api/maestro-detalhe-ingest", "destination": "/api/maestro-bundle?_route=detalhe-ingest" }
   ]
 }

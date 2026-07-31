@@ -7,11 +7,21 @@ export const config = { maxDuration: 30 };
 import painelHandler from '../lib/routes/maestro-painel.js';
 import telemetriaHandler from '../lib/routes/maestro-telemetria.js';
 import ingestHandler from '../lib/routes/maestro-ingest.js';
+import comandoHandler from '../lib/routes/maestro-comando.js';
+import comandosPendentesHandler from '../lib/routes/maestro-comandos-pendentes.js';
+import comandoResultadoHandler from '../lib/routes/maestro-comando-resultado.js';
+import detalheHandler from '../lib/routes/maestro-detalhe.js';
+import detalheIngestHandler from '../lib/routes/maestro-detalhe-ingest.js';
 
 const ROUTES = {
   painel: painelHandler,
   telemetria: telemetriaHandler,
   ingest: ingestHandler,
+  comando: comandoHandler,
+  'comandos-pendentes': comandosPendentesHandler,
+  'comando-resultado': comandoResultadoHandler,
+  detalhe: detalheHandler,
+  'detalhe-ingest': detalheIngestHandler,
 };
 
 export default async function handler(req, res) {
