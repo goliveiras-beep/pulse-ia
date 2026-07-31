@@ -6,10 +6,12 @@
 export const config = { maxDuration: 30 };
 import painelHandler from '../lib/routes/maestro-painel.js';
 import telemetriaHandler from '../lib/routes/maestro-telemetria.js';
+import ingestHandler from '../lib/routes/maestro-ingest.js';
 
 const ROUTES = {
   painel: painelHandler,
   telemetria: telemetriaHandler,
+  ingest: ingestHandler,
 };
 
 export default async function handler(req, res) {

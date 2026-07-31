@@ -1,0 +1,8 @@
+[
+  {
+    "nome": "DR5000 - Central",
+    "host": "172.16.30.51",
+    "community": "public",
+    "tempCritica": 70
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "name": "maestro-agent",
+  "version": "1.0.0",
+  "description": "Agente local que consulta equipamentos via SNMP e manda telemetria pro MAESTRO",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "net-snmp": "^3.26.3"
+  }
+}
