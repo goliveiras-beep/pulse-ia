@@ -200,8 +200,13 @@ export default async function handler(req, res) {
   }
 
   const hoje = getBRT();
-  const inicio = new Date(hoje); inicio.setDate(hoje.getDate()+1);
-  const fim = new Date(hoje); fim.setDate(hoje.getDate()+14);
+  // Início do período configurável via ?inicio=YYYY-MM-DD (input de data no topo da página) — sem
+  // esse parâmetro, mantém o padrão de sempre (a partir de amanhã). Sempre 14 dias a partir do início.
+  const inicioParam = req.query.inicio;
+  const inicio = (inicioParam && /^\d{4}-\d{2}-\d{2}$/.test(inicioParam))
+    ? new Date(inicioParam + 'T00:00:00')
+    : (() => { const d = new Date(hoje); d.setDate(hoje.getDate() + 1); return d; })();
+  const fim = new Date(inicio); fim.setDate(inicio.getDate() + 13);
   const ativos = equipeRaw.filter(r=>r[0]&&r[6]!=='Inativo');
 
   // ── Endpoint de análise assíncrona (chamado pelo cliente em background) ──
@@ -240,8 +245,8 @@ export default async function handler(req, res) {
       // Carga de eventos Airtable
       const eventosA = await getEventosPeriodo(fmtAirtable(inicio), fmtAirtable(fim));
       const cargaPorDia = [];
-      for(let i=1;i<=14;i++) {
-        const d=new Date(hoje); d.setDate(hoje.getDate()+i);
+      for(let i=0;i<14;i++) {
+        const d=new Date(inicio); d.setDate(inicio.getDate()+i);
         const df=fmtData(d); const dataAT=fmtAirtable(d);
         cargaPorDia.push({df, diaSem:['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()], eventos:eventosA.filter(e=>e.data===dataAT).length});
       }
@@ -392,8 +397,8 @@ Responda SOMENTE JSON (sem texto):
       const existingKeysAgora = new Set(escalaAtual.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
       const body = req.body||{};
       const linhasNovas = [];
-      for(let i=1;i<=14;i++){
-        const d=new Date(hoje); d.setDate(hoje.getDate()+i);
+      for(let i=0;i<14;i++){
+        const d=new Date(inicio); d.setDate(inicio.getDate()+i);
         const df=fmtData(d);
         ativos.forEach(p=>{
           const t=turnos[p[0]];
@@ -431,8 +436,8 @@ Responda SOMENTE JSON (sem texto):
   const diasProcessados = [];
   let totalLacunas = 0, totalAjustes = 0, totalJaPreenchidos = 0;
 
-  for(let i=1;i<=14;i++){
-    const d = new Date(hoje); d.setDate(hoje.getDate()+i);
+  for(let i=0;i<14;i++){
+    const d = new Date(inicio); d.setDate(inicio.getDate()+i);
     const df = fmtData(d);
     const dataAT = fmtAirtable(d);
     const evsDia = eventos.filter(e=>e.data===dataAT);
@@ -565,7 +570,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="font-size:14px;font-weight:600;color:#fff">Pulse — Escala IA ✨</div>
     <div style="font-size:11px;color:var(--text3)">${fmtData(inicio)} a ${fmtData(fim)} · ${totalAjustes} ajustes automáticos · ${totalJaPreenchidos} já preenchidos (preservados) · ${totalLacunas - totalAjustes > 0 ? (totalLacunas - totalAjustes)+' lacunas restantes' : 'cobertura completa ✓'}</div>
   </div>
-  <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+  <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+    <label style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px">Gerar a partir de:
+      <input type="date" value="${fmtAirtable(inicio)}" style="background:var(--card);border:1px solid var(--btn-border);border-radius:5px;padding:3px 6px;font-size:11px;color:var(--text);font-family:inherit" onchange="if(this.value) location.href='/api/gerar-escala?inicio='+this.value">
+    </label>
     <button id="tt" onclick="toggleTheme()" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">&#127769;</button>
     <a href="/api/escalas?v=semana" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--text2);text-decoration:none">← Escala</a>
   </div>
@@ -627,6 +635,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 <script>
 function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');var btn=document.getElementById('tt');if(btn)btn.textContent=dk?'☀️':'🌙';}
+var INICIO_ISO = '${fmtAirtable(inicio)}';
 var AJUSTES = ${JSON.stringify(ajustesJSON)};
 var FOLGAS_IA = [];
 var TURNOS_BASE = ${JSON.stringify(Object.fromEntries(ativos.filter(p=>turnos[p[0]]).map(p=>[p[0],turnos[p[0]]])))};
@@ -639,7 +648,7 @@ var DATAS = ${JSON.stringify(diasProcessados.map(d=>({df:d.df,diaSem:d.diaSem,is
     var timeoutId = setTimeout(function(){ ctrl.abort(); }, 45000);
     var r;
     try {
-      r = await fetch('/api/gerar-escala?action=analisar', {credentials:'include', signal: ctrl.signal});
+      r = await fetch('/api/gerar-escala?action=analisar&inicio='+INICIO_ISO, {credentials:'include', signal: ctrl.signal});
     } finally {
       clearTimeout(timeoutId);
     }
@@ -695,7 +704,7 @@ async function confirmar(){
   var btn=document.getElementById('btn');
   btn.textContent='Compartilhando...';btn.disabled=true;btn.style.background='#374151';
   try{
-    var r=await fetch('/api/gerar-escala',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes:AJUSTES,folgas:FOLGAS_IA})});
+    var r=await fetch('/api/gerar-escala?inicio='+INICIO_ISO,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes:AJUSTES,folgas:FOLGAS_IA})});
     var d=await r.json();
     if(d.ok){btn.textContent='✓ Compartilhado!';btn.style.background='#166534';setTimeout(()=>window.location='/api/escalas?v=semana',1500);}
     else{btn.textContent='Compartilhar com a equipe ✓';btn.disabled=false;btn.style.background='#1d4ed8';alert('Erro: '+d.error);}
