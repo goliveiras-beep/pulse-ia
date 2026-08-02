@@ -109,6 +109,21 @@ async function garantirSubpastaChamados(gestorToken) {
   return createData.id;
 }
 
+// Garante a subpasta (mesma lógica de garantirSubpastaChamados) e devolve o link direto pra ela,
+// pra mostrar um "Abrir pasta no Drive" na lista — assim a pasta já existe mesmo antes do primeiro
+// anexo, em vez de só aparecer depois que alguém sobe um arquivo. Retorna null se o Drive do gestor
+// não estiver configurado (não trava a página de chamados por isso).
+async function obterUrlPastaAnexos() {
+  try {
+    const gestorToken = await getGestorDriveToken();
+    const folderId = await garantirSubpastaChamados(gestorToken);
+    return `https://drive.google.com/drive/folders/${folderId}`;
+  } catch (e) {
+    console.error('obterUrlPastaAnexos falhou:', e.message);
+    return null;
+  }
+}
+
 async function registrarMovimentacaoEquipamento({ id, equipamento, de, para, responsavel, observacao, tipo }) {
   const linha = await proximaLinhaLivre('MovimentacoesEquipamento');
   await inserirLinhas('MovimentacoesEquipamento', 'H', [[
@@ -207,7 +222,8 @@ export default async function handler(req, res) {
       if (!row) return res.status(404).send('Chamado não encontrado');
       return renderRelatorio(res, row);
     }
-    return renderChamados(res, session, isGestor, chamadosRaw, equipamentosRaw, nomesEquipe);
+    const pastaAnexosUrl = await obterUrlPastaAnexos();
+    return renderChamados(res, session, isGestor, chamadosRaw, equipamentosRaw, nomesEquipe, pastaAnexosUrl);
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
@@ -533,7 +549,7 @@ ${scriptExtra}
 </html>`;
 }
 
-function renderChamados(res, session, isGestor, chamadosRaw, equipamentosRaw, nomesEquipe) {
+function renderChamados(res, session, isGestor, chamadosRaw, equipamentosRaw, nomesEquipe, pastaAnexosUrl) {
   const chamados = chamadosRaw.filter(r => r[0]).map(r => ({
     id: r[0], idEquipamento: r[1]||'', equipamento: r[2]||'', tipoProblema: r[3]||'', prioridade: r[4]||'Baixa',
     descricao: r[5]||'', status: r[6]||'Aberto', abertoPor: r[7]||'', dataAbertura: r[8]||'',
@@ -605,6 +621,7 @@ ${headerHTML(session.nome, isGestor, `${chamados.length} chamados registrados`)}
   <div class="field"><label>Equipe envolvida</label><input id="g-equipe" placeholder="Ex: João, Maria, Pedro"></div>
   <div class="field">
     <label>Anexos (fotos, notas fiscais, comprovantes...)</label>
+    <div id="link-pasta-anexos" style="margin-bottom:6px"></div>
     <div id="g-anexos-lista" style="margin-bottom:6px"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <input id="g-anexo-file" type="file" multiple style="flex:1;min-width:140px">
@@ -623,6 +640,10 @@ const CHAMADOS = ${JSON.stringify(chamados)};
 const EQUIP_MAP = ${JSON.stringify(Object.fromEntries(equipamentosOpcoes.map(e => [e.id, e.nome])))};
 const IS_GESTOR = ${isGestor ? 'true' : 'false'};
 const MEU_NOME = ${JSON.stringify(session.nome)};
+const PASTA_ANEXOS_URL = ${JSON.stringify(pastaAnexosUrl)};
+if (PASTA_ANEXOS_URL) {
+  document.getElementById('link-pasta-anexos').innerHTML = '<a href="'+PASTA_ANEXOS_URL+'" target="_blank" rel="noopener" style="font-size:12px;color:var(--blue)">📁 Abrir pasta de anexos no Drive</a>';
+}
 let idAtual = null;
 let equipSelecionado = '';
 
