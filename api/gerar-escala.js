@@ -246,8 +246,15 @@ export default async function handler(req, res) {
       });
       // Histórico completo desde HISTORICO_INICIO (01/06 — ver topo da função) — não só 60 dias. Dá
       // pra IA visão real de quem já folgou muito/pouco e quem já acumulou banco/hora extra.
+      // Map em vez de escalaRaw.find() repetido — evita varrer ~740 linhas a cada um dos ~62 dias x
+      // ~13 pessoas (o scan linear repetido foi o que causou timeout na primeira versão desta análise).
+      const escalaMapA = new Map();
+      escalaRaw.forEach(r => { if (r[0] && r[2]) escalaMapA.set(`${r[0]}|${r[2]}`, r); });
+      const ausenciasAprovadasA = ausenciasRaw.filter(a => statusAusencia(a[0])==='aprovado');
+      const ausenciasPorPessoaA = {};
+      ativos.forEach(p => { ausenciasPorPessoaA[p[0]] = ausenciasAprovadasA.filter(a => a[1]===p[0]); });
       function tipoAusenciaAprovadaNoDia(df, nome) {
-        const a = ausenciasRaw.find(a => a[1]===nome && statusAusencia(a[0])==='aprovado' && dentroPeriodoAus(a[4], a[5], df));
+        const a = (ausenciasPorPessoaA[nome]||[]).find(a => dentroPeriodoAus(a[4], a[5], df));
         return a ? a[2] : null;
       }
       const historicoA = {};
@@ -258,7 +265,7 @@ export default async function handler(req, res) {
         for (let i=diasDesdeInicio; i>=0; i--) {
           const d=new Date(hoje); d.setDate(hoje.getDate()-i);
           const df=fmtData(d);
-          const reg = escalaRaw.find(r=>r[0]===df&&r[2]===p[0]);
+          const reg = escalaMapA.get(`${df}|${p[0]}`);
           const tipoAus = tipoAusenciaAprovadaNoDia(df, p[0]);
           const isFolga = (reg && (reg[5]==='Folga'||reg[5]==='Folga/Ausente')) || tipoAus==='Folga programada' || tipoAus==='Folga direcionada';
           if (isFolga) { diasFolga++; diasDesdeUltimaFolga = i; }
@@ -308,7 +315,7 @@ export default async function handler(req, res) {
         const rFolga = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method:'POST',
           headers:{'Content-Type':'application/json','Authorization':`Bearer ${process.env.GROQ_API_KEY}`},
-          body:JSON.stringify({model:'llama-3.1-8b-instant',max_tokens:1500,messages:[{role:'user',content:`Gestor de TV ao vivo, Copa do Mundo 2026. Sugira folgas para os próximos ${diasSpan} dias, começando em ${fmtData(inicio)}.
+          body:JSON.stringify({model:'llama-3.1-8b-instant',max_tokens:1000,messages:[{role:'user',content:`Gestor de TV ao vivo, Copa do Mundo 2026. Sugira folgas para os próximos ${diasSpan} dias, começando em ${fmtData(inicio)}.
 
 HISTÓRICO DESDE 01/06 (dias sem folga agora / trabalhados / folgas tiradas / banco+extras acumulados):
 ${fadigaResumo}
