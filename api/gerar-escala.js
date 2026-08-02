@@ -200,13 +200,18 @@ export default async function handler(req, res) {
   }
 
   const hoje = getBRT();
-  // Início do período configurável via ?inicio=YYYY-MM-DD (input de data no topo da página) — sem
-  // esse parâmetro, mantém o padrão de sempre (a partir de amanhã). Sempre 14 dias a partir do início.
+  // Início e fim do período configuráveis via ?inicio=YYYY-MM-DD&fim=YYYY-MM-DD (inputs de data no
+  // topo da página) — sem esses parâmetros, mantém o padrão de sempre (amanhã, 14 dias).
   const inicioParam = req.query.inicio;
+  const fimParam = req.query.fim;
   const inicio = (inicioParam && /^\d{4}-\d{2}-\d{2}$/.test(inicioParam))
     ? new Date(inicioParam + 'T00:00:00')
     : (() => { const d = new Date(hoje); d.setDate(hoje.getDate() + 1); return d; })();
-  const fim = new Date(inicio); fim.setDate(inicio.getDate() + 13);
+  const fim = (fimParam && /^\d{4}-\d{2}-\d{2}$/.test(fimParam) && new Date(fimParam + 'T00:00:00') >= inicio)
+    ? new Date(fimParam + 'T00:00:00')
+    : (() => { const d = new Date(inicio); d.setDate(inicio.getDate() + 13); return d; })();
+  // Nº de dias do período (inclusive nas duas pontas) — substitui o "14" fixo de antes em todo loop abaixo.
+  const diasSpan = Math.round((fim - inicio) / 86400000) + 1;
   const ativos = equipeRaw.filter(r=>r[0]&&r[6]!=='Inativo');
 
   // ── Endpoint de análise assíncrona (chamado pelo cliente em background) ──
@@ -245,7 +250,7 @@ export default async function handler(req, res) {
       // Carga de eventos Airtable
       const eventosA = await getEventosPeriodo(fmtAirtable(inicio), fmtAirtable(fim));
       const cargaPorDia = [];
-      for(let i=0;i<14;i++) {
+      for(let i=0;i<diasSpan;i++) {
         const d=new Date(inicio); d.setDate(inicio.getDate()+i);
         const df=fmtData(d); const dataAT=fmtAirtable(d);
         cargaPorDia.push({df, diaSem:['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()], eventos:eventosA.filter(e=>e.data===dataAT).length});
@@ -259,7 +264,7 @@ export default async function handler(req, res) {
       const rFolga = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
-        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,messages:[{role:'user',content:`Gestor de TV ao vivo, Copa do Mundo 2026. Sugira folgas para os próximos 14 dias.
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,messages:[{role:'user',content:`Gestor de TV ao vivo, Copa do Mundo 2026. Sugira folgas para os próximos ${diasSpan} dias.
 
 FADIGA (dias seguidos / trabalhados/60d):
 ${fadigaResumo}
@@ -397,7 +402,7 @@ Responda SOMENTE JSON (sem texto):
       const existingKeysAgora = new Set(escalaAtual.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
       const body = req.body||{};
       const linhasNovas = [];
-      for(let i=0;i<14;i++){
+      for(let i=0;i<diasSpan;i++){
         const d=new Date(inicio); d.setDate(inicio.getDate()+i);
         const df=fmtData(d);
         ativos.forEach(p=>{
@@ -436,7 +441,7 @@ Responda SOMENTE JSON (sem texto):
   const diasProcessados = [];
   let totalLacunas = 0, totalAjustes = 0, totalJaPreenchidos = 0;
 
-  for(let i=0;i<14;i++){
+  for(let i=0;i<diasSpan;i++){
     const d = new Date(inicio); d.setDate(inicio.getDate()+i);
     const df = fmtData(d);
     const dataAT = fmtAirtable(d);
@@ -571,8 +576,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="font-size:11px;color:var(--text3)">${fmtData(inicio)} a ${fmtData(fim)} · ${totalAjustes} ajustes automáticos · ${totalJaPreenchidos} já preenchidos (preservados) · ${totalLacunas - totalAjustes > 0 ? (totalLacunas - totalAjustes)+' lacunas restantes' : 'cobertura completa ✓'}</div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-    <label style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px">Gerar a partir de:
-      <input type="date" value="${fmtAirtable(inicio)}" style="background:var(--card);border:1px solid var(--btn-border);border-radius:5px;padding:3px 6px;font-size:11px;color:var(--text);font-family:inherit" onchange="if(this.value) location.href='/api/gerar-escala?inicio='+this.value">
+    <label style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px">De:
+      <input type="date" id="inpInicio" value="${fmtAirtable(inicio)}" style="background:var(--card);border:1px solid var(--btn-border);border-radius:5px;padding:3px 6px;font-size:11px;color:var(--text);font-family:inherit" onchange="mudarPeriodo()">
+    </label>
+    <label style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px">até:
+      <input type="date" id="inpFim" value="${fmtAirtable(fim)}" style="background:var(--card);border:1px solid var(--btn-border);border-radius:5px;padding:3px 6px;font-size:11px;color:var(--text);font-family:inherit" onchange="mudarPeriodo()">
     </label>
     <button id="tt" onclick="toggleTheme()" style="border:1px solid var(--btn-border);border-radius:5px;padding:3px 8px;font-size:14px;background:none;cursor:pointer">&#127769;</button>
     <a href="/api/escalas?v=semana" style="background:none;border:1px solid var(--btn-border);border-radius:5px;padding:4px 10px;font-size:11px;color:var(--text2);text-decoration:none">← Escala</a>
@@ -592,7 +600,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
   </div>` : ''}
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Dias gerados</div><div style="font-size:24px;font-weight:700">14</div><div style="font-size:10px;color:var(--text3);margin-top:2px">${fmtData(inicio)} → ${fmtData(fim)}</div></div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Dias gerados</div><div style="font-size:24px;font-weight:700">${diasSpan}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">${fmtData(inicio)} → ${fmtData(fim)}</div></div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Linhas novas</div><div style="font-size:24px;font-weight:700">${totalAGravar}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">${totalJaPreenchidos} já existentes, preservadas</div></div>
     <div style="background:${totalAjustes>0?'#1f1a0d':'var(--card)'};border:1px solid ${totalAjustes>0?'#3d3010':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Ajustes IA</div><div style="font-size:24px;font-weight:700;color:${totalAjustes>0?'#f6ad55':'var(--text)'}">${totalAjustes}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">turnos ajustados</div></div>
     <div style="background:${totalLacunas-totalAjustes>0?'#1f1010':'#0d2010'};border:1px solid ${totalLacunas-totalAjustes>0?'#3d2020':'#0d2010'};border-radius:8px;padding:12px 14px"><div style="font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Lacunas restantes</div><div style="font-size:24px;font-weight:700;color:${totalLacunas-totalAjustes>0?'#fc8181':'#68d391'}">${totalLacunas-totalAjustes}</div><div style="font-size:10px;color:var(--text3);margin-top:2px">${totalLacunas-totalAjustes>0?'sem cobertura':'cobertura completa'}</div></div>
@@ -635,7 +643,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 <script>
 function toggleTheme(){var dk=document.documentElement.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');var btn=document.getElementById('tt');if(btn)btn.textContent=dk?'☀️':'🌙';}
+function mudarPeriodo(){
+  var ini=document.getElementById('inpInicio').value, fim=document.getElementById('inpFim').value;
+  if(!ini||!fim) return;
+  if(fim<ini){ alert('A data final não pode ser antes da data de início'); return; }
+  location.href='/api/gerar-escala?inicio='+ini+'&fim='+fim;
+}
 var INICIO_ISO = '${fmtAirtable(inicio)}';
+var FIM_ISO = '${fmtAirtable(fim)}';
 var AJUSTES = ${JSON.stringify(ajustesJSON)};
 var FOLGAS_IA = [];
 var TURNOS_BASE = ${JSON.stringify(Object.fromEntries(ativos.filter(p=>turnos[p[0]]).map(p=>[p[0],turnos[p[0]]])))};
@@ -648,7 +663,7 @@ var DATAS = ${JSON.stringify(diasProcessados.map(d=>({df:d.df,diaSem:d.diaSem,is
     var timeoutId = setTimeout(function(){ ctrl.abort(); }, 45000);
     var r;
     try {
-      r = await fetch('/api/gerar-escala?action=analisar&inicio='+INICIO_ISO, {credentials:'include', signal: ctrl.signal});
+      r = await fetch('/api/gerar-escala?action=analisar&inicio='+INICIO_ISO+'&fim='+FIM_ISO, {credentials:'include', signal: ctrl.signal});
     } finally {
       clearTimeout(timeoutId);
     }
@@ -704,7 +719,7 @@ async function confirmar(){
   var btn=document.getElementById('btn');
   btn.textContent='Compartilhando...';btn.disabled=true;btn.style.background='#374151';
   try{
-    var r=await fetch('/api/gerar-escala?inicio='+INICIO_ISO,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes:AJUSTES,folgas:FOLGAS_IA})});
+    var r=await fetch('/api/gerar-escala?inicio='+INICIO_ISO+'&fim='+FIM_ISO,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes:AJUSTES,folgas:FOLGAS_IA})});
     var d=await r.json();
     if(d.ok){btn.textContent='✓ Compartilhado!';btn.style.background='#166534';setTimeout(()=>window.location='/api/escalas?v=semana',1500);}
     else{btn.textContent='Compartilhar com a equipe ✓';btn.disabled=false;btn.style.background='#1d4ed8';alert('Erro: '+d.error);}
