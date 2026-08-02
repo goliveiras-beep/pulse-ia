@@ -105,16 +105,23 @@ async function garantirAbaChamados() {
   const temChamados = sheets.some(s => s.properties.title === 'Chamados');
   if (!temChamados) {
     await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
-      requests: [{ addSheet: { properties: { title: 'Chamados', gridProperties: { rowCount: 2000, columnCount: 14 } } } }]
+      requests: [{ addSheet: { properties: { title: 'Chamados', gridProperties: { rowCount: 2000, columnCount: 18 } } } }]
     });
-    await setSheet('Chamados!A1:N1', [[
+    await setSheet('Chamados!A1:R1', [[
       'ID', 'ID Equipamento', 'Equipamento', 'Tipo de Problema', 'Prioridade', 'Descrição',
       'Status', 'Aberto Por', 'Data Abertura', 'Responsável pelo Reparo', 'Data Última Atualização', 'Solução',
-      'Peças/Componentes Utilizados', 'Valor do Serviço (R$)'
+      'Peças/Componentes Utilizados', 'Valor do Serviço (R$)',
+      'Como Foi Feito', 'Início da Intervenção', 'Fim da Intervenção', 'Equipe Envolvida'
     ]]);
   } else {
     await garantirColunaChamados(sheets, 'M', 13, 'Peças/Componentes Utilizados');
     await garantirColunaChamados(sheets, 'N', 14, 'Valor do Serviço (R$)');
+    // Campos de detalhamento de manutenção (o que/como foi feito) — adicionados em 31/07/2026
+    // pra dar origem ao Relatório de Manutenção (?action=relatorio).
+    await garantirColunaChamados(sheets, 'O', 15, 'Como Foi Feito');
+    await garantirColunaChamados(sheets, 'P', 16, 'Início da Intervenção');
+    await garantirColunaChamados(sheets, 'Q', 17, 'Fim da Intervenção');
+    await garantirColunaChamados(sheets, 'R', 18, 'Equipe Envolvida');
   }
 }
 
@@ -147,9 +154,14 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     const [chamadosRaw, equipamentosRaw] = await Promise.all([
-      getSheet('Chamados!A2:N2000'),
+      getSheet('Chamados!A2:R2000'),
       getSheet('Equipamentos!A2:O3000'),
     ]);
+    if (req.query.action === 'relatorio') {
+      const row = chamadosRaw.find(r => r[0] === req.query.id);
+      if (!row) return res.status(404).send('Chamado não encontrado');
+      return renderRelatorio(res, row);
+    }
     return renderChamados(res, session, isGestor, chamadosRaw, equipamentosRaw, nomesEquipe);
   }
 
@@ -172,7 +184,7 @@ export default async function handler(req, res) {
     const statusAnterior = equipRow[5] || 'Operacional';
     const linhaEquip = idxEquip + 2;
 
-    const chamadosRaw = await getSheet('Chamados!A2:N2000');
+    const chamadosRaw = await getSheet('Chamados!A2:R2000');
     const id = proximoChamadoId(chamadosRaw);
     const agora = fmtTimestamp(getBRT());
     const linha = await proximaLinhaLivre('Chamados');
@@ -195,7 +207,7 @@ export default async function handler(req, res) {
     // assumir a execução do reparo. Se ainda estava só "Aberto", assumir já conta como começar
     // a olhar o problema, então avança pra "Em andamento" sozinho.
     const { id } = req.body || {};
-    const chamadosRaw = await getSheet('Chamados!A2:N2000');
+    const chamadosRaw = await getSheet('Chamados!A2:R2000');
     const idx = chamadosRaw.findIndex(r => r[0] === id);
     if (idx < 0) return res.status(404).json({ error: 'Chamado não encontrado' });
     const row = chamadosRaw[idx];
@@ -207,10 +219,10 @@ export default async function handler(req, res) {
   }
 
   if (action === 'atualizar') {
-    const { id, novoStatus, responsavel, solucao, pecasUtilizadas, valorReparo } = req.body || {};
+    const { id, novoStatus, responsavel, solucao, pecasUtilizadas, valorReparo, comoFeito, inicioIntervencao, fimIntervencao, equipeEnvolvida } = req.body || {};
     if (!STATUS_CHAMADO.includes(novoStatus)) return res.status(400).json({ error: 'Status inválido' });
 
-    const chamadosRaw = await getSheet('Chamados!A2:N2000');
+    const chamadosRaw = await getSheet('Chamados!A2:R2000');
     const idx = chamadosRaw.findIndex(r => r[0] === id);
     if (idx < 0) return res.status(404).json({ error: 'Chamado não encontrado' });
     const row = chamadosRaw[idx];
@@ -221,9 +233,12 @@ export default async function handler(req, res) {
     const linha = idx + 2;
     const agora = fmtTimestamp(getBRT());
 
-    await setSheet(`Chamados!G${linha}:N${linha}`, [[
+    // Colunas O-R (Como Foi Feito / Início / Fim / Equipe Envolvida) — detalhamento da manutenção,
+    // usado pelo Relatório de Manutenção (?action=relatorio). Adicionado em 31/07/2026.
+    await setSheet(`Chamados!G${linha}:R${linha}`, [[
       novoStatus, row[7]||'', row[8]||'', responsavel??row[9]??'', agora, solucao??row[11]??'',
-      pecasUtilizadas??row[12]??'', valorReparo??row[13]??''
+      pecasUtilizadas??row[12]??'', valorReparo??row[13]??'',
+      comoFeito??row[14]??'', inicioIntervencao??row[15]??'', fimIntervencao??row[16]??'', equipeEnvolvida??row[17]??''
     ]]);
 
     if (STATUS_FECHADO.includes(novoStatus)) {
@@ -387,7 +402,8 @@ function renderChamados(res, session, isGestor, chamadosRaw, equipamentosRaw, no
     id: r[0], idEquipamento: r[1]||'', equipamento: r[2]||'', tipoProblema: r[3]||'', prioridade: r[4]||'Baixa',
     descricao: r[5]||'', status: r[6]||'Aberto', abertoPor: r[7]||'', dataAbertura: r[8]||'',
     responsavel: r[9]||'', dataAtualizacao: r[10]||'', solucao: r[11]||'',
-    pecasUtilizadas: r[12]||'', valorReparo: r[13]||''
+    pecasUtilizadas: r[12]||'', valorReparo: r[13]||'',
+    comoFeito: r[14]||'', inicioIntervencao: r[15]||'', fimIntervencao: r[16]||'', equipeEnvolvida: r[17]||''
   })).reverse();
 
   const equipamentosOpcoes = equipamentosRaw.filter(r => r[0]).map(r => ({ id: r[0], nome: r[2]||'', alocacao: r[6]||'' }));
@@ -443,7 +459,13 @@ ${headerHTML(session.nome, isGestor, `${chamados.length} chamados registrados`)}
   <div class="field"><label>Responsável pelo reparo</label><select id="g-responsavel"><option value="">— Ninguém —</option>${nomesEquipe.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}</select></div>
   <div class="field"><label>Peças/componentes utilizados</label><textarea id="g-pecas" rows="2" placeholder="Ex: 2x rolamento X, cabo Y..."></textarea></div>
   <div class="field"><label>Valor do serviço de reparo (R$)</label><input id="g-valor" type="number" step="0.01" min="0" placeholder="0,00"></div>
-  <div class="field"><label>Solução / observação</label><textarea id="g-solucao" rows="3"></textarea></div>
+  <div class="field"><label>O que foi feito / Solução</label><textarea id="g-solucao" rows="3"></textarea></div>
+  <div class="field"><label>Como foi feito (procedimento)</label><textarea id="g-comofeito" rows="3" placeholder="Ex: desligamento sequencial, troca do módulo X, teste de sinal..."></textarea></div>
+  <div class="field" style="display:flex;gap:8px">
+    <div style="flex:1"><label>Início</label><input id="g-inicio" type="text" placeholder="HH:MM"></div>
+    <div style="flex:1"><label>Fim</label><input id="g-fim" type="text" placeholder="HH:MM"></div>
+  </div>
+  <div class="field"><label>Equipe envolvida</label><input id="g-equipe" placeholder="Ex: João, Maria, Pedro"></div>
   <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarGerenciar()">Salvar</button></div>
 </div></div>
 `;
@@ -466,6 +488,7 @@ function linhaHTML(c){
   var botoes = '';
   if (!c.responsavel) botoes += '<button onclick="pegarChamado(\\''+c.id+'\\')">🙋 Pegar pra mim</button>';
   if (podeGerenciar) botoes += '<button onclick="abrirGerenciar(\\''+c.id+'\\')">Gerenciar</button>';
+  botoes += '<button onclick="window.open(\\'/api/chamados?action=relatorio&id='+c.id+'\\',\\'_blank\\')">📄 Relatório</button>';
   return '<tr>'
     + '<td>'+escHtml(c.id)+'</td>'
     + '<td>'+escHtml(c.equipamento)+' <span style="color:var(--text3);font-size:10px">'+escHtml(c.idEquipamento)+'</span></td>'
@@ -537,6 +560,10 @@ function abrirGerenciar(id){
   document.getElementById('g-pecas').value = c.pecasUtilizadas;
   document.getElementById('g-valor').value = c.valorReparo;
   document.getElementById('g-solucao').value = c.solucao;
+  document.getElementById('g-comofeito').value = c.comoFeito||'';
+  document.getElementById('g-inicio').value = c.inicioIntervencao||'';
+  document.getElementById('g-fim').value = c.fimIntervencao||'';
+  document.getElementById('g-equipe').value = c.equipeEnvolvida||'';
   document.getElementById('modal-gerenciar').classList.add('open');
 }
 async function salvarGerenciar(){
@@ -547,6 +574,10 @@ async function salvarGerenciar(){
     pecasUtilizadas: document.getElementById('g-pecas').value,
     valorReparo: document.getElementById('g-valor').value,
     solucao: document.getElementById('g-solucao').value,
+    comoFeito: document.getElementById('g-comofeito').value,
+    inicioIntervencao: document.getElementById('g-inicio').value,
+    fimIntervencao: document.getElementById('g-fim').value,
+    equipeEnvolvida: document.getElementById('g-equipe').value,
   };
   var r = await fetch('/api/chamados', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   var d = await r.json();
@@ -560,4 +591,110 @@ filtrar();
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
   return res.status(200).send(baseHTML('Chamados', conteudo, script));
+}
+
+// ── Relatório de manutenção (?action=relatorio&id=CHM-xxxx) ────────────────
+// Página independente (não usa o shell/menu do resto do Pulse) pensada pra ser impressa, salva
+// como PDF ou copiada pro corpo de um email — é a saída da manutenção detalhada (o que/como foi
+// feito, início/fim, equipe) registrada no chamado. Envio automático por email (Resend) fica pra
+// quando a conta estiver configurada; por enquanto o botão "Enviar por email" abre um rascunho no
+// cliente de email da própria pessoa (mailto:) com o relatório já no corpo — funciona hoje, sem
+// precisar de nenhuma infraestrutura nova.
+function renderRelatorio(res, row) {
+  const c = {
+    id: row[0], idEquipamento: row[1]||'', equipamento: row[2]||'', tipoProblema: row[3]||'',
+    prioridade: row[4]||'', descricao: row[5]||'', status: row[6]||'', abertoPor: row[7]||'',
+    dataAbertura: row[8]||'', responsavel: row[9]||'', dataAtualizacao: row[10]||'', solucao: row[11]||'',
+    pecasUtilizadas: row[12]||'', valorReparo: row[13]||'',
+    comoFeito: row[14]||'', inicioIntervencao: row[15]||'', fimIntervencao: row[16]||'', equipeEnvolvida: row[17]||''
+  };
+
+  const linha = (label, valor) => valor ? `<tr><td class="lbl">${esc(label)}</td><td>${esc(valor).replace(/\n/g,'<br>')}</td></tr>` : '';
+
+  const corpoTexto = [
+    `RELATÓRIO DE MANUTENÇÃO — ${c.id}`, '',
+    `Equipamento: ${c.equipamento} (${c.idEquipamento})`,
+    `Tipo: ${c.tipoProblema}    Prioridade: ${c.prioridade}    Status: ${c.status}`,
+    `Aberto por: ${c.abertoPor}, em ${c.dataAbertura}`,
+    `Responsável: ${c.responsavel||'—'}    Última atualização: ${c.dataAtualizacao}`, '',
+    c.solucao ? `O QUE FOI FEITO:\n${c.solucao}\n` : '',
+    c.comoFeito ? `COMO FOI FEITO:\n${c.comoFeito}\n` : '',
+    (c.inicioIntervencao || c.fimIntervencao) ? `Horário da intervenção: ${c.inicioIntervencao||'?'} às ${c.fimIntervencao||'?'}\n` : '',
+    c.equipeEnvolvida ? `Equipe envolvida: ${c.equipeEnvolvida}\n` : '',
+    c.pecasUtilizadas ? `Peças/componentes utilizados: ${c.pecasUtilizadas}\n` : '',
+    c.valorReparo ? `Valor do serviço: R$ ${c.valorReparo}\n` : '',
+  ].filter(Boolean).join('\n');
+
+  const conteudo = `
+<div class="pg">
+  <div class="topo no-print">
+    <button class="btn" onclick="window.close()">← Fechar</button>
+    <button class="btn primary" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+  </div>
+  <div class="folha">
+    <h1>Relatório de Manutenção</h1>
+    <div class="idgrande">${esc(c.id)}</div>
+    <table class="dados">
+      ${linha('Equipamento', `${c.equipamento} (${c.idEquipamento})`)}
+      ${linha('Tipo', c.tipoProblema)}
+      ${linha('Prioridade', c.prioridade)}
+      ${linha('Status', c.status)}
+      ${linha('Aberto por', `${c.abertoPor} — ${c.dataAbertura}`)}
+      ${linha('Responsável', c.responsavel)}
+      ${linha('Última atualização', c.dataAtualizacao)}
+    </table>
+    <h2>O que foi feito</h2>
+    <p class="txt">${esc(c.solucao||'—').replace(/\n/g,'<br>')}</p>
+    <h2>Como foi feito</h2>
+    <p class="txt">${esc(c.comoFeito||'—').replace(/\n/g,'<br>')}</p>
+    <table class="dados">
+      ${linha('Início da intervenção', c.inicioIntervencao)}
+      ${linha('Fim da intervenção', c.fimIntervencao)}
+      ${linha('Equipe envolvida', c.equipeEnvolvida)}
+      ${linha('Peças/componentes utilizados', c.pecasUtilizadas)}
+      ${linha('Valor do serviço', c.valorReparo ? `R$ ${c.valorReparo}` : '')}
+    </table>
+  </div>
+  <div class="folha no-print">
+    <h2 style="margin-top:0">Enviar por email</h2>
+    <p style="font-size:12px;color:#666;margin-bottom:10px">Abre um rascunho no seu próprio email com o relatório no corpo — envio automático ainda não está configurado.</p>
+    <input id="destinatarios" placeholder="destinatario1@empresa.com, destinatario2@empresa.com" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:8px 10px;font-size:13px;margin-bottom:10px">
+    <button class="btn primary" onclick="enviarEmail()">📧 Abrir rascunho de email</button>
+  </div>
+</div>`;
+
+  const script = `
+function enviarEmail(){
+  var dest = document.getElementById('destinatarios').value.trim();
+  var assunto = ${JSON.stringify('Relatório de Manutenção — ' + c.id + ' — ' + c.equipamento)};
+  var corpo = ${JSON.stringify(corpoTexto)};
+  var url = 'mailto:' + encodeURIComponent(dest) + '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+  window.location.href = url;
+}
+`;
+
+  const css = `
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f0f0;color:#1a1a1a;margin:0;padding:20px}
+.pg{max-width:720px;margin:0 auto}
+.topo{display:flex;gap:10px;justify-content:flex-end;margin-bottom:14px}
+.btn{border:1px solid #ddd;border-radius:6px;padding:7px 13px;font-size:12px;background:#fff;color:#1a1a1a;cursor:pointer}
+.btn.primary{background:#1d4ed8;border-color:#1d4ed8;color:#fff;font-weight:600}
+.folha{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:28px 32px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+h1{font-size:20px;margin-bottom:2px}
+.idgrande{font-size:13px;color:#888;margin-bottom:18px;font-weight:600}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:#666;margin:18px 0 6px}
+.txt{font-size:14px;line-height:1.5;white-space:pre-wrap}
+table.dados{width:100%;border-collapse:collapse;margin-top:6px}
+table.dados td{padding:6px 4px;font-size:13px;border-bottom:1px solid #f0f0f0;vertical-align:top}
+table.dados td.lbl{color:#888;width:200px;font-weight:600}
+@media print{ .no-print{display:none!important} body{background:#fff;padding:0} .folha{border:none;box-shadow:none} }
+`;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  return res.status(200).send(`<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Relatório — ${esc(c.id)}</title><style>${css}</style></head>
+<body>${conteudo}<script>${script}</script></body></html>`);
 }
