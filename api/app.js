@@ -1562,8 +1562,12 @@ setInterval(atualizarEventos, 60000);
   const semCob = eventosCruzadosAmanha.filter(e => e.semCob).length;
   const comAtenc = eventosCruzadosAmanha.filter(e => e.atenc.length > 0).length;
   const trabAmanha = escD1.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente').length;
-  const folgAmanha = escD1.filter(r => !r[3] || r[5] === 'Folga' || r[5] === 'Folga/Ausente').length;
-  const folgHoje = escHoje.filter(r => !r[3] || r[5] === 'Folga' || r[5] === 'Folga/Ausente').length;
+  const folgasAmanhaRows = escD1.filter(r => !r[3] || r[5] === 'Folga' || r[5] === 'Folga/Ausente');
+  const folgasHojeRows = escHoje.filter(r => !r[3] || r[5] === 'Folga' || r[5] === 'Folga/Ausente');
+  const folgAmanha = folgasAmanhaRows.length;
+  const folgHoje = folgasHojeRows.length;
+  const nomesFolgaHoje = folgasHojeRows.map(r => r[2]).filter(Boolean);
+  const nomesFolgaAmanha = folgasAmanhaRows.map(r => r[2]).filter(Boolean);
   // Férias que iniciam nos próximos 7 dias (alerta antecipado)
   const d7 = new Date(hoje); d7.setDate(hoje.getDate() + 7);
   const feriasProximas = ausencias.filter(a => {
@@ -1741,8 +1745,8 @@ setInterval(atualizarEventos, 60000);
 
   <div class="metrics">
     <div class="metric blue-m"><div class="ml">Trabalhando amanhã</div><div class="mv blue-v">${trabAmanha}</div><div class="ms">${cobPct}% cobertura · ${equipeRaw.length} na equipe</div></div>
-    <div class="metric ${folgHoje > 2 ? 'amber-m' : ''}"><div class="ml">Folgas hoje</div><div class="mv ${folgHoje > 2 ? 'amber-v' : ''}">${folgHoje}</div><div class="ms">${ausencias.filter(a => a[0] !== 'CANCELADO' && dentroAusencia(a, hojeStr)).length} via Pulse</div></div>
-    <div class="metric ${folgAmanha > 2 ? 'amber-m' : ''}"><div class="ml">Folgas amanhã</div><div class="mv ${folgAmanha > 2 ? 'amber-v' : ''}">${folgAmanha}</div><div class="ms">${ausencias.filter(a => a[4] === d1Str).length} via Pulse</div></div>
+    <div class="metric ${folgHoje > 2 ? 'amber-m' : ''}"><div class="ml">Folgas hoje</div><div class="mv ${folgHoje > 2 ? 'amber-v' : ''}">${folgHoje}</div><div class="ms">${nomesFolgaHoje.length ? nomesFolgaHoje.map(n => n.split(' ')[0]).join(', ') : 'Nenhuma'}</div></div>
+    <div class="metric ${folgAmanha > 2 ? 'amber-m' : ''}"><div class="ml">Folgas amanhã</div><div class="mv ${folgAmanha > 2 ? 'amber-v' : ''}">${folgAmanha}</div><div class="ms">${nomesFolgaAmanha.length ? nomesFolgaAmanha.map(n => n.split(' ')[0]).join(', ') : 'Nenhuma'}</div></div>
     <div class="metric ${semCob > 0 ? 'red-m' : ''}" title="Eventos cujo intervalo início→fim não é coberto por nenhum turno escalado."><div class="ml">Sem cobertura</div><div class="mv ${semCob > 0 ? 'red-v' : ''}">${semCob}</div><div class="ms">de ${eventosAmanha.length} eventos amanhã</div></div>
     ${feriasAtivas > 0 ? `<div class="metric amber-m"><div class="ml">Férias em até 7 dias</div><div class="mv amber-v">${feriasAtivas}</div><div class="ms">${feriasProximas.map(a => `${a[1].split(' ')[0]} (${a[4]})`).join(', ')}</div></div>` : ''}
   </div>
