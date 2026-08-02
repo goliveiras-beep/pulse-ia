@@ -303,7 +303,7 @@ export default async function handler(req, res) {
       // (modelo pequeno, acontece), o histórico real (fadigaA/turnos/cargaPorDia) já calculado acima
       // ainda é devolvido normalmente; só a sugestão de folga fica vazia com erroIA preenchido. Antes
       // um erro aqui derrubava a resposta inteira com 500, escondendo até os dados reais da tela.
-      let folgas = [], erroIA = null;
+      let folgas = [], erroIA = null, debugTemp = null;
       try {
         const rFolga = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method:'POST',
@@ -333,11 +333,12 @@ Responda SOMENTE JSON, compacto, sem texto antes/depois. "motivo" no máximo 6 p
           const parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
           const nomesValidos = new Set(ativos.filter(p=>turnosA[p[0]]).map(p=>p[0]));
           folgas = (parsed.folgas||[]).filter(f=>nomesValidos.has(f.nome)&&!jaPreenchidoA(f.data,f.nome));
+          debugTemp = { parsedFolgas: parsed.folgas, nomesValidosArr: [...nomesValidos] };
         }
       } catch(eIA) {
         erroIA = 'Resposta da IA em formato inválido: ' + eIA.message;
       }
-      return res.status(200).json({ ok:true, fadiga:fadigaA, folgas, cargaPorDia, turnos:turnosA, erroIA });
+      return res.status(200).json({ ok:true, fadiga:fadigaA, folgas, cargaPorDia, turnos:turnosA, erroIA, _debugTemp: debugTemp });
     } catch(e) {
       return res.status(500).json({ error: e.message });
     }
