@@ -698,6 +698,7 @@ ${headerHTML(session.nome, isGestor, `${chamados.length} chamados registrados`)}
       <button type="button" id="btn-enviar-anexo" class="btn" onclick="enviarAnexo()">Enviar</button>
     </div>
     <div id="g-anexo-selecionados" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+    <button type="button" class="btn" style="margin-top:8px" onclick="gerarEEnviarRelatorioPdf()" title="Gera o PDF do relatório com os dados atuais e sobe/atualiza como anexo, sem precisar mudar o status">📄 Gerar/atualizar PDF do relatório</button>
   </div>
   <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarGerenciar()">Salvar</button></div>
 </div></div>
@@ -979,9 +980,8 @@ function gerarPdfRelatorio(c, body){
   return doc.output('blob');
 }
 
-async function salvarGerenciar(){
-  var body = {
-    action: 'atualizar', id: idAtual,
+function lerCamposGerenciar(){
+  return {
     novoStatus: document.getElementById('g-status').value,
     responsavel: document.getElementById('g-responsavel').value,
     pecasUtilizadas: document.getElementById('g-pecas').value,
@@ -992,6 +992,29 @@ async function salvarGerenciar(){
     fimIntervencao: document.getElementById('g-fim').value,
     equipeEnvolvida: document.getElementById('g-equipe').value,
   };
+}
+
+// Gera e sobe o PDF do relatório a qualquer momento, com os dados que já estão no formulário —
+// não depende do chamado estar sendo fechado nem passa pelo salvarGerenciar. Serve tanto pra criar
+// o primeiro PDF quanto pra gerar de novo um relatório que já existe (ex: layout mudou depois).
+async function gerarEEnviarRelatorioPdf(){
+  var c = CHAMADOS.find(function(x){ return x.id===idAtual; });
+  if (!c) return;
+  var btn = event && event.target;
+  if (btn) { btn.disabled = true; btn.textContent = 'Gerando...'; }
+  try{
+    var body = lerCamposGerenciar();
+    var pdfBlob = gerarPdfRelatorio(c, body);
+    var anexos = await uploadUmArquivo(pdfBlob, 'Relatorio_'+c.id+'.pdf');
+    c.anexos = anexos;
+    renderAnexos(anexos);
+    alert('PDF gerado e enviado como anexo!');
+  } catch(e) { alert('Erro ao gerar PDF: '+e.message); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '📄 Gerar/atualizar PDF do relatório'; } }
+}
+
+async function salvarGerenciar(){
+  var body = Object.assign({ action: 'atualizar', id: idAtual }, lerCamposGerenciar());
   var btnSalvar = document.querySelector('#modal-gerenciar .btn.primary');
   if (btnSalvar) { btnSalvar.disabled = true; btnSalvar.textContent = 'Salvando...'; }
   try {
