@@ -1,6 +1,7 @@
 // api/gerar-escala.js — Geração de escala com cobertura inteligente
 export const config = { maxDuration: 60 };
 import { sheetsRequest } from '../lib/google-auth.js';
+import { calcularDia, horasNoturnas, jornadaContratada, feriadosDoAno, duracaoHoras } from '../lib/horas-extras-engine.js';
 import { createHash } from 'crypto';
 
 const AIRTABLE_BASE = 'appqPBoDUYfX2edOp';
@@ -168,10 +169,12 @@ export default async function handler(req, res) {
   const session = getSession(req);
   if (!session) return res.status(401).json({ error: 'Não autenticado' });
 
-  // Equipe (9 col): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
-  // Ausências (range busca 9 col, só 0/1/4/5 são usados aqui): 0=id/status, 1=nome, 4=início DD/MM, 5=fim DD/MM
+  // Equipe (14 col — layout real, ver CLAUDE.md): 0=nome, 8=perfil, 12=tipoContrato (CLT/PJ/Temporário,
+  // usado pra cruzar banco de horas). Faixa ampliada de I pra M nesta sessão (31/07/2026) pra dar acesso
+  // ao tipo de contrato — antes só ia até I e por isso a análise não conseguia calcular banco/extras.
+  // Ausências (range busca 9 col, só 0/1/2/4/5 são usados aqui): 0=id/status, 1=nome, 2=tipo, 4=início DD/MM, 5=fim DD/MM
   const [equipeRaw, escalaRaw, ausenciasRaw] = await Promise.all([
-    getSheet('Equipe!A2:I50'),
+    getSheet('Equipe!A2:M200'),
     getSheet('Escala!A2:F2000'),
     getSheet('Ausências!A2:I500'),
   ]);
@@ -213,6 +216,11 @@ export default async function handler(req, res) {
   // Nº de dias do período (inclusive nas duas pontas) — substitui o "14" fixo de antes em todo loop abaixo.
   const diasSpan = Math.round((fim - inicio) / 86400000) + 1;
   const ativos = equipeRaw.filter(r=>r[0]&&r[6]!=='Inativo');
+  // Início do histórico "completo" — início da Copa 2026, quando a escala virou completa e passou a
+  // rodar de verdade (antes disso os dados são esparsos/incompletos). Usado tanto na análise síncrona
+  // da página quanto no endpoint assíncrono de folgas — ver conversa com o Guilherme em 31/07/2026.
+  const HISTORICO_INICIO = new Date(hoje.getFullYear(), 5, 1); // 01/06
+  const diasDesdeInicio = Math.max(1, Math.round((hoje - HISTORICO_INICIO) / 86400000));
 
   // ── Endpoint de análise assíncrona (chamado pelo cliente em background) ──
   if (req.method === 'GET' && req.query.action === 'analisar') {
@@ -231,22 +239,46 @@ export default async function handler(req, res) {
         const [ent,sai] = Object.entries(freq).sort((a,b)=>b[1]-a[1])[0][0].split('|');
         turnosA[p[0]] = { ent, sai };
       });
-      // Fadiga
-      const fadigaA = {};
+      // Histórico completo desde HISTORICO_INICIO (01/06 — ver topo da função) — não só 60 dias. Dá
+      // pra IA visão real de quem já folgou muito/pouco e quem já acumulou banco/hora extra.
+      function tipoAusenciaAprovadaNoDia(df, nome) {
+        const a = ausenciasRaw.find(a => a[1]===nome && statusAusencia(a[0])==='aprovado' && dentroPeriodoAus(a[4], a[5], df));
+        return a ? a[2] : null;
+      }
+      const historicoA = {};
       ativos.filter(p=>turnosA[p[0]]).forEach(p => {
-        let consec=0;
-        for(let i=0;i<=60;i++) {
+        const tipoContrato = p[12] || '';
+        let diasTrabalhados=0, diasFolga=0, diasOutraAusencia=0, diasDesdeUltimaFolga=diasDesdeInicio;
+        let bancoAcum=0, extra100Acum=0, extra50Acum=0, noturnoAcum=0;
+        for (let i=diasDesdeInicio; i>=0; i--) {
           const d=new Date(hoje); d.setDate(hoje.getDate()-i);
           const df=fmtData(d);
-          const reg=escalaTudo.find(r=>r[0]===df&&r[2]===p[0]);
-          if(!reg) break;
-          if(reg[5]==='Folga'||(!reg[3]&&!reg[4])) break;
-          consec++;
+          const reg = escalaRaw.find(r=>r[0]===df&&r[2]===p[0]);
+          const tipoAus = tipoAusenciaAprovadaNoDia(df, p[0]);
+          const isFolga = (reg && (reg[5]==='Folga'||reg[5]==='Folga/Ausente')) || tipoAus==='Folga programada' || tipoAus==='Folga direcionada';
+          if (isFolga) { diasFolga++; diasDesdeUltimaFolga = i; }
+          else if (tipoAus==='Férias' || tipoAus==='Atestado médico' || tipoAus==='Troca de horário') { diasOutraAusencia++; }
+          else if (reg && reg[3] && reg[4]) {
+            diasTrabalhados++;
+            if (tipoContrato) {
+              const durBruta = duracaoHoras(reg[3], reg[4]);
+              const semBanco = d.getDay()===0 || feriadosDoAno(d.getFullYear()).has(df);
+              const calc = calcularDia(durBruta, tipoContrato, semBanco);
+              bancoAcum += calc.banco; extra100Acum += calc.extra100; extra50Acum += calc.extra50;
+              noturnoAcum += horasNoturnas(reg[3], reg[4]) * 0.20;
+            }
+          }
         }
-        const trabalhados = escalaTudo.filter(r=>r[2]===p[0]&&r[3]&&r[4]&&r[5]!=='Folga').length;
-        const total = escalaTudo.filter(r=>r[2]===p[0]).length;
-        fadigaA[p[0]] = { consecutivos: consec, diasTrabalho: trabalhados, totalDias60: total };
+        historicoA[p[0]] = {
+          consecutivos: diasDesdeUltimaFolga, diasTrabalho: diasTrabalhados, totalDiasHistorico: diasDesdeInicio,
+          diasFolga, diasOutraAusencia,
+          bancoAcum: Math.round(bancoAcum*10)/10, extra100Acum: Math.round(extra100Acum*10)/10,
+          extra50Acum: Math.round(extra50Acum*10)/10, noturnoAcum: Math.round(noturnoAcum*10)/10,
+          extrasTotal: Math.round((extra100Acum+extra50Acum+noturnoAcum)*10)/10,
+          semTipoContrato: !tipoContrato,
+        };
       });
+      const fadigaA = historicoA; // nome mantido pra compatibilidade com o retorno do endpoint
       // Carga de eventos Airtable
       const eventosA = await getEventosPeriodo(fmtAirtable(inicio), fmtAirtable(fim));
       const cargaPorDia = [];
@@ -255,26 +287,32 @@ export default async function handler(req, res) {
         const df=fmtData(d); const dataAT=fmtAirtable(d);
         cargaPorDia.push({df, diaSem:['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()], eventos:eventosA.filter(e=>e.data===dataAT).length});
       }
-      // Chamada IA para folgas
+      // Chamada IA para folgas — agora com o histórico completo desde 01/06 (dias trabalhados, folgas
+      // já tiradas, banco de horas e hora extra acumulados), não só um resumo de 60 dias.
       const fadigaResumo = ativos.filter(p=>turnosA[p[0]]).map(p=>{
-        const f=fadigaA[p[0]]||{};
-        return `${p[0].split(' ')[0]}: ${f.consecutivos||0} dias seguidos, ${f.diasTrabalho||0}/${f.totalDias60||0} trabalhados/60d`;
+        const f=historicoA[p[0]]||{};
+        return `${p[0].split(' ')[0]}: ${f.consecutivos||0} dias sem folga agora, ${f.diasTrabalho||0} trabalhados / ${f.diasFolga||0} folgas desde 01/06 (${f.totalDiasHistorico} dias de histórico), banco+extras acumulados: ${f.extrasTotal||0}h${f.semTipoContrato?' (sem tipo de contrato — extras não calculados)':''}`;
       }).join('\n');
       const cargaResumo = cargaPorDia.map(d=>`${d.df}(${d.diaSem}):${d.eventos}ev`).join(' ');
       const rFolga = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
-        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:600,messages:[{role:'user',content:`Gestor de TV ao vivo, Copa do Mundo 2026. Sugira folgas para os próximos ${diasSpan} dias.
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content:`Gestor de TV ao vivo, Copa do Mundo 2026. Sugira folgas para os próximos ${diasSpan} dias, começando em ${fmtData(inicio)}.
 
-FADIGA (dias seguidos / trabalhados/60d):
+HISTÓRICO DESDE 01/06 (dias sem folga agora / trabalhados / folgas tiradas / banco+extras acumulados):
 ${fadigaResumo}
 
-CARGA PRÓXIMOS 14 DIAS: ${cargaResumo}
+CARGA DE EVENTOS NO PERÍODO: ${cargaResumo}
 
-REGRAS: 1 folga por pessoa mínimo. Priorize quem tem mais dias seguidos. Não mais de 30% da equipe folga no mesmo dia. Dias com mais de 8 eventos: evitar folgar noturnos.
+REGRAS (em ordem de prioridade):
+1. Quem tem mais "banco+extras acumulados" e mais "dias sem folga agora" tem prioridade pra folgar primeiro — está pagando um débito real de horas.
+2. Meta: pelo menos 1 folga a cada 7 dias corridos pra cada pessoa dentro do período — ninguém deve terminar o período tão sem-folga quanto começou.
+3. Quem já tem MUITAS folgas acumuladas desde 01/06 em relação ao histórico total (>30% dos dias) pode folgar menos agora — distribuir de forma justa ao longo do tempo, não só olhando o período atual.
+4. Não mais de 30% da equipe de folga no mesmo dia.
+5. Dias com mais de 8 eventos: evitar folgar quem cobre horário noturno.
 
 Responda SOMENTE JSON (sem texto):
-{"folgas":[{"nome":"Nome Completo","data":"DD/MM","motivo":"razão curta"}]}`}]})
+{"folgas":[{"nome":"Nome Completo","data":"DD/MM","motivo":"razão curta baseada nos números acima"}]}`}]})
       });
       const dFolga = await rFolga.json();
       const txt = dFolga.content?.[0]?.text?.trim()||'{"folgas":[]}';
@@ -323,29 +361,29 @@ Responda SOMENTE JSON (sem texto):
     }
   });
 
-  // Fadiga: contar dias trabalhados nos últimos 60 dias usando datas normalizadas
-  const h60dias = new Date(hoje); h60dias.setDate(hoje.getDate()-60);
+  // Fadiga: contar dias trabalhados desde HISTORICO_INICIO (01/06) usando datas normalizadas —
+  // mesma janela usada no endpoint assíncrono de folgas, pra não ter dois números diferentes na tela.
   function dfParaData(df) {
     const p = df.split('/');
     return new Date(hoje.getFullYear(), parseInt(p[1])-1, parseInt(p[0]));
   }
   function dentroJanela(df) {
-    try { const dt=dfParaData(df); return dt>=h60dias&&dt<=hoje; } catch { return false; }
+    try { const dt=dfParaData(df); return dt>=HISTORICO_INICIO&&dt<=hoje; } catch { return false; }
   }
   const escalaTudo = escalaNorm.filter(r=>r[0]&&dentroJanela(r[0]));
 
   function calcularFadiga(nomePessoa) {
-    let consecutivos=0, totalDias60=0, folgas60=0;
-    for(let i=0;i<=60;i++) {
+    let consecutivos=0, totalDiasHistorico=0, folgasHistorico=0;
+    for(let i=0;i<=diasDesdeInicio;i++) {
       const d=new Date(hoje); d.setDate(hoje.getDate()-i);
       const df=fmtData(d);
       const reg=escalaTudo.find(r=>r[0]===df&&r[2]===nomePessoa);
       if(!reg) continue;
-      totalDias60++;
-      if(reg[5]==='Folga'||(!reg[3]&&!reg[4])) { folgas60++; break; }
+      totalDiasHistorico++;
+      if(reg[5]==='Folga'||(!reg[3]&&!reg[4])) folgasHistorico++;
     }
     consecutivos=0;
-    for(let i=0;i<=60;i++) {
+    for(let i=0;i<=diasDesdeInicio;i++) {
       const d=new Date(hoje); d.setDate(hoje.getDate()-i);
       const df=fmtData(d);
       const reg=escalaTudo.find(r=>r[0]===df&&r[2]===nomePessoa);
@@ -353,7 +391,7 @@ Responda SOMENTE JSON (sem texto):
       if(reg[5]==='Folga'||(!reg[3]&&!reg[4])) break;
       consecutivos++;
     }
-    return { consecutivos, totalDias60, folgas60, diasTrabalho: totalDias60-folgas60 };
+    return { consecutivos, totalDiasHistorico, folgasHistorico, diasTrabalho: totalDiasHistorico-folgasHistorico };
   }
 
   const fadiga = {};
@@ -506,7 +544,7 @@ Responda SOMENTE JSON (sem texto):
       <div style="font-size:18px">${nivel==='red'?'🔴':nivel==='amber'?'🟡':'🟢'}</div>
       <div style="flex:1">
         <div style="font-size:12px;font-weight:600;color:var(--text)">${p[0].split(' ')[0]}</div>
-        <div style="font-size:10px;color:${cor}">${f.consecutivos||0} dias seguidos · ${f.diasTrabalho||0} trabalhados/60d</div>
+        <div style="font-size:10px;color:${cor}">${f.consecutivos||0} dias seguidos · ${f.diasTrabalho||0} trab. / ${f.folgasHistorico||0} folgas desde 01/06</div>
         ${folgas14.length?`<div style="font-size:9px;color:#68d391;margin-top:2px">💤 Folgas sugeridas: ${folgas14.join(', ')}</div>`:''}
       </div>
     </div>`;
@@ -680,10 +718,12 @@ var DATAS = ${JSON.stringify(diasProcessados.map(d=>({df:d.df,diaSem:d.diaSem,is
       var cores={red:['#1f1010','#991b1b','#fc8181'],amber:['#1f1a0d','#3d3010','#f6ad55'],green:['#0d2010','#166534','#68d391']};
       var c=cores[nivel];
       var folgasDessaPessoa=FOLGAS_IA.filter(function(fg){return fg.nome===nome;}).map(function(fg){return fg.data;});
+      var extrasTxt = f.semTipoContrato ? 'sem tipo de contrato' : ('banco+extras: '+(f.extrasTotal||0)+'h');
       return '<div style="background:'+c[0]+';border:1px solid '+c[1]+';border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px">'
         +'<div style="font-size:18px">'+(nivel==='red'?'🔴':nivel==='amber'?'🟡':'🟢')+'</div>'
         +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--text)">'+nome.split(' ')[0]+'</div>'
-        +'<div style="font-size:10px;color:'+c[2]+'">'+f.consecutivos+' dias seguidos · '+f.diasTrabalho+'/'+f.totalDias60+' trabalhados/60d</div>'
+        +'<div style="font-size:10px;color:'+c[2]+'">'+f.consecutivos+' dias sem folga · '+f.diasTrabalho+' trab. / '+(f.diasFolga||0)+' folgas desde 01/06</div>'
+        +'<div style="font-size:9px;color:var(--text3)">'+extrasTxt+'</div>'
         +(folgasDessaPessoa.length?'<div style="font-size:9px;color:#68d391;margin-top:2px">💤 Folga sugerida: '+folgasDessaPessoa.join(', ')+'</div>':'')
         +'</div></div>';
     }).join('');
