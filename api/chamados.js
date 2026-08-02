@@ -432,6 +432,43 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, msg: `Chamado ${id} atualizado` });
   }
 
+  if (action === 'migrar-anexos-antigos') {
+    if (!isGestor) return res.status(403).json({ error: 'Só o gestor pode fazer essa migração' });
+    try {
+      const gestorToken = await getGestorDriveToken();
+      const chamadosFolderId = await garantirSubpastaChamados(gestorToken);
+      const q = encodeURIComponent(`'${chamadosFolderId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`);
+      const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&pageSize=1000`, {
+        headers: { Authorization: `Bearer ${gestorToken}` },
+      });
+      const listData = await listRes.json();
+      const arquivos = listData.files || [];
+      let movidos = 0;
+      const erros = [];
+      for (const f of arquivos) {
+        const m = f.name.match(/^(CHM-\d+)_(.+)$/);
+        if (!m) continue;
+        const [, chamadoId, resto] = m;
+        try {
+          const subId = await garantirSubpastaChamado(gestorToken, chamadosFolderId, chamadoId);
+          await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?addParents=${subId}&removeParents=${chamadosFolderId}&fields=id`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${gestorToken}` },
+          });
+          await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: resto }),
+          });
+          movidos++;
+        } catch (e) { erros.push(f.name + ': ' + e.message); }
+      }
+      return res.status(200).json({ ok: true, movidos, erros });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
   return res.status(400).json({ error: 'Ação desconhecida' });
 }
 
@@ -489,6 +526,9 @@ a{text-decoration:none;color:inherit}
 .stat .ic{font-size:20px;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:none;background:var(--bg3)}
 .stat .n{font-size:24px;font-weight:800;line-height:1}
 .stat .l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px;font-weight:600}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tab-btn{border:1px solid var(--border);background:var(--card);color:var(--text3);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.tab-btn.ativo{background:var(--blue);border-color:var(--blue);color:#fff}
 .toolbar{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;box-shadow:var(--shadow-sm)}
 .toolbar input,.toolbar select{border:1px solid var(--border);border-radius:7px;padding:8px 11px;font-size:12px;background:var(--bg2);color:var(--text);outline:none}
 .btn{border:1px solid var(--border);border-radius:7px;padding:8px 13px;font-size:12px;background:var(--card);color:var(--text);cursor:pointer;transition:background .15s}
@@ -599,11 +639,17 @@ ${headerHTML(session.nome, isGestor, `${chamados.length} chamados registrados`)}
 <div class="wrap">
   <div class="summary">${kpiHTML}</div>
 
+  <div class="tabs">
+    <button class="tab-btn ativo" id="tab-abertos" onclick="mudarAba('abertos')">🟢 Abertos</button>
+    <button class="tab-btn" id="tab-outros" onclick="mudarAba('outros')">📋 Em andamento / Finalizados</button>
+  </div>
+
   <div class="toolbar">
     <input id="busca" placeholder="🔍 Buscar por equipamento, tipo ou descrição..." style="flex:1;min-width:220px" oninput="filtrar()">
     <select id="f-status" onchange="filtrar()"><option value="">Todo status</option>${STATUS_CHAMADO.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
     <select id="f-prioridade" onchange="filtrar()"><option value="">Toda prioridade</option>${PRIORIDADES.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select>
     <button class="btn primary" onclick="abrirNovoChamado()">+ Abrir chamado</button>
+    ${isGestor ? `<button class="btn" onclick="migrarAnexosAntigos()" title="Move pra dentro da subpasta de cada chamado os arquivos antigos que ainda estão soltos na pasta Chamados">🧹 Organizar anexos antigos</button>` : ''}
   </div>
 
   <div class="tbl-wrap">
@@ -694,11 +740,32 @@ function linhaHTML(c){
     + '</tr>';
 }
 
+var abaAtual = 'abertos';
+function mudarAba(a){
+  abaAtual = a;
+  document.getElementById('tab-abertos').classList.toggle('ativo', a === 'abertos');
+  document.getElementById('tab-outros').classList.toggle('ativo', a === 'outros');
+  document.getElementById('f-status').value = '';
+  filtrar();
+}
+
+async function migrarAnexosAntigos(){
+  if (!confirm('Mover pra dentro da subpasta de cada chamado os arquivos antigos que estão soltos na pasta Chamados?')) return;
+  try{
+    var r = await fetch('/api/chamados', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'migrar-anexos-antigos'})});
+    var d = await r.json();
+    if (!r.ok) return alert(d.error||'Erro na migração');
+    alert('Movidos: '+d.movidos+' arquivo(s).'+(d.erros&&d.erros.length?' Erros: '+d.erros.join('; '):''));
+  } catch(e) { alert('Erro de conexão'); }
+}
+
 function filtrar(){
   var busca = document.getElementById('busca').value.toLowerCase();
   var fs = document.getElementById('f-status').value;
   var fp = document.getElementById('f-prioridade').value;
   var filtrados = CHAMADOS.filter(function(c){
+    if (abaAtual === 'abertos' && c.status !== 'Aberto') return false;
+    if (abaAtual === 'outros' && c.status === 'Aberto') return false;
     if (fs && c.status !== fs) return false;
     if (fp && c.prioridade !== fp) return false;
     if (busca && !(c.equipamento+' '+c.tipoProblema+' '+c.descricao+' '+c.idEquipamento).toLowerCase().includes(busca)) return false;
