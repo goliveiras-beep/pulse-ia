@@ -301,23 +301,27 @@ export default async function handler(req, res) {
       }
       // Chamada IA para folgas — agora com o histórico completo desde 01/06 (dias trabalhados, folgas
       // já tiradas, banco de horas e hora extra acumulados), não só um resumo de 60 dias.
-      const fadigaResumo = ativos.filter(p=>turnosA[p[0]]).map(p=>{
+      // Pessoas identificadas por ID numérico no prompt (não por nome): o llama-3.1-8b-instant não
+      // segue de forma confiável "responda com o nome completo" — devolvia só o primeiro nome (ex:
+      // "Rodrigo"), ambíguo entre Rodrigo Alcantara e Rodrigo Cesar. ID elimina essa ambiguidade.
+      const listaPessoasA = ativos.filter(p=>turnosA[p[0]]);
+      const fadigaResumo = listaPessoasA.map((p,idx)=>{
         const f=historicoA[p[0]]||{};
-        return `${p[0].split(' ')[0]}: ${f.consecutivos||0} dias sem folga agora, ${f.diasTrabalho||0} trabalhados / ${f.diasFolga||0} folgas desde 01/06 (${f.totalDiasHistorico} dias de histórico), banco+extras acumulados: ${f.extrasTotal||0}h${f.semTipoContrato?' (sem tipo de contrato — extras não calculados)':''}`;
+        return `${idx+1}. ${p[0]}: ${f.consecutivos||0} dias sem folga agora, ${f.diasTrabalho||0} trabalhados / ${f.diasFolga||0} folgas desde 01/06 (${f.totalDiasHistorico} dias de histórico), banco+extras acumulados: ${f.extrasTotal||0}h${f.semTipoContrato?' (sem tipo de contrato — extras não calculados)':''}`;
       }).join('\n');
       const cargaResumo = cargaPorDia.map(d=>`${d.df}(${d.diaSem}):${d.eventos}ev`).join(' ');
       // Chamada de IA isolada no seu próprio try/catch — se ela falhar ou vier com JSON malformado
       // (modelo pequeno, acontece), o histórico real (fadigaA/turnos/cargaPorDia) já calculado acima
       // ainda é devolvido normalmente; só a sugestão de folga fica vazia com erroIA preenchido. Antes
       // um erro aqui derrubava a resposta inteira com 500, escondendo até os dados reais da tela.
-      let folgas = [], erroIA = null, debugTemp = null;
+      let folgas = [], erroIA = null;
       try {
         const rFolga = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method:'POST',
           headers:{'Content-Type':'application/json','Authorization':`Bearer ${process.env.GROQ_API_KEY}`},
           body:JSON.stringify({model:'llama-3.1-8b-instant',max_tokens:1000,messages:[{role:'user',content:`Gestor de TV ao vivo, Copa do Mundo 2026. Sugira folgas para os próximos ${diasSpan} dias, começando em ${fmtData(inicio)}.
 
-HISTÓRICO DESDE 01/06 (dias sem folga agora / trabalhados / folgas tiradas / banco+extras acumulados):
+EQUIPE (ID. Nome: histórico desde 01/06):
 ${fadigaResumo}
 
 CARGA DE EVENTOS NO PERÍODO: ${cargaResumo}
@@ -329,8 +333,8 @@ REGRAS (em ordem de prioridade):
 4. Não mais de 30% da equipe de folga no mesmo dia.
 5. Dias com mais de 8 eventos: evitar folgar quem cobre horário noturno.
 
-Responda SOMENTE JSON, compacto, sem texto antes/depois. "motivo" no máximo 6 palavras:
-{"folgas":[{"nome":"Nome Completo","data":"DD/MM","motivo":"razão curta"}]}`}]})
+Identifique cada pessoa pelo ID numérico da lista acima, NUNCA pelo nome. Responda SOMENTE JSON, compacto, sem texto antes/depois. "motivo" no máximo 6 palavras:
+{"folgas":[{"id":3,"data":"DD/MM","motivo":"razão curta"}]}`}]})
         });
         const dFolga = await rFolga.json();
         if (!rFolga.ok || dFolga.error) {
@@ -338,14 +342,14 @@ Responda SOMENTE JSON, compacto, sem texto antes/depois. "motivo" no máximo 6 p
         } else {
           const txt = dFolga.choices?.[0]?.message?.content?.trim()||'{"folgas":[]}';
           const parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
-          const nomesValidos = new Set(ativos.filter(p=>turnosA[p[0]]).map(p=>p[0]));
-          folgas = (parsed.folgas||[]).filter(f=>nomesValidos.has(f.nome)&&!jaPreenchidoA(f.data,f.nome));
-          debugTemp = { parsedFolgas: parsed.folgas, nomesValidosArr: [...nomesValidos] };
+          folgas = (parsed.folgas||[])
+            .map(f => ({ nome: listaPessoasA[(f.id|0)-1]?.[0], data: f.data, motivo: f.motivo }))
+            .filter(f => f.nome && f.data && !jaPreenchidoA(f.data, f.nome));
         }
       } catch(eIA) {
         erroIA = 'Resposta da IA em formato inválido: ' + eIA.message;
       }
-      return res.status(200).json({ ok:true, fadiga:fadigaA, folgas, cargaPorDia, turnos:turnosA, erroIA, _debugTemp: debugTemp });
+      return res.status(200).json({ ok:true, fadiga:fadigaA, folgas, cargaPorDia, turnos:turnosA, erroIA });
     } catch(e) {
       return res.status(500).json({ error: e.message });
     }
