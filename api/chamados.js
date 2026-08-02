@@ -536,6 +536,7 @@ function baseHTML(titulo, conteudo, scriptExtra = '') {
 <script>(function(){var d=localStorage.getItem("pulse-theme");if(d==="dark")document.documentElement.classList.add("dark");})()</script>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse - ${esc(titulo)}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>${shellCSS()}</style>
 </head>
 <body>
@@ -640,6 +641,7 @@ const CHAMADOS = ${JSON.stringify(chamados)};
 const EQUIP_MAP = ${JSON.stringify(Object.fromEntries(equipamentosOpcoes.map(e => [e.id, e.nome])))};
 const IS_GESTOR = ${isGestor ? 'true' : 'false'};
 const MEU_NOME = ${JSON.stringify(session.nome)};
+const STATUS_FECHADO_C = ${JSON.stringify(STATUS_FECHADO)};
 const PASTA_ANEXOS_URL = ${JSON.stringify(pastaAnexosUrl)};
 if (PASTA_ANEXOS_URL) {
   document.getElementById('link-pasta-anexos').innerHTML = '<a href="'+PASTA_ANEXOS_URL+'" target="_blank" rel="noopener" style="font-size:12px;color:var(--blue)">📁 Abrir pasta de anexos no Drive</a>';
@@ -756,6 +758,17 @@ function mostrarSelecionados(){
 document.getElementById('g-anexo-file').addEventListener('change', mostrarSelecionados);
 document.getElementById('g-anexo-pasta').addEventListener('change', mostrarSelecionados);
 
+// Sobe UM arquivo/blob já pronto pro chamado idAtual — usado tanto pelo botão "Enviar" manual
+// quanto pelo salvamento automático de arquivos pendentes e do PDF do relatório.
+async function uploadUmArquivo(blobOuFile, nomeArquivo){
+  var fd = new FormData();
+  fd.append('arquivo', blobOuFile, nomeArquivo);
+  var r = await fetch('/api/chamados?action=upload-anexo&id='+idAtual, { method:'POST', body: fd });
+  var d = await r.json();
+  if (!r.ok) throw new Error(d.error||'Erro ao enviar "'+nomeArquivo+'"');
+  return d.anexos;
+}
+
 async function enviarAnexo(){
   var f1 = document.getElementById('g-anexo-file');
   var f2 = document.getElementById('g-anexo-pasta');
@@ -766,15 +779,10 @@ async function enviarAnexo(){
   var anexosFinal = '';
   for (var i = 0; i < files.length; i++){
     btn.textContent = 'Enviando '+(i+1)+'/'+files.length+'...';
-    var fd = new FormData();
-    fd.append('arquivo', files[i], files[i].name);
     try{
-      var r = await fetch('/api/chamados?action=upload-anexo&id='+idAtual, { method:'POST', body: fd });
-      var d = await r.json();
-      if (!r.ok) { alert('Erro em "'+files[i].name+'": '+(d.error||'?')); continue; }
-      anexosFinal = d.anexos;
+      anexosFinal = await uploadUmArquivo(files[i], files[i].name);
       renderAnexos(anexosFinal);
-    } catch(e) { alert('Erro de conexão ao enviar "'+files[i].name+'"'); }
+    } catch(e) { alert(e.message); }
   }
   var c = CHAMADOS.find(function(x){ return x.id===idAtual; });
   if (c && anexosFinal) c.anexos = anexosFinal;
@@ -782,6 +790,35 @@ async function enviarAnexo(){
   document.getElementById('g-anexo-selecionados').textContent = '';
   btn.disabled = false; btn.textContent = 'Enviar';
 }
+
+// Monta o mesmo conteúdo do Relatório de Manutenção (?action=relatorio) e gera um PDF no
+// navegador (jsPDF via CDN — sem depender de headless browser no servidor), pra subir junto
+// no Drive quando o chamado é encerrado.
+function gerarPdfRelatorio(c, body){
+  var doc = new window.jspdf.jsPDF();
+  var y = 18;
+  function linha(texto, tamanho){
+    doc.setFontSize(tamanho||10);
+    var partes = doc.splitTextToSize(texto, 180);
+    partes.forEach(function(p){
+      if (y > 280) { doc.addPage(); y = 18; }
+      doc.text(p, 14, y); y += 6;
+    });
+  }
+  linha('Relatório de Manutenção — '+c.id, 16); y += 2;
+  linha('Equipamento: '+c.equipamento+' ('+c.idEquipamento+')');
+  linha('Tipo: '+c.tipoProblema+'    Prioridade: '+c.prioridade+'    Status: '+body.novoStatus);
+  linha('Aberto por: '+c.abertoPor+', em '+c.dataAbertura);
+  linha('Responsável: '+(body.responsavel||'—')); y += 4;
+  if (body.solucao) { linha('O QUE FOI FEITO:', 12); linha(body.solucao); y += 2; }
+  if (body.comoFeito) { linha('COMO FOI FEITO:', 12); linha(body.comoFeito); y += 2; }
+  if (body.inicioIntervencao || body.fimIntervencao) linha('Horário da intervenção: '+(body.inicioIntervencao||'?')+' às '+(body.fimIntervencao||'?'));
+  if (body.equipeEnvolvida) linha('Equipe envolvida: '+body.equipeEnvolvida);
+  if (body.pecasUtilizadas) linha('Peças/componentes utilizados: '+body.pecasUtilizadas);
+  if (body.valorReparo) linha('Valor do serviço: R$ '+body.valorReparo);
+  return doc.output('blob');
+}
+
 async function salvarGerenciar(){
   var body = {
     action: 'atualizar', id: idAtual,
@@ -795,10 +832,30 @@ async function salvarGerenciar(){
     fimIntervencao: document.getElementById('g-fim').value,
     equipeEnvolvida: document.getElementById('g-equipe').value,
   };
-  var r = await fetch('/api/chamados', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  var d = await r.json();
-  if (!r.ok) return alert(d.error||'Erro ao atualizar chamado');
-  location.reload();
+  var btnSalvar = document.querySelector('#modal-gerenciar .btn.primary');
+  if (btnSalvar) { btnSalvar.disabled = true; btnSalvar.textContent = 'Salvando...'; }
+  try {
+    // Passo 1: sobe qualquer arquivo já escolhido (arquivo ou pasta) que ainda não tenha sido enviado
+    var f1 = document.getElementById('g-anexo-file'), f2 = document.getElementById('g-anexo-pasta');
+    if (f1.files.length || f2.files.length) await enviarAnexo();
+
+    // Passo 2: se o chamado está sendo fechado (Finalizado/Cancelado), gera o PDF do relatório e sobe também
+    if (STATUS_FECHADO_C.indexOf(body.novoStatus) !== -1) {
+      var c = CHAMADOS.find(function(x){ return x.id===idAtual; }) || {};
+      try {
+        var pdfBlob = gerarPdfRelatorio(c, body);
+        await uploadUmArquivo(pdfBlob, 'Relatorio_'+c.id+'.pdf');
+      } catch(e) { console.error('Falha ao gerar/subir PDF do relatório:', e.message); }
+    }
+
+    // Passo 3: salva os campos de status/texto normalmente
+    var r = await fetch('/api/chamados', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var d = await r.json();
+    if (!r.ok) { alert(d.error||'Erro ao atualizar chamado'); return; }
+    location.reload();
+  } finally {
+    if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.textContent = 'Salvar'; }
+  }
 }
 
 filtrar();
