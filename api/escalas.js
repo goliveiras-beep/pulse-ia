@@ -275,12 +275,18 @@ export default async function handler(req, res) {
 
   // Equipe (9 col): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
   // Ausências (range busca 9 col, mas só 0-5 são usados): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
-  const [equipeRaw, escalaRaw, ausenciasRaw, configRaw] = await Promise.all([
+  // Disponibilidade (5 col, criada em api/equipe-view.js): 0=nome, 1=dia da semana, 2=hora início, 3=hora fim, 4=motivo
+  const [equipeRaw, escalaRaw, ausenciasRaw, configRaw, disponibilidadeRaw] = await Promise.all([
     getSheet('Equipe!A2:I50'),
     getSheet('Escala!A2:F2000'),
     getSheet('Ausências!A2:I500'),
     getSheet('PulseConfig!A2:B20'),
+    getSheet('Disponibilidade!A2:E500'),
   ]);
+  const restricoesPorNome = {};
+  disponibilidadeRaw.filter(r => r[0]).forEach(r => {
+    (restricoesPorNome[r[0]] = restricoesPorNome[r[0]] || []).push({ diaSemana: r[1]||'', horaInicio: r[2]||'', horaFim: r[3]||'', motivo: r[4]||'' });
+  });
 
   const usuario = equipeRaw.find(r => r[0] === session.nome);
   if (!usuario) return res.redirect(302, '/api/app');
@@ -350,6 +356,38 @@ export default async function handler(req, res) {
 
   const nomes = equipeRaw.filter(r => r[0]).map(r => r[0]);
   const analise = analisarEscala(escalaRaw, ausenciasRaw, nomes, datas);
+
+  // Cruza com Disponibilidade (ex: horário de faculdade) — feito aqui em vez de dentro do motor
+  // compartilhado (lib/escalas-engine.js) pra não mudar a assinatura usada por app.js/banco-horas.js/
+  // dashboard.js. Injeta um alerta 'perigo' direto no resultado já calculado quando o turno do dia
+  // bate em cima de uma janela de indisponibilidade daquela pessoa naquele dia da semana.
+  const DIAS_SEMANA_FULL = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  function diaSemanaDoDf(df) {
+    const [d,m] = df.split('/').map(Number);
+    return DIAS_SEMANA_FULL[new Date(hoje.getFullYear(), m-1, d).getDay()];
+  }
+  function turnoSobrepoeJanela(entTurno, saiTurno, entJanela, saiJanela) {
+    const toMin = h => { const [hh,mm]=(h||'').split(':').map(Number); return (hh||0)*60+(mm||0); };
+    const i1=toMin(entTurno), s1raw=toMin(saiTurno), i2=toMin(entJanela), s2=toMin(saiJanela);
+    const s1 = s1raw > i1 ? s1raw : s1raw + 1440; // turno virando a noite
+    return i1 < s2 && i2 < s1;
+  }
+  nomes.forEach(nome => {
+    const restr = restricoesPorNome[nome];
+    if (!restr || !restr.length) return;
+    datas.forEach(df => {
+      const a = analise[nome]?.[df];
+      if (!a || !a.status || !a.status.includes('→')) return; // só quando há turno real (não folga/ausência/livre)
+      const [ent, sai] = a.status.split('→');
+      const diaSem = diaSemanaDoDf(df);
+      const bateu = restr.filter(r => r.diaSemana === diaSem && turnoSobrepoeJanela(ent, sai, r.horaInicio, r.horaFim));
+      if (bateu.length) {
+        a.alertas = a.alertas || [];
+        bateu.forEach(r => a.alertas.push({ nivel:'danger', codigo:'INDISPONIBILIDADE', msg:`Bate com ${r.motivo||'restrição cadastrada'} (${r.horaInicio}-${r.horaFim})` }));
+        a.tipo = 'perigo';
+      }
+    });
+  });
 
   const resumoPessoa = {};
   let totalPerigo = 0, totalAtencao = 0;
