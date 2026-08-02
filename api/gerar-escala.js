@@ -228,7 +228,13 @@ export default async function handler(req, res) {
       const existingKeysA = new Set(escalaRaw.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
       function jaPreenchidoA(df, nome) { return existingKeysA.has(`${df}|${nome}`); }
       const h60dias = new Date(hoje); h60dias.setDate(hoje.getDate()-60);
-      const escalaTudo = escalaRaw.filter(r=>r[0]>=fmtData(h60dias)&&r[0]<=fmtData(hoje));
+      // Bug real encontrado em 31/07/2026: comparar "DD/MM" como texto puro (r[0]>=fmtData(...)) dá
+      // errado toda vez que a janela cruza um mês — "15/07" vira "maior" que "01/08" como string,
+      // porque o dia vem antes do mês no formato. Isso zerava turnosA pra todo mundo sempre que os
+      // últimos 60 dias cruzavam 2+ meses. Corrigido comparando por mês*100+dia (numérico).
+      const dfParaNum = df => { const p = df.split('/'); return parseInt(p[1],10)*100 + parseInt(p[0],10); };
+      const numH60 = dfParaNum(fmtData(h60dias)), numHoje = dfParaNum(fmtData(hoje));
+      const escalaTudo = escalaRaw.filter(r=>r[0] && dfParaNum(r[0])>=numH60 && dfParaNum(r[0])<=numHoje);
       const escalaHistA = escalaTudo.filter(r=>r[3]&&r[4]&&r[5]!=='Folga');
       const turnosA = {};
       ativos.forEach(p => {
