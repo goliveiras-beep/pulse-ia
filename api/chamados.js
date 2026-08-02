@@ -109,6 +109,25 @@ async function garantirSubpastaChamados(gestorToken) {
   return createData.id;
 }
 
+// Dentro de "Chamados", garante uma subpasta com o ID do chamado (ex: "CHM-0007") — assim os
+// anexos de cada chamado ficam agrupados, em vez de todos misturados numa pasta só.
+async function garantirSubpastaChamado(gestorToken, chamadosFolderId, chamadoId) {
+  const q = encodeURIComponent(`name='${chamadoId}' and mimeType='application/vnd.google-apps.folder' and '${chamadosFolderId}' in parents and trashed=false`);
+  const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`, {
+    headers: { Authorization: `Bearer ${gestorToken}` },
+  });
+  const listData = await listRes.json();
+  if (listData.files?.[0]?.id) return listData.files[0].id;
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: chamadoId, mimeType: 'application/vnd.google-apps.folder', parents: [chamadosFolderId] }),
+  });
+  const createData = await createRes.json();
+  if (!createData.id) throw new Error('Erro ao criar subpasta do chamado ' + chamadoId + ': ' + JSON.stringify(createData));
+  return createData.id;
+}
+
 // Garante a subpasta (mesma lógica de garantirSubpastaChamados) e devolve o link direto pra ela,
 // pra mostrar um "Abrir pasta no Drive" na lista — assim a pasta já existe mesmo antes do primeiro
 // anexo, em vez de só aparecer depois que alguém sobe um arquivo. Retorna null se o Drive do gestor
@@ -270,8 +289,9 @@ export default async function handler(req, res) {
       if (idx < 0) return res.status(404).json({ error: 'Chamado não encontrado' });
 
       const gestorToken = await getGestorDriveToken();
-      const folderId = await garantirSubpastaChamados(gestorToken);
-      const safeName = `${id}_${session.nome.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}_${fileName}`;
+      const chamadosFolderId = await garantirSubpastaChamados(gestorToken);
+      const folderId = await garantirSubpastaChamado(gestorToken, chamadosFolderId, id);
+      const safeName = `${session.nome.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}_${fileName}`;
 
       const delimiter = '-------boundary_pulse_upload';
       const metaJson = JSON.stringify({ name: safeName, parents: [folderId] });
