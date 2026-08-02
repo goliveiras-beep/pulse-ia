@@ -329,7 +329,7 @@ Responda SOMENTE JSON (sem texto):
       const parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
       const nomesValidos = new Set(ativos.filter(p=>turnosA[p[0]]).map(p=>p[0]));
       const folgas = (parsed.folgas||[]).filter(f=>nomesValidos.has(f.nome)&&!jaPreenchidoA(f.data,f.nome));
-      return res.status(200).json({ ok:true, fadiga:fadigaA, folgas, cargaPorDia, turnos:turnosA, erroIA });
+      return res.status(200).json({ ok:true, fadiga:fadigaA, folgas, cargaPorDia, turnos:turnosA, erroIA, _debugTemp:{txt,parsedFolgasCount:(parsed.folgas||[]).length,parsedFolgasRaw:parsed.folgas,nomesValidosArr:[...nomesValidos]} });
     } catch(e) {
       return res.status(500).json({ error: e.message });
     }
