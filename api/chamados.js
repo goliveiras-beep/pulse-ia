@@ -597,6 +597,7 @@ function baseHTML(titulo, conteudo, scriptExtra = '') {
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse - ${esc(titulo)}</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <style>${shellCSS()}</style>
 </head>
 <body>
@@ -883,26 +884,98 @@ async function enviarAnexo(){
 // no Drive quando o chamado é encerrado.
 function gerarPdfRelatorio(c, body){
   var doc = new window.jspdf.jsPDF();
-  var y = 18;
-  function linha(texto, tamanho){
-    doc.setFontSize(tamanho||10);
-    var partes = doc.splitTextToSize(texto, 180);
-    partes.forEach(function(p){
-      if (y > 280) { doc.addPage(); y = 18; }
-      doc.text(p, 14, y); y += 6;
-    });
+  var pageW = doc.internal.pageSize.getWidth();
+  var pageH = doc.internal.pageSize.getHeight();
+  var margin = 14;
+
+  function corStatus(s){
+    if (s==='Finalizado') return [22,163,74];
+    if (s==='Cancelado') return [107,114,128];
+    if (s==='Aberto') return [29,78,216];
+    return [217,119,6];
   }
-  linha('Relatório de Manutenção — '+c.id, 16); y += 2;
-  linha('Equipamento: '+c.equipamento+' ('+c.idEquipamento+')');
-  linha('Tipo: '+c.tipoProblema+'    Prioridade: '+c.prioridade+'    Status: '+body.novoStatus);
-  linha('Aberto por: '+c.abertoPor+', em '+c.dataAbertura);
-  linha('Responsável: '+(body.responsavel||'—')); y += 4;
-  if (body.solucao) { linha('O QUE FOI FEITO:', 12); linha(body.solucao); y += 2; }
-  if (body.comoFeito) { linha('COMO FOI FEITO:', 12); linha(body.comoFeito); y += 2; }
-  if (body.inicioIntervencao || body.fimIntervencao) linha('Horário da intervenção: '+(body.inicioIntervencao||'?')+' às '+(body.fimIntervencao||'?'));
-  if (body.equipeEnvolvida) linha('Equipe envolvida: '+body.equipeEnvolvida);
-  if (body.pecasUtilizadas) linha('Peças/componentes utilizados: '+body.pecasUtilizadas);
-  if (body.valorReparo) linha('Valor do serviço: R$ '+body.valorReparo);
+  function corPrioridade(p){
+    if (p==='Alta') return [220,38,38];
+    if (p==='Média') return [217,119,6];
+    return [22,163,74];
+  }
+
+  // Cabeçalho com a faixa vermelha da marca Pulse
+  doc.setFillColor(229,62,62);
+  doc.rect(0, 0, pageW, 26, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  doc.text('Relatório de Manutenção', margin, 12);
+  doc.setFontSize(20);
+  doc.text(c.id, margin, 21);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.text(c.equipamento+' ('+c.idEquipamento+')', pageW-margin, 12, { align:'right' });
+  doc.text('Gerado em '+new Date().toLocaleString('pt-BR'), pageW-margin, 18, { align:'right' });
+
+  var y = 34;
+  doc.setTextColor(0,0,0);
+
+  doc.autoTable({
+    startY: y, margin: { left: margin, right: margin }, theme: 'grid',
+    styles: { fontSize: 10, cellPadding: 4 },
+    columnStyles: { 0: { fontStyle:'bold', cellWidth: 48, fillColor:[245,245,245] } },
+    body: [
+      ['Tipo de problema', c.tipoProblema],
+      ['Prioridade', c.prioridade],
+      ['Status', body.novoStatus],
+      ['Aberto por', c.abertoPor+' — '+c.dataAbertura],
+      ['Responsável', body.responsavel||'—'],
+    ],
+    didParseCell: function(data){
+      if (data.column.index===1 && data.row.index===1) { data.cell.styles.textColor = corPrioridade(c.prioridade); data.cell.styles.fontStyle = 'bold'; }
+      if (data.column.index===1 && data.row.index===2) { data.cell.styles.textColor = corStatus(body.novoStatus); data.cell.styles.fontStyle = 'bold'; }
+    },
+  });
+  y = doc.lastAutoTable.finalY + 8;
+
+  function secaoTexto(titulo, texto){
+    if (!texto) return;
+    if (y > pageH - 40) { doc.addPage(); y = 18; }
+    doc.setFillColor(229,62,62);
+    doc.rect(margin, y, pageW-margin*2, 7, 'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(11);
+    doc.text(titulo, margin+3, y+5);
+    y += 12;
+    doc.setTextColor(30,30,30); doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    var linhas = doc.splitTextToSize(texto, pageW-margin*2-6);
+    linhas.forEach(function(l){
+      if (y > pageH - 20) { doc.addPage(); y = 18; }
+      doc.text(l, margin+3, y); y += 5.5;
+    });
+    y += 6;
+  }
+  secaoTexto('O QUE FOI FEITO', body.solucao);
+  secaoTexto('COMO FOI FEITO', body.comoFeito);
+
+  var linhasExtra = [];
+  if (body.inicioIntervencao || body.fimIntervencao) linhasExtra.push(['Horário da intervenção', (body.inicioIntervencao||'?')+' às '+(body.fimIntervencao||'?')]);
+  if (body.equipeEnvolvida) linhasExtra.push(['Equipe envolvida', body.equipeEnvolvida]);
+  if (body.pecasUtilizadas) linhasExtra.push(['Peças/componentes utilizados', body.pecasUtilizadas]);
+  if (body.valorReparo) linhasExtra.push(['Valor do serviço', 'R$ '+body.valorReparo]);
+  if (linhasExtra.length){
+    if (y > pageH - 40) { doc.addPage(); y = 18; }
+    doc.autoTable({
+      startY: y, margin: { left: margin, right: margin }, theme: 'grid',
+      styles: { fontSize: 10, cellPadding: 4 },
+      columnStyles: { 0: { fontStyle:'bold', cellWidth: 58, fillColor:[245,245,245] } },
+      body: linhasExtra,
+    });
+    y = doc.lastAutoTable.finalY + 6;
+  }
+
+  var totalPaginas = doc.internal.getNumberOfPages();
+  for (var p = 1; p <= totalPaginas; p++){
+    doc.setPage(p);
+    doc.setFontSize(8); doc.setTextColor(150,150,150); doc.setFont('helvetica','normal');
+    doc.text('Pulse — Livemode TV', margin, pageH-8);
+    doc.text('Página '+p+'/'+totalPaginas, pageW-margin, pageH-8, { align:'right' });
+  }
+
   return doc.output('blob');
 }
 
