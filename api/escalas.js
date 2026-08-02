@@ -598,6 +598,10 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
         <button onclick="publicarHorizonte('1 mês')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1mês</button>
         <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
         <button onclick="sincronizarAgendas()" title="Atualiza a Agenda do Google de quem ja autorizou, sem mudar a data publicada" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--blue-m-border,#2a4080);background:var(--card);cursor:pointer;color:var(--blue-m-v,#63b3ed)">🔄 Sincronizar agenda</button>
+        <span style="display:inline-flex;gap:2px;align-items:center">
+          <input type="number" id="horizCustomDias" min="1" placeholder="dias" style="width:44px;font-size:9px;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--text2)">
+          <button onclick="publicarHorizonte('custom')" title="Publica N dias a partir de hoje, usando o numero ao lado" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">Aplicar</button>
+        </span>
       </div>
     </div>
   </div>` : `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-size:11px;color:var(--text2);margin-bottom:16px;display:flex;align-items:center;gap:6px">
@@ -822,6 +826,11 @@ async function publicarHorizonte(opcao){
     else if(opcao==='1 semana') d.setDate(d.getDate()+7);
     else if(opcao==='15 dias') d.setDate(d.getDate()+15);
     else if(opcao==='1 mês') d.setMonth(d.getMonth()+1);
+    else if(opcao==='custom'){
+      var n=parseInt(document.getElementById('horizCustomDias').value);
+      if(!n||n<1){ toast('Informe um numero de dias valido','#dc2626'); return; }
+      d.setDate(d.getDate()+n);
+    }
     var dd=String(d.getDate()).padStart(2,'0');
     var mm=String(d.getMonth()+1).padStart(2,'0');
     horizonte=dd+'/'+mm;
