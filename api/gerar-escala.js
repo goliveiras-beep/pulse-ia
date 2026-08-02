@@ -109,15 +109,14 @@ async function ajustarDia(data, eventosDia, escalaCompleta, editaveis) {
   const todosStr = eventosDia.map(e=>`${e.hora}${e.horaFim?'–'+e.horaFim:''} — ${e.nome}`).join('\n');
 
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'llama-3.1-8b-instant',
         max_tokens: 400,
         messages: [{
           role: 'user',
@@ -146,7 +145,7 @@ Regras:
       })
     });
     const d = await r.json();
-    const txt = d.content?.[0]?.text?.trim()||'{"ajustes":[]}';
+    const txt = d.choices?.[0]?.message?.content?.trim()||'{"ajustes":[]}';
     const clean = txt.replace(/```json|```/g,'').trim();
     const parsed = JSON.parse(clean);
     const editaveisNomes = new Set(editaveis.map(p=>p.nome));
@@ -300,10 +299,10 @@ export default async function handler(req, res) {
         return `${p[0].split(' ')[0]}: ${f.consecutivos||0} dias sem folga agora, ${f.diasTrabalho||0} trabalhados / ${f.diasFolga||0} folgas desde 01/06 (${f.totalDiasHistorico} dias de histórico), banco+extras acumulados: ${f.extrasTotal||0}h${f.semTipoContrato?' (sem tipo de contrato — extras não calculados)':''}`;
       }).join('\n');
       const cargaResumo = cargaPorDia.map(d=>`${d.df}(${d.diaSem}):${d.eventos}ev`).join(' ');
-      const rFolga = await fetch('https://api.anthropic.com/v1/messages', {
+      const rFolga = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01'},
-        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:800,messages:[{role:'user',content:`Gestor de TV ao vivo, Copa do Mundo 2026. Sugira folgas para os próximos ${diasSpan} dias, começando em ${fmtData(inicio)}.
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${process.env.GROQ_API_KEY}`},
+        body:JSON.stringify({model:'llama-3.1-8b-instant',max_tokens:800,messages:[{role:'user',content:`Gestor de TV ao vivo, Copa do Mundo 2026. Sugira folgas para os próximos ${diasSpan} dias, começando em ${fmtData(inicio)}.
 
 HISTÓRICO DESDE 01/06 (dias sem folga agora / trabalhados / folgas tiradas / banco+extras acumulados):
 ${fadigaResumo}
@@ -322,10 +321,11 @@ Responda SOMENTE JSON (sem texto):
       });
       const dFolga = await rFolga.json();
       // Antes isso caía em silêncio pra "0 folgas sugeridas" (parecendo sucesso normal) sempre que a
-      // chamada à Anthropic falhava (ex: ANTHROPIC_API_KEY inválida/expirada — foi exatamente o que
-      // aconteceu, descoberto em 31/07/2026). Agora o erro é reportado explicitamente pro front-end.
-      const erroIA = (!rFolga.ok || dFolga.type === 'error') ? (dFolga.error?.message || `Erro ${rFolga.status} na chamada à IA`) : null;
-      const txt = dFolga.content?.[0]?.text?.trim()||'{"folgas":[]}';
+      // chamada à IA falhava (ex: chave inválida/expirada — foi exatamente o que aconteceu com a
+      // Anthropic, descoberto em 31/07/2026; trocado pra Groq no mesmo dia pra não depender de uma
+      // chave paga). Agora o erro é reportado explicitamente pro front-end em vez de sumir.
+      const erroIA = (!rFolga.ok || dFolga.error) ? (dFolga.error?.message || `Erro ${rFolga.status} na chamada à IA`) : null;
+      const txt = dFolga.choices?.[0]?.message?.content?.trim()||'{"folgas":[]}';
       const parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
       const nomesValidos = new Set(ativos.filter(p=>turnosA[p[0]]).map(p=>p[0]));
       const folgas = (parsed.folgas||[]).filter(f=>nomesValidos.has(f.nome)&&!jaPreenchidoA(f.data,f.nome));
