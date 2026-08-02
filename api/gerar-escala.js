@@ -321,11 +321,15 @@ Responda SOMENTE JSON (sem texto):
 {"folgas":[{"nome":"Nome Completo","data":"DD/MM","motivo":"razão curta baseada nos números acima"}]}`}]})
       });
       const dFolga = await rFolga.json();
+      // Antes isso caía em silêncio pra "0 folgas sugeridas" (parecendo sucesso normal) sempre que a
+      // chamada à Anthropic falhava (ex: ANTHROPIC_API_KEY inválida/expirada — foi exatamente o que
+      // aconteceu, descoberto em 31/07/2026). Agora o erro é reportado explicitamente pro front-end.
+      const erroIA = (!rFolga.ok || dFolga.type === 'error') ? (dFolga.error?.message || `Erro ${rFolga.status} na chamada à IA`) : null;
       const txt = dFolga.content?.[0]?.text?.trim()||'{"folgas":[]}';
       const parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
       const nomesValidos = new Set(ativos.filter(p=>turnosA[p[0]]).map(p=>p[0]));
       const folgas = (parsed.folgas||[]).filter(f=>nomesValidos.has(f.nome)&&!jaPreenchidoA(f.data,f.nome));
-      return res.status(200).json({ ok:true, fadiga:fadigaA, folgas, cargaPorDia, turnos:turnosA, _debugTemp:{status:rFolga.status,dFolga,txt,parsedFolgasCount:(parsed.folgas||[]).length} });
+      return res.status(200).json({ ok:true, fadiga:fadigaA, folgas, cargaPorDia, turnos:turnosA, erroIA });
     } catch(e) {
       return res.status(500).json({ error: e.message });
     }
@@ -736,7 +740,13 @@ var DATAS = ${JSON.stringify(diasProcessados.map(d=>({df:d.df,diaSem:d.diaSem,is
     document.getElementById('fadiga-cards').innerHTML = html;
     document.getElementById('fadiga-spinner').style.display='none';
     document.getElementById('fadiga-footer').style.display='block';
-    document.getElementById('fadiga-status').textContent = Object.keys(fadiga).length+' colaboradores analisados · '+FOLGAS_IA.length+' folgas sugeridas';
+    var statusEl = document.getElementById('fadiga-status');
+    if (d.erroIA) {
+      statusEl.textContent = '⚠ IA de folgas indisponível agora: '+d.erroIA+' — histórico acima ainda é real, só a sugestão automática não rodou.';
+      statusEl.style.color = '#fc8181';
+    } else {
+      statusEl.textContent = Object.keys(fadiga).length+' colaboradores analisados · '+FOLGAS_IA.length+' folgas sugeridas';
+    }
 
     // Atualiza badge e tabela com folgas
     if(FOLGAS_IA.length) {
