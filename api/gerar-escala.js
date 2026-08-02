@@ -172,11 +172,33 @@ export default async function handler(req, res) {
   // usado pra cruzar banco de horas). Faixa ampliada de I pra M nesta sessão (31/07/2026) pra dar acesso
   // ao tipo de contrato — antes só ia até I e por isso a análise não conseguia calcular banco/extras.
   // Ausências (range busca 9 col, só 0/1/2/4/5 são usados aqui): 0=id/status, 1=nome, 2=tipo, 4=início DD/MM, 5=fim DD/MM
-  const [equipeRaw, escalaRaw, ausenciasRaw] = await Promise.all([
+  // Disponibilidade (5 col, criada em api/equipe-view.js): 0=nome, 1=dia da semana, 2=hora início, 3=hora fim, 4=motivo
+  const [equipeRaw, escalaRaw, ausenciasRaw, disponibilidadeRaw] = await Promise.all([
     getSheet('Equipe!A2:M200'),
     getSheet('Escala!A2:F2000'),
     getSheet('Ausências!A2:I500'),
+    getSheet('Disponibilidade!A2:E500'),
   ]);
+  const restricoesPorNome = {};
+  disponibilidadeRaw.filter(r=>r[0]).forEach(r => {
+    (restricoesPorNome[r[0]] = restricoesPorNome[r[0]] || []).push({ diaSemana: r[1]||'', horaInicio: r[2]||'', horaFim: r[3]||'', motivo: r[4]||'' });
+  });
+  const DIAS_SEMANA_FULL = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  function turnoSobrepoeJanela(entTurno, saiTurno, entJanela, saiJanela) {
+    const toMin = h => { const [hh,mm]=(h||'').split(':').map(Number); return (hh||0)*60+(mm||0); };
+    const i1=toMin(entTurno), s1raw=toMin(saiTurno), i2=toMin(entJanela), s2=toMin(saiJanela);
+    const s1 = s1raw > i1 ? s1raw : s1raw + 1440; // turno virando a noite
+    return i1 < s2 && i2 < s1;
+  }
+  // Verdadeiro se gerar o turno padrão dessa pessoa nesse dia bateria numa janela de indisponibilidade
+  // dela (ex: horário de faculdade) — nesse caso o dia fica em branco de propósito, pra alguém decidir
+  // manualmente, em vez de criar um turno que a pessoa não pode cumprir.
+  function conflitaComDisponibilidade(nome, dataObj, ent, sai) {
+    const restr = restricoesPorNome[nome];
+    if (!restr || !restr.length || !ent || !sai) return false;
+    const diaSem = DIAS_SEMANA_FULL[dataObj.getDay()];
+    return restr.some(r => r.diaSemana === diaSem && turnoSobrepoeJanela(ent, sai, r.horaInicio, r.horaFim));
+  }
 
   const usuario = equipeRaw.find(r=>r[0]===session.nome);
   if (usuario?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado — não é gestor' });
@@ -485,7 +507,12 @@ Identifique cada pessoa pelo ID numérico da lista acima, NUNCA pelo nome. Respo
           if(folgaSugerida) {
             linhasNovas.push([df,'',p[0],'','','Folga']);
           } else {
-            linhasNovas.push([df,'',p[0], aj?aj.ent:t.ent, aj?aj.sai:t.sai, aj?'Ajustado IA':'Gerado IA']);
+            const entFinal = aj?aj.ent:t.ent, saiFinal = aj?aj.sai:t.sai;
+            // Bate com uma janela de indisponibilidade (ex: aula) dessa pessoa nesse dia da semana —
+            // não grava nada, deixa o dia em branco de propósito pra alguém resolver manualmente em
+            // vez de criar um turno que ela não pode cumprir.
+            if (conflitaComDisponibilidade(p[0], d, entFinal, saiFinal)) return;
+            linhasNovas.push([df,'',p[0], entFinal, saiFinal, aj?'Ajustado IA':'Gerado IA']);
           }
         });
       }
@@ -521,9 +548,11 @@ Identifique cada pessoa pelo ID numérico da lista acima, NUNCA pelo nome. Respo
       .filter(r => r[0]===df && r[2] && ativos.some(p=>p[0]===r[2]))
       .map(r => ({ nome:r[2], ent:r[3]||'', sai:r[4]||'', obs:r[5]||'', existente:true }));
 
-    // Pendentes: ativos com turno identificado, sem nada na planilha e sem ausência aprovada nesse dia
+    // Pendentes: ativos com turno identificado, sem nada na planilha, sem ausência aprovada nesse dia,
+    // e sem bater numa janela de indisponibilidade (ex: faculdade) — esses ficam de fora do preview
+    // porque também não serão gravados (ver ?action=POST acima).
     const escalaPendente = ativos
-      .filter(p=>turnos[p[0]] && !jaPreenchido(df, p[0]) && !temAusenciaAprovada(df, p[0]))
+      .filter(p=>turnos[p[0]] && !jaPreenchido(df, p[0]) && !temAusenciaAprovada(df, p[0]) && !conflitaComDisponibilidade(p[0], d, turnos[p[0]].ent, turnos[p[0]].sai))
       .map(p=>({nome:p[0], ent:turnos[p[0]].ent, sai:turnos[p[0]].sai, existente:false}));
 
     const escalaCompleta = [...escalaExistente, ...escalaPendente];
