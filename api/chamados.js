@@ -606,10 +606,13 @@ ${headerHTML(session.nome, isGestor, `${chamados.length} chamados registrados`)}
   <div class="field">
     <label>Anexos (fotos, notas fiscais, comprovantes...)</label>
     <div id="g-anexos-lista" style="margin-bottom:6px"></div>
-    <div style="display:flex;gap:8px">
-      <input id="g-anexo-file" type="file" style="flex:1">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input id="g-anexo-file" type="file" multiple style="flex:1;min-width:140px">
+      <input id="g-anexo-pasta" type="file" webkitdirectory multiple style="display:none">
+      <button type="button" class="btn" onclick="document.getElementById('g-anexo-pasta').click()" title="Selecionar uma pasta inteira (só funciona no navegador de computador)">📁 Pasta</button>
       <button type="button" id="btn-enviar-anexo" class="btn" onclick="enviarAnexo()">Enviar</button>
     </div>
+    <div id="g-anexo-selecionados" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
   </div>
   <div class="modal-actions"><button class="btn" onclick="fecharModais()">Cancelar</button><button class="btn primary" onclick="salvarGerenciar()">Salvar</button></div>
 </div></div>
@@ -710,6 +713,8 @@ function abrirGerenciar(id){
   document.getElementById('g-fim').value = c.fimIntervencao||'';
   document.getElementById('g-equipe').value = c.equipeEnvolvida||'';
   document.getElementById('g-anexo-file').value = '';
+  document.getElementById('g-anexo-pasta').value = '';
+  document.getElementById('g-anexo-selecionados').textContent = '';
   renderAnexos(c.anexos||'');
   document.getElementById('modal-gerenciar').classList.add('open');
 }
@@ -721,24 +726,40 @@ function renderAnexos(anexosStr){
     return '<a href="'+url+'" target="_blank" rel="noopener" style="display:block;font-size:12px;color:var(--blue);margin-bottom:3px">📎 '+escHtml(nome)+'</a>';
   }).join('');
 }
+function mostrarSelecionados(){
+  var f1 = document.getElementById('g-anexo-file').files;
+  var f2 = document.getElementById('g-anexo-pasta').files;
+  var n = (f1.length ? f1.length : f2.length);
+  document.getElementById('g-anexo-selecionados').textContent = n ? n+' arquivo(s) selecionado(s)' : '';
+}
+document.getElementById('g-anexo-file').addEventListener('change', mostrarSelecionados);
+document.getElementById('g-anexo-pasta').addEventListener('change', mostrarSelecionados);
+
 async function enviarAnexo(){
-  var input = document.getElementById('g-anexo-file');
-  var file = input.files[0];
-  if (!file) return alert('Escolha um arquivo primeiro');
-  var fd = new FormData();
-  fd.append('arquivo', file, file.name);
+  var f1 = document.getElementById('g-anexo-file');
+  var f2 = document.getElementById('g-anexo-pasta');
+  var files = Array.prototype.slice.call(f1.files.length ? f1.files : f2.files);
+  if (!files.length) return alert('Escolha um ou mais arquivos, ou uma pasta, primeiro');
   var btn = document.getElementById('btn-enviar-anexo');
-  btn.disabled = true; btn.textContent = 'Enviando...';
-  try{
-    var r = await fetch('/api/chamados?action=upload-anexo&id='+idAtual, { method:'POST', body: fd });
-    var d = await r.json();
-    if (!r.ok) { alert(d.error||'Erro ao enviar anexo'); return; }
-    var c = CHAMADOS.find(function(x){ return x.id===idAtual; });
-    if (c) c.anexos = d.anexos;
-    renderAnexos(d.anexos);
-    input.value = '';
-  } catch(e) { alert('Erro de conexão'); }
-  finally { btn.disabled = false; btn.textContent = 'Enviar'; }
+  btn.disabled = true;
+  var anexosFinal = '';
+  for (var i = 0; i < files.length; i++){
+    btn.textContent = 'Enviando '+(i+1)+'/'+files.length+'...';
+    var fd = new FormData();
+    fd.append('arquivo', files[i], files[i].name);
+    try{
+      var r = await fetch('/api/chamados?action=upload-anexo&id='+idAtual, { method:'POST', body: fd });
+      var d = await r.json();
+      if (!r.ok) { alert('Erro em "'+files[i].name+'": '+(d.error||'?')); continue; }
+      anexosFinal = d.anexos;
+      renderAnexos(anexosFinal);
+    } catch(e) { alert('Erro de conexão ao enviar "'+files[i].name+'"'); }
+  }
+  var c = CHAMADOS.find(function(x){ return x.id===idAtual; });
+  if (c && anexosFinal) c.anexos = anexosFinal;
+  f1.value = ''; f2.value = '';
+  document.getElementById('g-anexo-selecionados').textContent = '';
+  btn.disabled = false; btn.textContent = 'Enviar';
 }
 async function salvarGerenciar(){
   var body = {
