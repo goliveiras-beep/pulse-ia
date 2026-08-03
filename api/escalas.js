@@ -629,11 +629,6 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
       <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Publicado até</div>
       <div style="font-size:18px;font-weight:700;color:${horizonteVencido?'#dc2626':'var(--text)'}">${horizonteAtual || 'Nao definido'}</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
-        <button onclick="publicarHorizonte('1 dia')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1d</button>
-        <button onclick="publicarHorizonte('2 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+2d</button>
-        <button onclick="publicarHorizonte('1 semana')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+7d</button>
-        <button onclick="publicarHorizonte('15 dias')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+15d</button>
-        <button onclick="publicarHorizonte('1 mês')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1mês</button>
         <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
         <button onclick="sincronizarAgendas()" title="Atualiza a Agenda do Google de quem ja autorizou, sem mudar a data publicada" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--blue-m-border,#2a4080);background:var(--card);cursor:pointer;color:var(--blue-m-v,#63b3ed)">🔄 Sincronizar agenda</button>
         <span style="display:inline-flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border);border-radius:4px;padding:2px 4px 2px 7px">
@@ -860,12 +855,7 @@ async function publicarHorizonte(opcao){
   var horizonte='';
   if(opcao==='limpar'){
   } else {
-    if(opcao==='1 dia') d.setDate(d.getDate()+1);
-    else if(opcao==='2 dias') d.setDate(d.getDate()+2);
-    else if(opcao==='1 semana') d.setDate(d.getDate()+7);
-    else if(opcao==='15 dias') d.setDate(d.getDate()+15);
-    else if(opcao==='1 mês') d.setMonth(d.getMonth()+1);
-    else if(opcao==='custom'){
+    if(opcao==='custom'){
       var v=document.getElementById('horizCustomData').value;
       if(!v){ toast('Escolha uma data','#dc2626'); return; }
       var partes=v.split('-');
