@@ -636,9 +636,11 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
         <button onclick="publicarHorizonte('1 mês')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">+1mês</button>
         <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
         <button onclick="sincronizarAgendas()" title="Atualiza a Agenda do Google de quem ja autorizou, sem mudar a data publicada" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--blue-m-border,#2a4080);background:var(--card);cursor:pointer;color:var(--blue-m-v,#63b3ed)">🔄 Sincronizar agenda</button>
-        <span style="display:inline-flex;gap:2px;align-items:center">
-          <input type="number" id="horizCustomDias" min="1" placeholder="dias" style="width:44px;font-size:9px;padding:2px 4px;border-radius:4px;border:1px solid var(--border);background:var(--card);color:var(--text2)">
-          <button onclick="publicarHorizonte('custom')" title="Publica N dias a partir de hoje, usando o numero ao lado" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--text2)">Aplicar</button>
+        <span style="display:inline-flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border);border-radius:4px;padding:2px 4px 2px 7px">
+          <span style="font-size:9px;color:var(--text2);white-space:nowrap">Personalizado:</span>
+          <input type="number" id="horizCustomDias" min="1" placeholder="N" style="width:26px;font-size:9px;padding:2px 0;border:none;background:transparent;color:var(--text);text-align:center;outline:none">
+          <span style="font-size:9px;color:var(--text2)">dias</span>
+          <button onclick="publicarHorizonte('custom')" title="Publica N dias a partir de hoje, usando o numero ao lado" style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:3px;border:1px solid var(--blue-m-border,#2a4080);background:var(--blue-m-bg,#eff6ff);cursor:pointer;color:var(--blue-m-v,#1d4ed8)">Aplicar</button>
         </span>
       </div>
     </div>
