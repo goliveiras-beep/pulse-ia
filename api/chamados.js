@@ -90,22 +90,65 @@ async function getGestorDriveToken() {
 // Acha (ou cria, na primeira vez) a subpasta "Chamados" dentro da mesma pasta do Drive que já
 // recebe os atestados — mantém os anexos de manutenção separados por tipo, sem precisar de uma
 // env var nova. Reconsultado a cada upload (sem cache entre invocações da function).
+// A pasta de anexos dos chamados mora na RAIZ do app (pai de ATESTADOS-PULSE), como "CHAMADOS-PULSE"
+// — não dentro de ATESTADOS-PULSE, que é mais restrito. Se a pasta antiga "Chamados" (dentro de
+// ATESTADOS-PULSE) ainda existir de uma versão anterior, ela é migrada (renomeada + movida +
+// liberado acesso) na primeira chamada depois do deploy, em vez de criar uma pasta nova vazia —
+// isso preserva todas as subpastas por chamado que já existiam ali dentro.
 async function garantirSubpastaChamados(gestorToken) {
-  const parentId = process.env.DRIVE_ATESTADOS_FOLDER_ID;
-  if (!parentId) throw new Error('DRIVE_ATESTADOS_FOLDER_ID não configurado');
-  const q = encodeURIComponent(`name='Chamados' and mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`);
-  const listRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`, {
+  const atestadosId = process.env.DRIVE_ATESTADOS_FOLDER_ID;
+  if (!atestadosId) throw new Error('DRIVE_ATESTADOS_FOLDER_ID não configurado');
+
+  const paiRes = await fetch(`https://www.googleapis.com/drive/v3/files/${atestadosId}?fields=parents`, {
     headers: { Authorization: `Bearer ${gestorToken}` },
   });
-  const listData = await listRes.json();
-  if (listData.files?.[0]?.id) return listData.files[0].id;
+  const paiData = await paiRes.json();
+  const raizId = paiData.parents?.[0];
+  if (!raizId) throw new Error('Não foi possível achar a pasta raiz (pai de ATESTADOS-PULSE)');
+
+  const qNova = encodeURIComponent(`name='CHAMADOS-PULSE' and mimeType='application/vnd.google-apps.folder' and '${raizId}' in parents and trashed=false`);
+  const listNovaRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${qNova}&fields=files(id)`, {
+    headers: { Authorization: `Bearer ${gestorToken}` },
+  });
+  const listNovaData = await listNovaRes.json();
+  if (listNovaData.files?.[0]?.id) return listNovaData.files[0].id;
+
+  const qAntiga = encodeURIComponent(`name='Chamados' and mimeType='application/vnd.google-apps.folder' and '${atestadosId}' in parents and trashed=false`);
+  const listAntigaRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${qAntiga}&fields=files(id)`, {
+    headers: { Authorization: `Bearer ${gestorToken}` },
+  });
+  const listAntigaData = await listAntigaRes.json();
+  if (listAntigaData.files?.[0]?.id) {
+    const idAntiga = listAntigaData.files[0].id;
+    await fetch(`https://www.googleapis.com/drive/v3/files/${idAntiga}?addParents=${raizId}&removeParents=${atestadosId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${gestorToken}` },
+    });
+    await fetch(`https://www.googleapis.com/drive/v3/files/${idAntiga}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'CHAMADOS-PULSE' }),
+    });
+    await fetch(`https://www.googleapis.com/drive/v3/files/${idAntiga}/permissions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+    }).catch(() => {});
+    return idAntiga;
+  }
+
   const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
     method: 'POST',
     headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Chamados', mimeType: 'application/vnd.google-apps.folder', parents: [parentId] }),
+    body: JSON.stringify({ name: 'CHAMADOS-PULSE', mimeType: 'application/vnd.google-apps.folder', parents: [raizId] }),
   });
   const createData = await createRes.json();
-  if (!createData.id) throw new Error('Erro ao criar subpasta Chamados: ' + JSON.stringify(createData));
+  if (!createData.id) throw new Error('Erro ao criar pasta CHAMADOS-PULSE: ' + JSON.stringify(createData));
+  await fetch(`https://www.googleapis.com/drive/v3/files/${createData.id}/permissions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+  }).catch(() => {});
   return createData.id;
 }
 
