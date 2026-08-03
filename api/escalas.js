@@ -637,10 +637,9 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
         <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
         <button onclick="sincronizarAgendas()" title="Atualiza a Agenda do Google de quem ja autorizou, sem mudar a data publicada" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--blue-m-border,#2a4080);background:var(--card);cursor:pointer;color:var(--blue-m-v,#63b3ed)">🔄 Sincronizar agenda</button>
         <span style="display:inline-flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border);border-radius:4px;padding:2px 4px 2px 7px">
-          <span style="font-size:9px;color:var(--text2);white-space:nowrap">Personalizado:</span>
-          <input type="number" id="horizCustomDias" min="1" placeholder="N" style="width:26px;font-size:9px;padding:2px 0;border:none;background:transparent;color:var(--text);text-align:center;outline:none">
-          <span style="font-size:9px;color:var(--text2)">dias</span>
-          <button onclick="publicarHorizonte('custom')" title="Publica N dias a partir de hoje, usando o numero ao lado" style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:3px;border:1px solid var(--blue-m-border,#2a4080);background:var(--blue-m-bg,#eff6ff);cursor:pointer;color:var(--blue-m-v,#1d4ed8)">Aplicar</button>
+          <span style="font-size:9px;color:var(--text2);white-space:nowrap">Até:</span>
+          <input type="date" id="horizCustomData" style="font-size:9px;padding:2px 3px;border:none;background:transparent;color:var(--text);outline:none">
+          <button onclick="publicarHorizonte('custom')" title="Publica ate a data escolhida (a equipe sempre ve a partir de hoje)" style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:3px;border:1px solid var(--blue-m-border,#2a4080);background:var(--blue-m-bg,#eff6ff);cursor:pointer;color:var(--blue-m-v,#1d4ed8)">Aplicar</button>
         </span>
       </div>
     </div>
@@ -867,9 +866,13 @@ async function publicarHorizonte(opcao){
     else if(opcao==='15 dias') d.setDate(d.getDate()+15);
     else if(opcao==='1 mês') d.setMonth(d.getMonth()+1);
     else if(opcao==='custom'){
-      var n=parseInt(document.getElementById('horizCustomDias').value);
-      if(!n||n<1){ toast('Informe um numero de dias valido','#dc2626'); return; }
-      d.setDate(d.getDate()+n);
+      var v=document.getElementById('horizCustomData').value;
+      if(!v){ toast('Escolha uma data','#dc2626'); return; }
+      var partes=v.split('-');
+      var dEscolhida=new Date(parseInt(partes[0]),parseInt(partes[1])-1,parseInt(partes[2]));
+      var hojeZero=new Date(); hojeZero.setHours(0,0,0,0);
+      if(dEscolhida<hojeZero){ toast('Escolha uma data igual ou depois de hoje','#dc2626'); return; }
+      d=dEscolhida;
     }
     var dd=String(d.getDate()).padStart(2,'0');
     var mm=String(d.getMonth()+1).padStart(2,'0');
