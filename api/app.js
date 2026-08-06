@@ -560,10 +560,20 @@ export default async function handler(req, res) {
       if (meuDiaRequester === colegaDia) {
         // Caso mais comum na prática: os dois já trabalham no MESMO dia, só em horários
         // diferentes, e querem trocar o horário entre si. Aqui não tem duplicidade possível
-        // (são duas linhas diferentes, uma de cada, no mesmo dia) — só troca D:F entre elas.
+        // (são duas linhas diferentes, uma de cada, no mesmo dia) — troca só a ENTRADA, mantendo
+        // a duração original de cada um (senão quem tem carga horária menor herdava a carga do
+        // colega — ex: 6h virando 8h). Observação não troca, fica com a pessoa.
         const rowReq = escalaRaw[idxReq], rowColega = escalaRaw[idxColega];
-        await setSheet(`Escala!D${idxReq + 2}:F${idxReq + 2}`, [[rowColega[3] || '', rowColega[4] || '', rowColega[5] || '']]);
-        await setSheet(`Escala!D${idxColega + 2}:F${idxColega + 2}`, [[rowReq[3] || '', rowReq[4] || '', rowReq[5] || '']]);
+        const entReq = rowReq[3] || '', saiReq = rowReq[4] || '';
+        const entColega = rowColega[3] || '', saiColega = rowColega[4] || '';
+        if (!entReq || !saiReq || !entColega || !saiColega) {
+          return res.status(400).json({ error: 'Um dos dois não tem entrada/saída definida nesse dia — essa troca precisa ser feita manualmente pelo gestor.' });
+        }
+        const durReq = ((toMin(saiReq) - toMin(entReq)) + 1440) % 1440;
+        const durColega = ((toMin(saiColega) - toMin(entColega)) + 1440) % 1440;
+        const fmtMin = min => { const m = ((min % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+        await setSheet(`Escala!D${idxReq + 2}:E${idxReq + 2}`, [[entColega, fmtMin(toMin(entColega) + durReq)]]);
+        await setSheet(`Escala!D${idxColega + 2}:E${idxColega + 2}`, [[entReq, fmtMin(toMin(entReq) + durColega)]]);
       } else {
         // Dias diferentes: se qualquer um dos dois já tem turno próprio no dia do outro,
         // renomear a linha criaria duas linhas com o mesmo nome+data (ambíguo — já vi isso
