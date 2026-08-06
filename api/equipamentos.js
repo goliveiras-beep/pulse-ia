@@ -225,6 +225,9 @@ export default async function handler(req, res) {
   if (action === 'cadastrar') {
     const { categoria, equipamento, patrimonio, serie, alocacao, observacao, tipoParque, anatel, imeiEsim, imeiFisico, chip } = req.body || {};
     if (!categoria?.trim() || !equipamento?.trim()) return res.status(400).json({ error: 'Categoria e equipamento são obrigatórios' });
+    if (patrimonio?.trim() && equipamentosRaw.some(r => (r[3]||'').trim().toLowerCase() === patrimonio.trim().toLowerCase())) {
+      return res.status(400).json({ error: `Já existe um equipamento com o patrimônio "${patrimonio.trim()}"` });
+    }
     const tipo = TIPOS_PARQUE.includes(tipoParque) ? tipoParque : 'Interno';
     const local = tipo === 'Externo'
       ? ((alocacao||'').trim() || 'A definir')
@@ -274,6 +277,9 @@ export default async function handler(req, res) {
   if (action === 'editar') {
     const { categoria, equipamento, patrimonio, serie, observacao, anatel, imeiEsim, imeiFisico, chip } = req.body || {};
     if (!categoria?.trim() || !equipamento?.trim()) return res.status(400).json({ error: 'Categoria e equipamento são obrigatórios' });
+    if (patrimonio?.trim() && equipamentosRaw.some((r, i) => i !== idx && (r[3]||'').trim().toLowerCase() === patrimonio.trim().toLowerCase())) {
+      return res.status(400).json({ error: `Já existe um equipamento com o patrimônio "${patrimonio.trim()}"` });
+    }
     await setSheet(`Equipamentos!B${linha}:E${linha}`, [[categoria.trim(), equipamento.trim(), patrimonio||'', serie||'']]);
     await setSheet(`Equipamentos!I${linha}`, [[observacao||'']]);
     await setSheet(`Equipamentos!L${linha}:O${linha}`, [[anatel||'', imeiEsim||'', imeiFisico||'', chip||'']]);
@@ -463,6 +469,8 @@ function baseHTML(titulo, conteudo, scriptExtra = '') {
 <script>(function(){var d=localStorage.getItem("pulse-theme");if(d==="dark")document.documentElement.classList.add("dark");})()</script>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulse - ${esc(titulo)}</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.json">
 <style>${shellCSS()}</style>
 </head>
 <body>
@@ -631,11 +639,11 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`, 
   </div>
 
   <div class="toolbar">
-    <input id="busca" placeholder="🔍 Buscar por ID, equipamento, série, local, IMEI, Anatel, chip..." style="flex:1;min-width:220px" oninput="filtrar()">
-    <select id="f-tipo" onchange="onTipoChange()"><option value="">Interno + Externo</option>${TIPOS_PARQUE.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
-    <select id="f-categoria" onchange="filtrar()"><option value="">Todas categorias</option>${categoriasTodas.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
-    <select id="f-local" onchange="filtrar()"><option value="">Toda alocação</option>${locaisTodos.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>
-    <select id="f-status" onchange="filtrar()"><option value="">Todo status</option>${STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
+    <input id="busca" placeholder="🔍 Buscar por ID, equipamento, série, local, IMEI, Anatel, chip...">
+    <select id="f-tipo"><option value="">Interno + Externo</option>${TIPOS_PARQUE.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('')}</select>
+    <select id="f-categoria"><option value="">Todas categorias</option>${categoriasTodas.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
+    <select id="f-local"><option value="">Toda alocação</option>${locaisTodos.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`).join('')}</select>
+    <select id="f-status"><option value="">Todo status</option>${STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
     <button class="btn primary" onclick="abrirCadastro()">+ Cadastrar equipamento</button>
     <a href="/api/equipamentos?v=historico" class="btn">Histórico de movimentações</a>
   </div>
@@ -737,6 +745,7 @@ function linhaHTML(u){
     +   '<button onclick="abrirMover(\\''+u.id+'\\')">Mover</button>'
     +   '<button onclick="abrirStatus(\\''+u.id+'\\')">Status</button>'
     +   '<button onclick="abrirEditar(\\''+u.id+'\\')">Editar</button>'
+    +   '<button onclick="clonarEquipamento(\\''+u.id+'\\')" title="Cadastra um equipamento novo com os mesmos dados, exceto patrimônio e série">Clonar</button>'
     +   '<button onclick="removerUnidade(\\''+u.id+'\\')">Remover</button>'
     + '</td></tr>';
 }
@@ -792,6 +801,8 @@ function irParaTipo(tipo){
   document.getElementById('f-tipo').value = tipo;
   rebuildFiltroLocal(tipo);
   document.getElementById('f-local').value = '';
+  localStorage.setItem('eqp-f-tipo', tipo);
+  localStorage.setItem('eqp-f-local', '');
   filtrar();
   document.getElementById('tabela').scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -814,6 +825,8 @@ function irParaLocal(local){
   document.getElementById('f-tipo').value = tipoAlvo;
   rebuildFiltroLocal(tipoAlvo);
   document.getElementById('f-local').value = local;
+  localStorage.setItem('eqp-f-tipo', tipoAlvo);
+  localStorage.setItem('eqp-f-local', local);
   filtrar();
   document.getElementById('tabela').scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -821,6 +834,28 @@ function irParaLocal(local){
 function fecharModais(){ document.querySelectorAll('.modal-bg').forEach(function(m){ m.classList.remove('open'); }); idAtual = null; }
 
 function abrirCadastro(){ toggleTipoCadastro(); document.getElementById('modal-cadastro').classList.add('open'); }
+
+// Clonar: abre o mesmo modal de cadastro já preenchido com os dados do equipamento de origem,
+// exceto patrimônio e série — esses são únicos por unidade física, então ficam em branco pra
+// a pessoa digitar os do equipamento novo (evita cair na validação de patrimônio duplicado).
+function clonarEquipamento(id){
+  const u = UNIDADES.find(function(x){ return x.id === id; });
+  if (!u) return;
+  document.getElementById('c-categoria').value = u.categoria;
+  document.getElementById('c-equipamento').value = u.equipamento;
+  document.getElementById('c-patrimonio').value = '';
+  document.getElementById('c-serie').value = '';
+  document.getElementById('c-tipo').value = u.tipoParque;
+  toggleTipoCadastro();
+  if (u.tipoParque === 'Externo') document.getElementById('c-alocacao-externo').value = u.alocacao;
+  else document.getElementById('c-alocacao-interno').value = u.alocacao;
+  document.getElementById('c-observacao').value = u.observacao || '';
+  document.getElementById('c-anatel').value = u.anatel || '';
+  document.getElementById('c-imei-esim').value = u.imeiEsim || '';
+  document.getElementById('c-imei-fisico').value = u.imeiFisico || '';
+  document.getElementById('c-chip').value = u.chip || '';
+  document.getElementById('modal-cadastro').classList.add('open');
+}
 async function salvarCadastro(){
   const tipo = document.getElementById('c-tipo').value;
   const alocacao = tipo === 'Externo'
@@ -916,6 +951,41 @@ async function removerUnidade(id){
   if (!r.ok) return alert(d.error||'Erro ao remover');
   location.reload();
 }
+
+// Persiste os filtros no localStorage — sem isso, qualquer ação (Mover/Status/Editar/Remover)
+// que recarrega a página perdia a busca e os filtros selecionados, forçando refiltrar do zero.
+(function(){
+  var CAMPOS = ['busca','f-tipo','f-categoria','f-local','f-status'];
+  CAMPOS.forEach(function(id){
+    var salvo = localStorage.getItem('eqp-'+id);
+    if (salvo !== null) document.getElementById(id).value = salvo;
+  });
+  rebuildFiltroLocal(document.getElementById('f-tipo').value);
+  var flSalvo = localStorage.getItem('eqp-f-local');
+  if (flSalvo !== null) document.getElementById('f-local').value = flSalvo;
+
+  document.getElementById('busca').addEventListener('input', function(){
+    localStorage.setItem('eqp-busca', this.value);
+    filtrar();
+  });
+  document.getElementById('f-tipo').addEventListener('change', function(){
+    localStorage.setItem('eqp-f-tipo', this.value);
+    onTipoChange();
+    localStorage.setItem('eqp-f-local', document.getElementById('f-local').value);
+  });
+  document.getElementById('f-categoria').addEventListener('change', function(){
+    localStorage.setItem('eqp-f-categoria', this.value);
+    filtrar();
+  });
+  document.getElementById('f-local').addEventListener('change', function(){
+    localStorage.setItem('eqp-f-local', this.value);
+    filtrar();
+  });
+  document.getElementById('f-status').addEventListener('change', function(){
+    localStorage.setItem('eqp-f-status', this.value);
+    filtrar();
+  });
+})();
 
 filtrar();
 `;
