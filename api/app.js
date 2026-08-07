@@ -620,43 +620,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
-  if (req.method === 'POST' && action === 'publicar') {
-    const eqCheck = await getSheet('Equipe!A2:I200');
-    const uCheck = eqCheck.find(r=>r[0]===nome);
-    if (uCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
-    const { horizonte } = req.body || {};
-    try {
-      // Tenta escrever direto — se a aba não existe, cria e tenta de novo
-      async function salvarConfig() {
-        const cfgRaw = await getSheet('PulseConfig!A2:B20');
-        const cfgIdx = (cfgRaw||[]).findIndex(r=>r[0]==='publicacao_horizonte');
-        if (!horizonte) {
-          if (cfgIdx >= 0) await setSheet(`PulseConfig!A${cfgIdx+2}:B${cfgIdx+2}`, [['','']]);
-        } else if (cfgIdx >= 0) {
-          await setSheet(`PulseConfig!B${cfgIdx+2}`, [[horizonte]]);
-        } else {
-          await appendSheet('PulseConfig!A:B', [['publicacao_horizonte', horizonte]]);
-        }
-      }
-      try {
-        await salvarConfig();
-      } catch(e1) {
-        // Aba não existe — cria via batchUpdate
-        if (e1.message.includes('Unable to parse range') || e1.message.includes('404') || e1.message.includes('No grid')) {
-          await sheetsRequest(process.env.GOOGLE_SHEET_ID, ':batchUpdate', 'POST', {
-            requests: [{ addSheet: { properties: { title: 'PulseConfig' } } }]
-          });
-          await setSheet('PulseConfig!A1:B1', [['chave','valor']]);
-          await salvarConfig();
-        } else { throw e1; }
-      }
-      return res.status(200).json({ ok: true, horizonte: horizonte || '' });
-    } catch(e) {
-      console.error('publicar erro:', e.message);
-      return res.status(500).json({ error: e.message });
-    }
-  }
-
   const hoje = getBRT();
   const hojeStr = fmtData(hoje);
   const horaAtualMin = hoje.getHours() * 60 + hoje.getMinutes();
@@ -698,8 +661,12 @@ export default async function handler(req, res) {
   const ultimoAjuste = meusAjustes[0] || null;
   const ajusteSig = ultimoAjuste ? ultimoAjuste.join('|') : '';
 
-  // Horizonte de publicação: gestores veem tudo, colaboradores só até a data publicada
-  const configMap = Object.fromEntries((configRaw||[]).filter(r=>r[0]).map(r=>[r[0],r[1]||'']));
+  // Horizonte de publicação: gestores veem tudo, colaboradores só até a data publicada.
+  // Object.fromEntries pegaria o ÚLTIMO valor em caso de chave duplicada na planilha (bug real
+  // já visto: uma linha "publicacao_horizonte" antiga sobrando depois de outra mais recente) —
+  // construído manualmente pra sempre valer a PRIMEIRA ocorrência, imune a essa duplicidade.
+  const configMap = {};
+  (configRaw||[]).forEach(r => { if (r[0] && !(r[0] in configMap)) configMap[r[0]] = r[1]||''; });
   const horizonteStr = configMap['publicacao_horizonte']||''; // formato DD/MM
   function dentroHorizonte(df) {
     if(isGestor || !horizonteStr) return true;
