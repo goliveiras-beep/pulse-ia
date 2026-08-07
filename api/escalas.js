@@ -300,8 +300,12 @@ export default async function handler(req, res) {
   const hoje = getBRT();
   const hojeISO = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
 
-  // Horizonte de publicação — até quando a equipe consegue ver a escala
-  const configMap = Object.fromEntries((configRaw||[]).filter(r=>r[0]).map(r=>[r[0],r[1]||'']));
+  // Horizonte de publicação — até quando a equipe consegue ver a escala.
+  // Object.fromEntries pegaria o ÚLTIMO valor em caso de chave duplicada na planilha (bug real:
+  // linha antiga "publicacao_horizonte" sobrando depois de uma mais recente) — construído na mão
+  // pra sempre valer a PRIMEIRA ocorrência, imune a essa duplicidade.
+  const configMap = {};
+  (configRaw||[]).forEach(r => { if (r[0] && !(r[0] in configMap)) configMap[r[0]] = r[1]||''; });
   const horizonteAtual = configMap['publicacao_horizonte']||'';
   const horizonteData = (() => {
     if(!horizonteAtual) return null;
