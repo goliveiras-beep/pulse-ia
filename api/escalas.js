@@ -631,10 +631,10 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
         <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
         <button onclick="sincronizarAgendas()" title="Atualiza a Agenda do Google de quem ja autorizou, sem mudar a data publicada" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--blue-m-border,#2a4080);background:var(--card);cursor:pointer;color:var(--blue-m-v,#63b3ed)">🔄 Sincronizar agenda</button>
-        <span style="display:inline-flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--border);border-radius:4px;padding:2px 4px 2px 7px">
-          <span style="font-size:9px;color:var(--text2);white-space:nowrap">Até:</span>
-          <input type="date" id="horizCustomData" style="font-size:9px;padding:2px 3px;border:none;background:transparent;color:var(--text);outline:none">
-          <button onclick="publicarHorizonte('custom')" title="Publica ate a data escolhida (a equipe sempre ve a partir de hoje)" style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:3px;border:1px solid var(--blue-m-border,#2a4080);background:var(--blue-m-bg,#eff6ff);cursor:pointer;color:var(--blue-m-v,#1d4ed8)">Aplicar</button>
+        <span style="display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:4px 6px 4px 10px;margin-top:2px">
+          <span style="font-size:11px;color:var(--text2);white-space:nowrap;font-weight:600">Publicar até:</span>
+          <input type="date" id="horizCustomData" style="font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--bg2,#fff);color:var(--text);outline:none;min-height:28px">
+          <button onclick="publicarHorizonte('custom')" title="Publica ate a data escolhida (a equipe sempre ve a partir de hoje)" style="font-size:12px;font-weight:700;padding:5px 12px;border-radius:5px;border:1px solid var(--blue-m-border,#2a4080);background:var(--blue-m-bg,#eff6ff);cursor:pointer;color:var(--blue-m-v,#1d4ed8)">Aplicar</button>
         </span>
       </div>
     </div>
