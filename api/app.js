@@ -459,7 +459,12 @@ function cruzarEventos(eventos, escHoje, dataStr, ausencias, equipeAtivos) {
   return eventos.map(ev => {
     const disp = escValida.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && !ausentesHoje.has(r[2]) && estaDeServico(r[3], r[4], ev.hora, ev.horaFim, r[6]));
     const atenc = escValida.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && !ausentesHoje.has(r[2]) && statusTurno(r[3], r[4], ev.hora) !== null && !disp.find(d => d[2] === r[2]));
-    const aus = escValida.filter(r => !disp.find(d => d[2] === r[2]) && !atenc.find(a => a[2] === r[2]));
+    // "aus" precisa varrer TODA a equipe ativa, não só escValida (linhas da Escala do dia) —
+    // senão quem simplesmente não tem linha lançada na Escala hoje (nem turno, nem folga) some
+    // da lista inteira, dando a impressão de equipe incompleta no card do evento.
+    const nomesDisp = new Set(disp.map(r => r[2]));
+    const nomesAtenc = new Set(atenc.map(r => r[2]));
+    const aus = Array.from(equipeAtivos || []).filter(nome => !nomesDisp.has(nome) && !nomesAtenc.has(nome));
     const semCob = disp.length === 0;
     const semAntecedencia = atenc.length > 0 && disp.length === 0;
 
@@ -474,7 +479,7 @@ function cruzarEventos(eventos, escHoje, dataStr, ausencias, equipeAtivos) {
       ...ev,
       disp: dedup(disp).map(r => ({ nome: r[2], ent: r[3], sai: r[4] })),
       atenc: dedup(atenc).map(r => ({ nome: r[2], ent: r[3], sai: r[4] })),
-      aus: dedup(aus).map(r => ({ nome: r[2] })),
+      aus: aus.map(nome => ({ nome })),
       semCob,
       semAntecedencia,
     };
