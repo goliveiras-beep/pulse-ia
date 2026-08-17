@@ -3,6 +3,7 @@ export const config = { maxDuration: 60 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { analisarEscala, duracaoTurno } from '../lib/escalas-engine.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
+import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
 import { createHash } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -153,6 +154,80 @@ export default async function handler(req, res) {
     const total = todasLinhas.length;
     const julho = todasLinhas.filter(r=>String(r[0]).includes('07'));
     return res.status(200).json({ total, primeiras20: rows, linhasJulho: julho.slice(0,20) });
+  }
+
+  // Aplica a proposta de rotação de fim de semana em 3 grupos (9 pessoas), a partir do FDS
+  // 21-24/08 até completar um ciclo (3 fins de semana): cada grupo faz Sex+Sáb num FDS,
+  // Dom+Seg no FDS seguinte, e folga completa (Sex a Seg) no terceiro — depois repete.
+  // Ação de uso único (proposta específica combinada com o gestor), não é uma ferramenta genérica.
+  if (req.method === 'POST' && req.body?.action === 'aplicar-rotacao-fds') {
+    try {
+      const equipeRaw = await getSheet('Equipe!A2:N200');
+      const usuario = equipeRaw.find(r => r[0] === session.nome);
+      if (usuario?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
+
+      const ativos = equipeRaw.filter(r => r[0] && (r[10] || 'ativo').toLowerCase() === 'ativo');
+      function resolverNome(fragmento) {
+        const norm = fragmento.toLowerCase();
+        const achados = ativos.filter(r => r[0].toLowerCase().startsWith(norm));
+        if (achados.length !== 1) throw new Error(`"${fragmento}" não achou exatamente 1 pessoa ativa (achou ${achados.length})`);
+        return achados[0][0];
+      }
+
+      const G1 = ['Bernardo', 'Rodrigo Cesar', 'Fabio'].map(resolverNome);
+      const G2 = ['Lucas', 'Rodrigo Alcantara', 'Matheus'].map(resolverNome);
+      const G3 = ['Thiago', 'Bruno', 'Alan'].map(resolverNome);
+      const HORARIOS = [['08:00', '16:00'], ['12:00', '20:00'], ['16:00', '00:00']];
+      const OBS_TRABALHO = 'Rotação 3 grupos';
+
+      const PLANO = [
+        { trabalha: G1, dias: ['21/08', '22/08'] },
+        { trabalha: G2, dias: ['23/08', '24/08'] },
+        { folga: G3, dias: ['21/08', '22/08', '23/08', '24/08'] },
+        { trabalha: G3, dias: ['28/08', '29/08'] },
+        { trabalha: G1, dias: ['30/08', '31/08'] },
+        { folga: G2, dias: ['28/08', '29/08', '30/08', '31/08'] },
+        { trabalha: G2, dias: ['04/09', '05/09'] },
+        { trabalha: G3, dias: ['06/09', '07/09'] },
+        { folga: G1, dias: ['04/09', '05/09', '06/09', '07/09'] },
+      ];
+
+      const entradas = [];
+      PLANO.forEach(bloco => {
+        if (bloco.trabalha) {
+          bloco.dias.forEach(data => {
+            bloco.trabalha.forEach((nome, i) => {
+              const [ent, sai] = HORARIOS[i];
+              entradas.push({ data, nome, ent, sai, obs: OBS_TRABALHO });
+            });
+          });
+        } else {
+          bloco.dias.forEach(data => {
+            bloco.folga.forEach(nome => { entradas.push({ data, nome, ent: '', sai: '', obs: 'Folga' }); });
+          });
+        }
+      });
+
+      const escalaAtual = await getSheet('Escala!A2:F5000');
+      const paraAdicionar = [];
+      let atualizados = 0;
+      for (const e of entradas) {
+        const idx = escalaAtual.findIndex(r => r[0] === e.data && r[2] === e.nome);
+        if (idx >= 0) {
+          await setSheet(`Escala!D${idx + 2}:F${idx + 2}`, [[e.ent, e.sai, e.obs]]);
+          atualizados++;
+        } else {
+          paraAdicionar.push([e.data, '', e.nome, e.ent, e.sai, e.obs]);
+        }
+      }
+      if (paraAdicionar.length) await appendSheet('Escala!A:F', paraAdicionar);
+
+      await Promise.all(Array.from(new Set(entradas.map(e => e.nome))).map(nome => sincronizarUmaPessoa(nome)));
+
+      return res.status(200).json({ ok: true, atualizados, adicionados: paraAdicionar.length, total: entradas.length });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
   }
 
   if (req.method === 'POST' && req.body?.action === 'quick-generate') {
@@ -642,6 +717,13 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
         </span>
       </div>
     </div>
+  </div>
+  <div style="background:var(--card);border:1px solid var(--blue-m-border,#2a4080);border-radius:8px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="flex:1;min-width:240px">
+      <div style="font-size:12px;font-weight:700;color:var(--blue-m-v,#1d4ed8)">🗓️ Proposta: rotação de fim de semana em 3 grupos</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">Lança 21/08→24/08, 28/08→31/08 e 04/09→07/09 (9 pessoas, 3 grupos de 3) de uma vez.</div>
+    </div>
+    <button onclick="aplicarRotacaoFds()" id="btn-rotacao-fds" style="font-size:12px;font-weight:700;padding:8px 14px;border-radius:6px;border:1px solid var(--blue-m-border,#2a4080);background:var(--blue-m-bg,#eff6ff);cursor:pointer;color:var(--blue-m-v,#1d4ed8)">Aplicar proposta</button>
   </div>` : `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-size:11px;color:var(--text2);margin-bottom:16px;display:flex;align-items:center;gap:6px">
     Somente leitura &middot; mostra a escala publicada até <b style="color:var(--text)">${horizonteAtual || 'data nao definida'}</b>
   </div>`}
@@ -895,6 +977,23 @@ async function sincronizarAgendas(){
       toast('Erro: '+(data.error||'?'),'#dc2626');
     }
   } catch(e){ toast('Erro de conexão: '+e.message,'#dc2626'); }
+}
+async function aplicarRotacaoFds(){
+  if(!confirm('Lançar a rotação de 3 grupos pra 21/08→24/08, 28/08→31/08 e 04/09→07/09? Isso escreve direto na Escala.'))return;
+  var btn=document.getElementById('btn-rotacao-fds');
+  btn.disabled=true; btn.textContent='Aplicando...';
+  toast('Aplicando rotação...','#374151');
+  try{
+    var r=await fetch('/api/escalas',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'aplicar-rotacao-fds'})});
+    var data=await r.json();
+    if(data.ok){
+      toast('✓ '+data.total+' turnos lançados ('+data.adicionados+' novos, '+data.atualizados+' atualizados)','#166534');
+      setTimeout(function(){location.reload();},1500);
+    } else {
+      toast('Erro: '+(data.error||'?'),'#dc2626');
+      btn.disabled=false; btn.textContent='Aplicar proposta';
+    }
+  } catch(e){ toast('Erro de conexão: '+e.message,'#dc2626'); btn.disabled=false; btn.textContent='Aplicar proposta'; }
 }
 async function excluirTurno(){
   var d=editorData;
