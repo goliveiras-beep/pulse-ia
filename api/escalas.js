@@ -179,6 +179,8 @@ export default async function handler(req, res) {
       const G3 = ['Thiago', 'Bruno', 'Alan'].map(resolverNome);
       const HORARIOS = [['08:00', '16:00'], ['12:00', '20:00'], ['16:00', '00:00']];
       const OBS_TRABALHO = 'Rotação 3 grupos';
+      const DURACAO_MIN = 8 * 60; // todo turno da rotação tem 8h, só a entrada muda por pessoa
+      const INTERJORNADA_MIN = 11 * 60;
 
       const PLANO = [
         { trabalha: G1, dias: ['21/08', '22/08'] },
@@ -192,14 +194,38 @@ export default async function handler(req, res) {
         { folga: G1, dias: ['04/09', '05/09', '06/09', '07/09'] },
       ];
 
+      const escalaAtual = await getSheet('Escala!A2:F5000');
+      function toMinR(h) { const [hh, mm] = h.split(':').map(Number); return hh * 60 + (mm || 0); }
+      function fmtMinR(min) { const m = ((min % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; }
+      function diaAnterior(ddmm) {
+        const [d, m] = ddmm.split('/').map(Number);
+        const dt = new Date(new Date().getFullYear(), m - 1, d);
+        dt.setDate(dt.getDate() - 1);
+        return `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`;
+      }
+      // Empurra a entrada pra frente se o turno que a pessoa já tinha no dia anterior (dado real
+      // da Escala) não deixar as 11h de intervalo mínimas — só verificado no 1º dia de cada bloco,
+      // já que o 2º dia sempre tem uma folga de sobra em relação ao próprio 1º dia da rotação.
+      function entradaSegura(nome, primeiroDia, entDesejada) {
+        const anterior = escalaAtual.find(r => r[0] === diaAnterior(primeiroDia) && r[2] === nome);
+        if (!anterior || !anterior[3] || !anterior[4]) return entDesejada;
+        const antEnt = toMinR(anterior[3]), antSai = toMinR(anterior[4]);
+        const antOvernight = antSai < antEnt; // turno anterior virou a noite, termina de manhã no "primeiroDia"
+        const entMin = toMinR(entDesejada);
+        const gap = antOvernight ? entMin - antSai : (1440 - antSai) + entMin;
+        if (gap >= INTERJORNADA_MIN) return entDesejada;
+        const novoEntMin = antOvernight ? antSai + INTERJORNADA_MIN : antSai + INTERJORNADA_MIN - 1440;
+        return fmtMinR(novoEntMin);
+      }
+
       const entradas = [];
       PLANO.forEach(bloco => {
         if (bloco.trabalha) {
-          bloco.dias.forEach(data => {
-            bloco.trabalha.forEach((nome, i) => {
-              const [ent, sai] = HORARIOS[i];
-              entradas.push({ data, nome, ent, sai, obs: OBS_TRABALHO });
-            });
+          const primeiroDia = bloco.dias[0];
+          bloco.trabalha.forEach((nome, i) => {
+            const entAjustada = entradaSegura(nome, primeiroDia, HORARIOS[i][0]);
+            const sai = fmtMinR(toMinR(entAjustada) + DURACAO_MIN);
+            bloco.dias.forEach(data => { entradas.push({ data, nome, ent: entAjustada, sai, obs: OBS_TRABALHO }); });
           });
         } else {
           bloco.dias.forEach(data => {
@@ -208,7 +234,6 @@ export default async function handler(req, res) {
         }
       });
 
-      const escalaAtual = await getSheet('Escala!A2:F5000');
       const paraAdicionar = [];
       let atualizados = 0;
       for (const e of entradas) {
