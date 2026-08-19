@@ -1,0 +1,12 @@
+{
+  "appId": "com.livemode.pulse",
+  "appName": "Pulse",
+  "webDir": "www",
+  "server": {
+    "url": "https://pulse-ia-six.vercel.app",
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
