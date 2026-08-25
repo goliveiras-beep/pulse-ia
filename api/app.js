@@ -118,7 +118,7 @@ async function getFraseDoDia(dataStr) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant', max_tokens: 80,
+        model: 'openai/gpt-oss-20b', max_tokens: 80,
         messages: [
           { role: 'system', content: 'Responda com APENAS UMA frase curta de até 6 palavras, sem mencionar o dia da semana. Sem explicações, sem listas. Só a frase animada para equipe de TV ao vivo.' },
           { role: 'user', content: `Frase animada para equipe de TV ao vivo. Data: ${dataStr}.` }
@@ -789,7 +789,7 @@ export default async function handler(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
           body: JSON.stringify({
-            model: 'llama-3.1-8b-instant', max_tokens: 100,
+            model: 'openai/gpt-oss-20b', max_tokens: 100,
             messages: [
               { role: 'system', content: 'Voce e o assistente do Pulse, app interno de uma empresa de TV. Gere UMA mensagem curta (max 12 palavras) e animada para o colaborador. Se houver info sobre ferias proximas ou folga amanha (do proprio colaborador), use isso de forma criativa e personalizada. Nao mencione outros colegas. Sem explicacoes, so a mensagem. Use o primeiro nome do colaborador quando relevante.' },
               { role: 'user', content: contexto }

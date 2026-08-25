@@ -116,7 +116,7 @@ async function ajustarDia(data, eventosDia, escalaCompleta, editaveis) {
         'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        model: 'openai/gpt-oss-20b',
         max_tokens: 400,
         messages: [{
           role: 'user',
@@ -400,7 +400,7 @@ export default async function handler(req, res) {
       }
       // Chamada IA para folgas — agora com o histórico completo desde 01/06 (dias trabalhados, folgas
       // já tiradas, banco de horas e hora extra acumulados), não só um resumo de 60 dias.
-      // Pessoas identificadas por ID numérico no prompt (não por nome): o llama-3.1-8b-instant não
+      // Pessoas identificadas por ID numérico no prompt (não por nome): o modelo pequeno da Groq não
       // segue de forma confiável "responda com o nome completo" — devolvia só o primeiro nome (ex:
       // "Rodrigo"), ambíguo entre Rodrigo Alcantara e Rodrigo Cesar. ID elimina essa ambiguidade.
       const listaPessoasA = ativos.filter(p=>turnosA[p[0]]);
@@ -418,7 +418,7 @@ export default async function handler(req, res) {
         const rFolga = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method:'POST',
           headers:{'Content-Type':'application/json','Authorization':`Bearer ${process.env.GROQ_API_KEY}`},
-          body:JSON.stringify({model:'llama-3.1-8b-instant',max_tokens:1000,messages:[{role:'user',content:`Gestor de TV ao vivo, Copa do Mundo 2026. Sugira folgas para os próximos ${diasSpan} dias, começando em ${fmtData(inicio)}.
+          body:JSON.stringify({model:'openai/gpt-oss-20b',max_tokens:1000,messages:[{role:'user',content:`Gestor de TV ao vivo, Copa do Mundo 2026. Sugira folgas para os próximos ${diasSpan} dias, começando em ${fmtData(inicio)}.
 
 EQUIPE (ID. Nome: histórico desde 01/06):
 ${fadigaResumo}

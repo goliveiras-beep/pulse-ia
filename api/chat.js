@@ -310,7 +310,7 @@ Regras:
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
     body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
+      model: 'openai/gpt-oss-20b',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: mensagem },
@@ -591,15 +591,12 @@ export default async function handler(req, res) {
         });
         const d2 = await r.json();
         if (d2.records) {
-          eventosCtx = d2.records.map(ev => `${toHoraBRT(ev.fields['Início do Evento BRT']||'')} - ${ev.fields['Match ID']||'Evento'} (${ev.fields['Tipo de Conteúdo']||''})`).join('
-');
+          eventosCtx = d2.records.map(ev => `${toHoraBRT(ev.fields['Início do Evento BRT']||'')} - ${ev.fields['Match ID']||'Evento'} (${ev.fields['Tipo de Conteúdo']||''})`).join('\n');
         }
       } catch {}
 
-      const escalaCtx = escalaRows.slice(0, 100).map(r => r.join(' | ')).join('
-');
-      const ausCtx = ausRows.slice(0, 50).map(r => r.join(' | ')).join('
-');
+      const escalaCtx = escalaRows.slice(0, 100).map(r => r.join(' | ')).join('\n');
+      const ausCtx = ausRows.slice(0, 50).map(r => r.join(' | ')).join('\n');
       const equipeCtx = equipeAtivaTexto(equipeRows);
 
       const sysQuery = `Você é o assistente operacional do Pulse IA da Livemode, empresa de TV.
@@ -622,7 +619,7 @@ Responda de forma direta, clara e útil. Use emojis com moderação. Se não sou
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: 'openai/gpt-oss-20b',
           messages: [
             { role: 'system', content: sysQuery },
             ...messages,
