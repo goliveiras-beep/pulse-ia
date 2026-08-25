@@ -200,6 +200,82 @@ export default async function handler(req, res) {
     return restr.some(r => r.diaSemana === diaSem && turnoSobrepoeJanela(ent, sai, r.horaInicio, r.horaFim));
   }
 
+  // ── Regra fixa: rotação de fim de semana em 2 turmas (decidida com o Guilherme em 20/08/2026) ──
+  // Duas turmas alternam Sáb+Dom toda semana (uma trabalha, a outra folga completo, troca na semana
+  // seguinte). Carga horária de cada um vem do Tipo de Contrato: Temporário ("LET") = 6h, CLT
+  // ("LiveMode") = 8h — com exceção manual pro Thiago (PJ, tratado como LiveMode/8h por decisão do
+  // gestor). Se sobrar evento sem ninguém da turma de serviço cobrindo, estica quem é 6h (nunca quem
+  // já é 8h) em até 2h, priorizando quem está mais perto do buraco — só então fica "sem cobertura".
+  function resolverNomeRotacao(fragmento) {
+    const norm = fragmento.toLowerCase();
+    const achado = ativos.find(r => r[0] && r[0].toLowerCase().startsWith(norm));
+    return achado ? achado[0] : null;
+  }
+  function cargaContratual(fragmento, excecoes) {
+    if (excecoes[fragmento] != null) return excecoes[fragmento];
+    const achado = equipeRaw.find(r => r[0] && r[0].toLowerCase().startsWith(fragmento.toLowerCase()));
+    return achado?.[12] === 'Temporário' ? 6 : 8;
+  }
+  const CARGA_EXCECOES_ROTACAO = { 'Thiago': 8 }; // PJ tratado como LiveMode/8h por decisão do gestor
+  // Horário-base de cada turma — escalonado pra cobrir ~08h às 00h/02h; é só o ponto de partida,
+  // o fallback abaixo ajusta conforme os eventos reais do dia.
+  const HORA_BASE_TURMA_A_FRAG = { 'Bernardo': ['08:00','16:00'], 'Rodrigo Cesar': ['13:00','19:00'], 'Fabio': ['15:00','21:00'], 'Thiago': ['16:00','00:00'], 'Alan': ['18:00','00:00'] };
+  const HORA_BASE_TURMA_B_FRAG = { 'Lucas': ['08:00','16:00'], 'Rodrigo Alcantara': ['12:00','18:00'], 'Matheus': ['16:00','00:00'], 'Bruno': ['18:00','02:00'] };
+  function montarTurma(horaBaseFrag) {
+    return Object.entries(horaBaseFrag).map(([frag, horaBase]) => ({
+      frag, nome: resolverNomeRotacao(frag), carga: cargaContratual(frag, CARGA_EXCECOES_ROTACAO), horaBase,
+    })).filter(p => p.nome);
+  }
+  const turmaA = montarTurma(HORA_BASE_TURMA_A_FRAG);
+  const turmaB = montarTurma(HORA_BASE_TURMA_B_FRAG);
+  const nomesRotacao = new Set([...turmaA, ...turmaB].map(p => p.nome));
+  const ANCORA_TURMA_A = new Date(2026, 7, 29); // sábado 29/08/2026 — Turma A trabalha esse FDS
+
+  function sabadoDaSemana(d) { const r = new Date(d); if (r.getDay() === 0) r.setDate(r.getDate() - 1); return r; }
+  function turmaDoFimDeSemana(d) {
+    const sab = sabadoDaSemana(d);
+    const diffDias = Math.round((sab - ANCORA_TURMA_A) / 86400000);
+    const semanas = Math.round(diffDias / 7);
+    return (((semanas % 2) + 2) % 2 === 0) ? 'A' : 'B';
+  }
+  // Retorna { turmaServico, turmaFolga } nos fins de semana, ou null em dia de semana (a regra não
+  // muda nada de segunda a sexta — cada um mantém o turno individual detectado, como já era antes).
+  function turmasDoDia(d) {
+    if (d.getDay() !== 0 && d.getDay() !== 6) return null;
+    const deServico = turmaDoFimDeSemana(d) === 'A' ? turmaA : turmaB;
+    const deFolga = deServico === turmaA ? turmaB : turmaA;
+    return { deServico, deFolga };
+  }
+  function toMinRot(h) { const [hh, mm] = h.split(':').map(Number); return hh * 60 + (mm || 0); }
+  function fmtMinRot(min) { const m = ((min % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; }
+  // Calcula o horário final de cada pessoa da turma de serviço num dia específico, esticando os de
+  // 6h quando sobra evento sem cobertura — até 3 rodadas (cada rodada resolve pelo menos 1 buraco,
+  // sem isso poderia rodar pra sempre se nada mais puder ser esticado).
+  function calcularEscalaTurmaDoDia(turmaServico, eventosDoDia) {
+    const pessoas = turmaServico.map(p => ({ ...p, ent: p.horaBase[0], sai: p.horaBase[1], estendido: false }));
+    const comHorario = eventosDoDia.filter(ev => ev.hora);
+    for (let rodada = 0; rodada < 3; rodada++) {
+      const semCobertura = comHorario.filter(ev => !pessoas.some(p => estaDeServico(p.ent, p.sai, ev.hora, ev.horaFim)));
+      if (!semCobertura.length) break;
+      let esticou = false;
+      for (const ev of semCobertura) {
+        let candidato = null, menorDist = Infinity;
+        for (const p of pessoas) {
+          if (p.carga !== 6 || p.estendido) continue;
+          const dist = Math.abs(toMinRot(ev.hora) - toMinRot(p.sai));
+          if (dist <= 180 && dist < menorDist) { menorDist = dist; candidato = p; }
+        }
+        if (candidato) {
+          candidato.sai = fmtMinRot(toMinRot(candidato.sai) + 120); // +2h no fim, nunca mais que isso
+          candidato.estendido = true;
+          esticou = true;
+        }
+      }
+      if (!esticou) break;
+    }
+    return pessoas;
+  }
+
   const usuario = equipeRaw.find(r=>r[0]===session.nome);
   if (usuario?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado — não é gestor' });
 
@@ -491,15 +567,33 @@ Identifique cada pessoa pelo ID numérico da lista acima, NUNCA pelo nome. Respo
       const escalaAtual = await getSheet('Escala!A2:F2000');
       const existingKeysAgora = new Set(escalaAtual.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
       const body = req.body||{};
+      let eventosRotacao = [];
+      try { eventosRotacao = await getEventosPeriodo(fmtAirtable(inicio), fmtAirtable(fim)); } catch {}
       const linhasNovas = [];
       for(let i=0;i<diasSpan;i++){
         const d=new Date(inicio); d.setDate(inicio.getDate()+i);
         const df=fmtData(d);
+        const turmasHoje = turmasDoDia(d);
+        const escalaTurmaHoje = turmasHoje
+          ? calcularEscalaTurmaDoDia(turmasHoje.deServico, eventosRotacao.filter(ev => ev.data === fmtAirtable(d)))
+          : null;
         ativos.forEach(p=>{
-          const t=turnos[p[0]];
-          if(!t) return;
           if (existingKeysAgora.has(`${df}|${p[0]}`)) return;
           if (temAusenciaAprovada(df,p[0])) return;
+          // Regra de rotação de fim de semana — só pra quem está numa das 2 turmas, só sáb/dom.
+          if (turmasHoje && nomesRotacao.has(p[0])) {
+            if (turmasHoje.deFolga.some(m => m.nome === p[0])) {
+              linhasNovas.push([df,'',p[0],'','','Folga']);
+            } else {
+              const pessoa = escalaTurmaHoje.find(m => m.nome === p[0]);
+              if (pessoa && !conflitaComDisponibilidade(p[0], d, pessoa.ent, pessoa.sai)) {
+                linhasNovas.push([df,'',p[0], pessoa.ent, pessoa.sai, pessoa.estendido ? 'Rotação FDS (+2h)' : 'Rotação FDS']);
+              }
+            }
+            return;
+          }
+          const t=turnos[p[0]];
+          if(!t) return;
           const key = `${df}|${p[0]}`;
           const aj = body.ajustes?.[key];
           // Verificar se é uma folga sugerida pela IA
@@ -550,11 +644,31 @@ Identifique cada pessoa pelo ID numérico da lista acima, NUNCA pelo nome. Respo
 
     // Pendentes: ativos com turno identificado, sem nada na planilha, sem ausência aprovada nesse dia,
     // e sem bater numa janela de indisponibilidade (ex: faculdade) — esses ficam de fora do preview
-    // porque também não serão gravados (ver ?action=POST acima).
-    const escalaPendente = ativos
-      .filter(p=>turnos[p[0]] && !jaPreenchido(df, p[0]) && !temAusenciaAprovada(df, p[0]) && !conflitaComDisponibilidade(p[0], d, turnos[p[0]].ent, turnos[p[0]].sai))
+    // porque também não serão gravados (ver ?action=POST acima). Quem está numa das 2 turmas de
+    // rotação de fim de semana usa a regra própria (folga completa ou horário calculado da turma
+    // de serviço) em vez do turno individual detectado — só sáb/dom, sem afetar dia de semana.
+    const turmasHoje = turmasDoDia(d);
+    const escalaTurmaHoje = turmasHoje ? calcularEscalaTurmaDoDia(turmasHoje.deServico, evsDia) : null;
+
+    const escalaPendenteNormal = ativos
+      .filter(p=>!nomesRotacao.has(p[0]) && turnos[p[0]] && !jaPreenchido(df, p[0]) && !temAusenciaAprovada(df, p[0]) && !conflitaComDisponibilidade(p[0], d, turnos[p[0]].ent, turnos[p[0]].sai))
       .map(p=>({nome:p[0], ent:turnos[p[0]].ent, sai:turnos[p[0]].sai, existente:false}));
 
+    const escalaPendenteRotacao = [];
+    if (turmasHoje) {
+      turmasHoje.deFolga.forEach(m => {
+        if (!jaPreenchido(df, m.nome) && !temAusenciaAprovada(df, m.nome)) {
+          escalaPendenteRotacao.push({ nome: m.nome, ent: '', sai: '', existente: false });
+        }
+      });
+      escalaTurmaHoje.forEach(pessoa => {
+        if (!jaPreenchido(df, pessoa.nome) && !temAusenciaAprovada(df, pessoa.nome) && !conflitaComDisponibilidade(pessoa.nome, d, pessoa.ent, pessoa.sai)) {
+          escalaPendenteRotacao.push({ nome: pessoa.nome, ent: pessoa.ent, sai: pessoa.sai, existente: false });
+        }
+      });
+    }
+
+    const escalaPendente = [...escalaPendenteNormal, ...escalaPendenteRotacao];
     const escalaCompleta = [...escalaExistente, ...escalaPendente];
 
     const lacunasAntes = evsDia.filter(ev=>ev.hora&&!escalaCompleta.some(p=>p.ent&&p.sai&&estaDeServico(p.ent,p.sai,ev.hora,ev.horaFim)));
