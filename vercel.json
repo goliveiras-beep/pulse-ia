@@ -42,6 +42,7 @@
     { "source": "/api/maestro-comandos-pendentes", "destination": "/api/maestro-bundle?_route=comandos-pendentes" },
     { "source": "/api/maestro-comando-resultado", "destination": "/api/maestro-bundle?_route=comando-resultado" },
     { "source": "/api/maestro-detalhe", "destination": "/api/maestro-bundle?_route=detalhe" },
-    { "source": "/api/maestro-detalhe-ingest", "destination": "/api/maestro-bundle?_route=detalhe-ingest" }
+    { "source": "/api/maestro-detalhe-ingest", "destination": "/api/maestro-bundle?_route=detalhe-ingest" },
+    { "source": "/api/maestro-booking", "destination": "/api/maestro-bundle?_route=booking" }
   ]
 }
