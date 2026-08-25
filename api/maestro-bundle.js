@@ -3,7 +3,9 @@
 // das rotas do Pulse (nenhum arquivo aqui e compartilhado com outro bundle), pra
 // mexer no MAESTRO sem risco de derrubar o resto do portal. despacha por
 // ?_route=, igual aos outros bundles (auth-bundle.js, gestao-bundle.js etc).
-export const config = { maxDuration: 30 };
+// 60 (teto do plano Hobby da Vercel) em vez de 30 - a extracao de Booking (maestro-booking.js)
+// chama o Gemini e variou de 5s a 28s nos testes, perto demais do limite antigo.
+export const config = { maxDuration: 60 };
 import painelHandler from '../lib/routes/maestro-painel.js';
 import telemetriaHandler from '../lib/routes/maestro-telemetria.js';
 import ingestHandler from '../lib/routes/maestro-ingest.js';
