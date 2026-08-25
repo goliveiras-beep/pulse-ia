@@ -568,9 +568,15 @@ Identifique cada pessoa pelo ID numérico da lista acima, NUNCA pelo nome. Respo
       const escalaAtual = await getSheet('Escala!A2:F2000');
       const existingKeysAgora = new Set(escalaAtual.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
       const body = req.body||{};
+      // Força a regra de rotação de FDS a sobrescrever linha já existente das 9 pessoas da rotação —
+      // opção explícita (checkbox na tela), usada só quando o fim de semana já tinha dado antigo
+      // bloqueando a regra nova. Ausência aprovada (ex: Folga Programada) nunca é sobrescrita, com
+      // ou sem essa opção — ver temAusenciaAprovada abaixo, que roda sempre primeiro.
+      const forcarRotacao = !!body.forcarRotacao;
       let eventosRotacao = [];
       try { eventosRotacao = await getEventosPeriodo(fmtAirtable(inicio), fmtAirtable(fim)); } catch {}
       const linhasNovas = [];
+      const linhasAtualizar = [];
       for(let i=0;i<diasSpan;i++){
         const d=new Date(inicio); d.setDate(inicio.getDate()+i);
         const df=fmtData(d);
@@ -579,17 +585,27 @@ Identifique cada pessoa pelo ID numérico da lista acima, NUNCA pelo nome. Respo
           ? calcularEscalaTurmaDoDia(turmasHoje.deServico, eventosRotacao.filter(ev => ev.data === fmtAirtable(d)))
           : null;
         ativos.forEach(p=>{
-          if (existingKeysAgora.has(`${df}|${p[0]}`)) return;
           if (temAusenciaAprovada(df,p[0])) return;
+          const ehRotacao = turmasHoje && nomesRotacao.has(p[0]);
+          const jaTemLinha = existingKeysAgora.has(`${df}|${p[0]}`);
+          if (jaTemLinha && !(ehRotacao && forcarRotacao)) return;
           // Regra de rotação de fim de semana — só pra quem está numa das 2 turmas, só sáb/dom.
-          if (turmasHoje && nomesRotacao.has(p[0])) {
+          if (ehRotacao) {
+            let linha = null;
             if (turmasHoje.deFolga.some(m => m.nome === p[0])) {
-              linhasNovas.push([df,'',p[0],'','','Folga']);
+              linha = [df,'',p[0],'','','Folga'];
             } else {
               const pessoa = escalaTurmaHoje.find(m => m.nome === p[0]);
               if (pessoa && !conflitaComDisponibilidade(p[0], d, pessoa.ent, pessoa.sai)) {
-                linhasNovas.push([df,'',p[0], pessoa.ent, pessoa.sai, pessoa.estendido ? 'Rotação FDS (+2h)' : 'Rotação FDS']);
+                linha = [df,'',p[0], pessoa.ent, pessoa.sai, pessoa.estendido ? 'Rotação FDS (+2h)' : 'Rotação FDS'];
               }
+            }
+            if (!linha) return;
+            if (jaTemLinha) {
+              const idx = escalaAtual.findIndex(r => r[0]===df && r[2]===p[0]);
+              if (idx >= 0) linhasAtualizar.push({ linha: idx + 2, valores: linha });
+            } else {
+              linhasNovas.push(linha);
             }
             return;
           }
@@ -611,12 +627,16 @@ Identifique cada pessoa pelo ID numérico da lista acima, NUNCA pelo nome. Respo
           }
         });
       }
-      if (linhasNovas.length === 0) {
+      if (linhasNovas.length === 0 && linhasAtualizar.length === 0) {
         return res.status(200).json({ ok:true, gravadas:0, mensagem:'Nada novo para gravar — todos os dias já estavam preenchidos.' });
       }
-      // Apenas ADICIONA linhas novas, nunca substitui o intervalo existente
-      await appendSheet('Escala!A:F', linhasNovas);
-      return res.status(200).json({ ok:true, gravadas:linhasNovas.length });
+      // Atualiza linha por linha as que já existiam (só entra aqui com forcarRotacao ligado)
+      for (const { linha, valores } of linhasAtualizar) {
+        await setSheet(`Escala!A${linha}:F${linha}`, [valores]);
+      }
+      // Só ADICIONA as linhas novas, nunca substitui o intervalo existente
+      if (linhasNovas.length) await appendSheet('Escala!A:F', linhasNovas);
+      return res.status(200).json({ ok:true, gravadas:linhasNovas.length, atualizadas:linhasAtualizar.length });
     } catch(e) {
       return res.status(500).json({error:e.message});
     }
@@ -845,12 +865,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </table>
     </div>
   </div>
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;align-items:center;gap:16px">
-    <div style="flex:1">
-      <div style="font-size:13px;font-weight:600">Compartilhar escala com a equipe</div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px" id="btn-desc">Grava ${totalAGravar} linhas novas · folgas sugeridas pela IA incluídas automaticamente</div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px">
+    <label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);cursor:pointer">
+      <input type="checkbox" id="chk-forcar-rotacao" style="width:auto;margin:0">
+      🔁 Forçar regra de rotação de fim de semana — sobrescreve o que já estava preenchido pras 9 pessoas da rotação (nunca sobrescreve ausência aprovada/Folga Programada)
+    </label>
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">Compartilhar escala com a equipe</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px" id="btn-desc">Grava ${totalAGravar} linhas novas · folgas sugeridas pela IA incluídas automaticamente</div>
+      </div>
+      <button onclick="confirmar()" id="btn" style="background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer">Compartilhar com a equipe ✓</button>
     </div>
-    <button onclick="confirmar()" id="btn" style="background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer">Compartilhar com a equipe ✓</button>
   </div>
 </div>
 <script>
@@ -939,7 +965,8 @@ async function confirmar(){
   var btn=document.getElementById('btn');
   btn.textContent='Compartilhando...';btn.disabled=true;btn.style.background='#374151';
   try{
-    var r=await fetch('/api/gerar-escala?inicio='+INICIO_ISO+'&fim='+FIM_ISO,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes:AJUSTES,folgas:FOLGAS_IA})});
+    var forcarRotacao = document.getElementById('chk-forcar-rotacao')?.checked || false;
+    var r=await fetch('/api/gerar-escala?inicio='+INICIO_ISO+'&fim='+FIM_ISO,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes:AJUSTES,folgas:FOLGAS_IA,forcarRotacao:forcarRotacao})});
     var d=await r.json();
     if(d.ok){btn.textContent='✓ Compartilhado!';btn.style.background='#166534';setTimeout(()=>window.location='/api/escalas?v=semana',1500);}
     else{btn.textContent='Compartilhar com a equipe ✓';btn.disabled=false;btn.style.background='#1d4ed8';alert('Erro: '+d.error);}
