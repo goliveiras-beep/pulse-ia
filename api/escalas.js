@@ -613,6 +613,7 @@ a{text-decoration:none}
         <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
         ` : ''}
         <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
+        <a href="/api/maestro-booking" class="menu-item">&#128196; Booking</a>
         <a href="/api/equipamentos" class="menu-item">&#128230; Equipamentos</a>
         <a href="/api/chamados" class="menu-item">&#127915; Chamados</a>
         <div style="height:1px;background:var(--border);margin:2px 0"></div>
