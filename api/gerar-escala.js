@@ -200,6 +200,44 @@ export default async function handler(req, res) {
     return restr.some(r => r.diaSemana === diaSem && turnoSobrepoeJanela(ent, sai, r.horaInicio, r.horaFim));
   }
 
+  const usuario = equipeRaw.find(r=>r[0]===session.nome);
+  if (usuario?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado — não é gestor' });
+
+  // Nunca gerar turno por cima de Férias/Folga programada/Atestado/etc já aprovados —
+  // essas informações são sempre mais importantes que uma escala gerada automaticamente
+  function statusAusencia(id) {
+    if (!id) return 'pendente';
+    if (id.startsWith('APROVADO')) return 'aprovado';
+    if (id === 'RECUSADO') return 'recusado';
+    if (id === 'CANCELADO') return 'cancelado';
+    return 'pendente';
+  }
+  function dentroPeriodoAus(ini, fim, df) {
+    if (!ini) return false;
+    const toNum = s => { const p = s.split('/'); return parseInt(p[1]) * 100 + parseInt(p[0]); };
+    const n = toNum(df), i = toNum(ini), f = toNum(fim || ini);
+    if (f >= i) return n >= i && n <= f;
+    return n >= i || n <= f;
+  }
+  function temAusenciaAprovada(df, nome) {
+    return ausenciasRaw.some(a => a[1]===nome && statusAusencia(a[0])==='aprovado' && dentroPeriodoAus(a[4], a[5], df));
+  }
+
+  const hoje = getBRT();
+  // Início e fim do período configuráveis via ?inicio=YYYY-MM-DD&fim=YYYY-MM-DD (inputs de data no
+  // topo da página) — sem esses parâmetros, mantém o padrão de sempre (amanhã, 14 dias).
+  const inicioParam = req.query.inicio;
+  const fimParam = req.query.fim;
+  const inicio = (inicioParam && /^\d{4}-\d{2}-\d{2}$/.test(inicioParam))
+    ? new Date(inicioParam + 'T00:00:00')
+    : (() => { const d = new Date(hoje); d.setDate(hoje.getDate() + 1); return d; })();
+  const fim = (fimParam && /^\d{4}-\d{2}-\d{2}$/.test(fimParam) && new Date(fimParam + 'T00:00:00') >= inicio)
+    ? new Date(fimParam + 'T00:00:00')
+    : (() => { const d = new Date(inicio); d.setDate(inicio.getDate() + 13); return d; })();
+  // Nº de dias do período (inclusive nas duas pontas) — substitui o "14" fixo de antes em todo loop abaixo.
+  const diasSpan = Math.round((fim - inicio) / 86400000) + 1;
+  const ativos = equipeRaw.filter(r=>r[0]&&r[6]!=='Inativo');
+
   // ── Regra fixa: rotação de fim de semana em 2 turmas (decidida com o Guilherme em 20/08/2026) ──
   // Duas turmas alternam Sáb+Dom toda semana (uma trabalha, a outra folga completo, troca na semana
   // seguinte). Carga horária de cada um vem do Tipo de Contrato: Temporário ("LET") = 6h, CLT
@@ -276,43 +314,6 @@ export default async function handler(req, res) {
     return pessoas;
   }
 
-  const usuario = equipeRaw.find(r=>r[0]===session.nome);
-  if (usuario?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado — não é gestor' });
-
-  // Nunca gerar turno por cima de Férias/Folga programada/Atestado/etc já aprovados —
-  // essas informações são sempre mais importantes que uma escala gerada automaticamente
-  function statusAusencia(id) {
-    if (!id) return 'pendente';
-    if (id.startsWith('APROVADO')) return 'aprovado';
-    if (id === 'RECUSADO') return 'recusado';
-    if (id === 'CANCELADO') return 'cancelado';
-    return 'pendente';
-  }
-  function dentroPeriodoAus(ini, fim, df) {
-    if (!ini) return false;
-    const toNum = s => { const p = s.split('/'); return parseInt(p[1]) * 100 + parseInt(p[0]); };
-    const n = toNum(df), i = toNum(ini), f = toNum(fim || ini);
-    if (f >= i) return n >= i && n <= f;
-    return n >= i || n <= f;
-  }
-  function temAusenciaAprovada(df, nome) {
-    return ausenciasRaw.some(a => a[1]===nome && statusAusencia(a[0])==='aprovado' && dentroPeriodoAus(a[4], a[5], df));
-  }
-
-  const hoje = getBRT();
-  // Início e fim do período configuráveis via ?inicio=YYYY-MM-DD&fim=YYYY-MM-DD (inputs de data no
-  // topo da página) — sem esses parâmetros, mantém o padrão de sempre (amanhã, 14 dias).
-  const inicioParam = req.query.inicio;
-  const fimParam = req.query.fim;
-  const inicio = (inicioParam && /^\d{4}-\d{2}-\d{2}$/.test(inicioParam))
-    ? new Date(inicioParam + 'T00:00:00')
-    : (() => { const d = new Date(hoje); d.setDate(hoje.getDate() + 1); return d; })();
-  const fim = (fimParam && /^\d{4}-\d{2}-\d{2}$/.test(fimParam) && new Date(fimParam + 'T00:00:00') >= inicio)
-    ? new Date(fimParam + 'T00:00:00')
-    : (() => { const d = new Date(inicio); d.setDate(inicio.getDate() + 13); return d; })();
-  // Nº de dias do período (inclusive nas duas pontas) — substitui o "14" fixo de antes em todo loop abaixo.
-  const diasSpan = Math.round((fim - inicio) / 86400000) + 1;
-  const ativos = equipeRaw.filter(r=>r[0]&&r[6]!=='Inativo');
   // Início do histórico "completo" — início da Copa 2026, quando a escala virou completa e passou a
   // rodar de verdade (antes disso os dados são esparsos/incompletos). Usado tanto na análise síncrona
   // da página quanto no endpoint assíncrono de folgas — ver conversa com o Guilherme em 31/07/2026.
