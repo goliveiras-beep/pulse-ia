@@ -5,7 +5,11 @@
   "type": "module",
   "dependencies": {
     "google-auth-library": "^9.14.2",
-    "zod": "^3.25.76"
+    "mailparser": "^3.9.16",
+    "mammoth": "^1.12.1",
+    "unpdf": "^1.8.1",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@capacitor/android": "8.5.0",
