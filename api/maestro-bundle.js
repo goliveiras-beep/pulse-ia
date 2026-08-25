@@ -13,6 +13,7 @@ import comandoResultadoHandler from '../lib/routes/maestro-comando-resultado.js'
 import detalheHandler from '../lib/routes/maestro-detalhe.js';
 import detalheIngestHandler from '../lib/routes/maestro-detalhe-ingest.js';
 import bookingHandler from '../lib/routes/maestro-booking.js';
+import bookingChecagemHandler from '../lib/routes/maestro-booking-checagem.js';
 
 const ROUTES = {
   painel: painelHandler,
@@ -24,6 +25,7 @@ const ROUTES = {
   detalhe: detalheHandler,
   'detalhe-ingest': detalheIngestHandler,
   booking: bookingHandler,
+  'booking-checagem': bookingChecagemHandler,
 };
 
 export default async function handler(req, res) {
