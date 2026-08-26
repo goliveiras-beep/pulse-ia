@@ -7,12 +7,14 @@ export const config = { maxDuration: 30 };
 import callbackHandler from '../lib/routes/callback.js';
 import checkStatusHandler from '../lib/routes/check-status.js';
 import driveTokenHandler from '../lib/routes/drive-token.js';
+import gmailTokenHandler from '../lib/routes/gmail-token.js';
 import registerHandler from '../lib/routes/register.js';
 
 const ROUTES = {
   'callback': callbackHandler,
   'check-status': checkStatusHandler,
   'drive-token': driveTokenHandler,
+  'gmail-token': gmailTokenHandler,
   'register': registerHandler,
 };
 

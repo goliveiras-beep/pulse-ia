@@ -8,6 +8,7 @@
     { "source": "/api/auth/callback", "destination": "/api/auth-bundle?_route=callback" },
     { "source": "/api/auth/check-status", "destination": "/api/auth-bundle?_route=check-status" },
     { "source": "/api/auth/drive-token", "destination": "/api/auth-bundle?_route=drive-token" },
+    { "source": "/api/auth/gmail-token", "destination": "/api/auth-bundle?_route=gmail-token" },
     { "source": "/api/auth/register", "destination": "/api/auth-bundle?_route=register" },
 
     { "source": "/api/setup-auth", "destination": "/api/setup-bundle?_route=setup-auth" },
