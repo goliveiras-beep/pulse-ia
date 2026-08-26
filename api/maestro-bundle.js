@@ -18,6 +18,8 @@ import bookingHandler from '../lib/routes/maestro-booking.js';
 import bookingChecagemHandler from '../lib/routes/maestro-booking-checagem.js';
 import bookingConfigHandler from '../lib/routes/maestro-booking-config.js';
 import bookingDiaHandler from '../lib/routes/maestro-booking-dia.js';
+import cronDiarioHandler from '../lib/routes/maestro-cron-diario.js';
+import cronPlanoEuropaHandler from '../lib/routes/maestro-cron-plano-europa.js';
 
 const ROUTES = {
   painel: painelHandler,
@@ -32,6 +34,8 @@ const ROUTES = {
   'booking-checagem': bookingChecagemHandler,
   'booking-config': bookingConfigHandler,
   'booking-dia': bookingDiaHandler,
+  'cron-diario': cronDiarioHandler,
+  'cron-plano-europa': cronPlanoEuropaHandler,
 };
 
 export default async function handler(req, res) {

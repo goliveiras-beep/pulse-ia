@@ -47,6 +47,13 @@
     { "source": "/api/maestro-booking", "destination": "/api/maestro-bundle?_route=booking" },
     { "source": "/api/maestro-booking-checagem", "destination": "/api/maestro-bundle?_route=booking-checagem" },
     { "source": "/api/maestro-booking-config", "destination": "/api/maestro-bundle?_route=booking-config" },
-    { "source": "/api/maestro-booking-dia", "destination": "/api/maestro-bundle?_route=booking-dia" }
+    { "source": "/api/maestro-booking-dia", "destination": "/api/maestro-bundle?_route=booking-dia" },
+    { "source": "/api/maestro-cron-diario", "destination": "/api/maestro-bundle?_route=cron-diario" },
+    { "source": "/api/maestro-cron-plano-europa", "destination": "/api/maestro-bundle?_route=cron-plano-europa" }
+  ],
+  "crons": [
+    { "path": "/api/maestro-cron-diario?token=pulse_booking_cron_2026&momento=manha", "schedule": "0 9 * * *" },
+    { "path": "/api/maestro-cron-diario?token=pulse_booking_cron_2026&momento=noite", "schedule": "0 2 * * *" },
+    { "path": "/api/maestro-cron-plano-europa?token=pulse_booking_cron_2026", "schedule": "0 14 * * 1" }
   ]
 }
