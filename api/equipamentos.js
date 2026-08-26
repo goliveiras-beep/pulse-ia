@@ -442,6 +442,7 @@ function menuHTML(isGestor) {
         <a href="/api/app" class="menu-item">&#127968; Início</a>${itensGestor}
         <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
         <a href="/api/maestro-booking" class="menu-item">&#128196; Booking</a>
+        <a href="/api/maestro-booking-checagem" class="menu-item">&#128269; Booking — Checagem</a>
         <a href="/api/chamados" class="menu-item">&#127915; Chamados</a>
         <div style="height:1px;background:var(--border);margin:2px 0"></div>
         <form method="POST" action="/api/app?action=logout" style="margin:0">
