@@ -1567,6 +1567,11 @@ setInterval(atualizarEventos, 60000);
     return `<div style="width:24px;height:24px;border-radius:50%;background:${bg};color:${c};font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(n)}</div>`;
   }
 
+  function linhaParam(label, valor) {
+    if (!valor) return '';
+    return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border2)"><span style="font-size:10px;color:var(--text3);min-width:70px">${label}</span><span style="flex:1;font-size:11px;font-weight:600;text-align:right">${valor}</span></div>`;
+  }
+
   function renderEventos(eventosCruzados, comOpacidade = false) {
     if (eventosCruzados.length === 0) return `<div style="padding:20px;text-align:center;color:#aaa;font-size:13px">Nenhum evento</div>`;
     let primeiroAtivo = true;
@@ -1593,10 +1598,8 @@ setInterval(atualizarEventos, 60000);
         }
         </div>
         ${!encerrado ? `<div style="padding:8px 12px;background:var(--bg2)">
-          ${ev.disp.map(p => `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border2)"><span style="flex:1;font-size:11px;color:var(--text3)">De plantão</span><span style="font-size:11px;color:#7dd3fc;font-weight:700">${p.ent}--${p.sai}</span></div>`).join('')}
-          ${ev.atenc.map(p => `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border2)"><span style="flex:1;font-size:11px;color:#92400e">De plantão (atenção)</span><span style="font-size:11px;color:#7dd3fc;font-weight:700">${p.ent}--${p.sai}</span></div>`).join('')}
+          ${[linhaParam('Tipo', ev.tipo), linhaParam('Local', ev.local), linhaParam('Encoder', ev.encoder), linhaParam('Prime', ev.prime)].join('') || `<div style="text-align:center;padding:6px;color:var(--text3);font-size:11px">Sem parâmetros adicionais</div>`}
           ${ev.semCob ? `<div style="text-align:center;padding:6px;color:#991b1b;font-size:11px;font-weight:600">Sem cobertura neste horario</div>` : ''}
-          ${ev.aus.length ? `<div style="margin-top:5px;text-align:center;font-size:10px;color:var(--text3)">${ev.aus.length} ausente${ev.aus.length > 1 ? 's' : ''}</div>` : ''}
         </div>` : ''}
       </div>`;
     }).join('');
