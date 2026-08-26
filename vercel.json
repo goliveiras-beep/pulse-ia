@@ -44,6 +44,7 @@
     { "source": "/api/maestro-detalhe", "destination": "/api/maestro-bundle?_route=detalhe" },
     { "source": "/api/maestro-detalhe-ingest", "destination": "/api/maestro-bundle?_route=detalhe-ingest" },
     { "source": "/api/maestro-booking", "destination": "/api/maestro-bundle?_route=booking" },
-    { "source": "/api/maestro-booking-checagem", "destination": "/api/maestro-bundle?_route=booking-checagem" }
+    { "source": "/api/maestro-booking-checagem", "destination": "/api/maestro-bundle?_route=booking-checagem" },
+    { "source": "/api/maestro-booking-config", "destination": "/api/maestro-bundle?_route=booking-config" }
   ]
 }
