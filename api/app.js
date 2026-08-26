@@ -369,10 +369,6 @@ a{text-decoration:none;color:inherit}
   /* Relógio BRT compacto */
   #grelogio-brt,#relogio-brt{font-size:13px!important;font-weight:700!important}
   .wrap table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .eventos-grid{grid-template-columns:1fr!important}
-  .eventos-tab{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;white-space:nowrap;padding-bottom:4px}
-  .eventos-tab-btn{flex-shrink:0;border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;background:none;color:var(--text3);cursor:pointer}
-  .eventos-tab-btn.ativo{background:var(--blue-m-bg);border-color:var(--blue-m-border);color:var(--blue-m-v)}
   .mv{font-size:26px!important}
   .metrics{grid-template-columns:repeat(2,1fr)!important;gap:8px}
   .metric{height:84px!important;padding:12px 14px!important}
@@ -1528,14 +1524,20 @@ setInterval(atualizarEventos, 60000);
   const eventosCruzadosAmanha = cruzarEventos(eventosAmanha, escD1, d1Str, ausencias, equipeAtivos);
 
   const diasNav = [
-    { label: '#NossoDia', sublabel: hojeStr, eventos: eventosCruzadosHoje, total: eventosHoje.length, key: 'hoje', data: hojeStr, comOpac: true },
-    { label: '#NossoDiaAmanhã', sublabel: d1Str, eventos: eventosCruzadosAmanha, total: eventosAmanha.length, key: 'amanha', data: d1Str, comOpac: false },
-    { label: fmtData(d2), sublabel: DIAS_PT[d2.getDay()], eventos: cruzarEventos(eventosD2, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2), ausencias, equipeAtivos), total: eventosD2.length, key: 'd2', data: fmtData(d2), comOpac: false },
-    { label: fmtData(d3), sublabel: DIAS_PT[d3.getDay()], eventos: cruzarEventos(eventosD3, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3), ausencias, equipeAtivos), total: eventosD3.length, key: 'd3', data: fmtData(d3), comOpac: false },
-    { label: fmtData(d4), sublabel: DIAS_PT[d4.getDay()], eventos: cruzarEventos(eventosD4, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4), ausencias, equipeAtivos), total: eventosD4.length, key: 'd4', data: fmtData(d4), comOpac: false },
-    { label: fmtData(d5), sublabel: DIAS_PT[d5.getDay()], eventos: cruzarEventos(eventosD5, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5), ausencias, equipeAtivos), total: eventosD5.length, key: 'd5', data: fmtData(d5), comOpac: false },
-    { label: fmtData(d6), sublabel: DIAS_PT[d6.getDay()], eventos: cruzarEventos(eventosD6, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6), ausencias, equipeAtivos), total: eventosD6.length, key: 'd6', data: fmtData(d6), comOpac: false },
+    { label: '#NossoDia', sublabel: hojeStr, eventos: eventosCruzadosHoje, total: eventosHoje.length, key: 'hoje', data: hojeStr, comOpac: true, icone: '🟢', cor: '#22c55e' },
+    { label: '#NossoDiaAmanhã', sublabel: d1Str, eventos: eventosCruzadosAmanha, total: eventosAmanha.length, key: 'amanha', data: d1Str, comOpac: false, icone: '📅', cor: '#3b82f6' },
+    { label: fmtData(d2), sublabel: DIAS_PT[d2.getDay()], eventos: cruzarEventos(eventosD2, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2), ausencias, equipeAtivos), total: eventosD2.length, key: 'd2', data: fmtData(d2), comOpac: false, icone: '🗓️', cor: '#a855f7' },
+    { label: fmtData(d3), sublabel: DIAS_PT[d3.getDay()], eventos: cruzarEventos(eventosD3, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3), ausencias, equipeAtivos), total: eventosD3.length, key: 'd3', data: fmtData(d3), comOpac: false, icone: '🗓️', cor: '#a855f7' },
+    { label: fmtData(d4), sublabel: DIAS_PT[d4.getDay()], eventos: cruzarEventos(eventosD4, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4), ausencias, equipeAtivos), total: eventosD4.length, key: 'd4', data: fmtData(d4), comOpac: false, icone: '🗓️', cor: '#a855f7' },
+    { label: fmtData(d5), sublabel: DIAS_PT[d5.getDay()], eventos: cruzarEventos(eventosD5, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5), ausencias, equipeAtivos), total: eventosD5.length, key: 'd5', data: fmtData(d5), comOpac: false, icone: '🗓️', cor: '#a855f7' },
+    { label: fmtData(d6), sublabel: DIAS_PT[d6.getDay()], eventos: cruzarEventos(eventosD6, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6), ausencias, equipeAtivos), total: eventosD6.length, key: 'd6', data: fmtData(d6), comOpac: false, icone: '🗓️', cor: '#a855f7' },
   ];
+  // badge de cor por dia - vermelho se algum evento sem cobertura, amber se algum em atencao, senao verde
+  diasNav.forEach((d) => {
+    const semCobDia = d.eventos.filter((e) => e.semCob).length;
+    const atencDia = d.eventos.filter((e) => e.atenc.length > 0).length;
+    d.corBadge = semCobDia > 0 ? 'red' : atencDia > 0 ? 'amber' : 'green';
+  });
 
   const semCob = eventosCruzadosAmanha.filter(e => e.semCob).length;
   const comAtenc = eventosCruzadosAmanha.filter(e => e.atenc.length > 0).length;
@@ -1591,10 +1593,10 @@ setInterval(atualizarEventos, 60000);
         }
         </div>
         ${!encerrado ? `<div style="padding:8px 12px;background:var(--bg2)">
-          ${ev.disp.map(p => `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border2)">${av(p.nome)}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#7dd3fc;font-weight:700">${p.ent}--${p.sai}</span></div>`).join('')}
-          ${ev.atenc.map(p => `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border2)">${av(p.nome, '#fef3c7', '#92400e')}<span style="flex:1;font-size:11px;font-weight:600">${p.nome}</span><span style="font-size:11px;color:#7dd3fc;font-weight:700">${p.ent}--${p.sai}</span></div>`).join('')}
+          ${ev.disp.map(p => `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border2)"><span style="flex:1;font-size:11px;color:var(--text3)">De plantão</span><span style="font-size:11px;color:#7dd3fc;font-weight:700">${p.ent}--${p.sai}</span></div>`).join('')}
+          ${ev.atenc.map(p => `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border2)"><span style="flex:1;font-size:11px;color:#92400e">De plantão (atenção)</span><span style="font-size:11px;color:#7dd3fc;font-weight:700">${p.ent}--${p.sai}</span></div>`).join('')}
           ${ev.semCob ? `<div style="text-align:center;padding:6px;color:#991b1b;font-size:11px;font-weight:600">Sem cobertura neste horario</div>` : ''}
-          ${ev.aus.length ? `<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:3px">${ev.aus.map(p => `<span style="background:var(--bg3);color:var(--text3);border-radius:3px;padding:1px 6px;font-size:10px">${p.nome.split(' ')[0]}</span>`).join('')}</div>` : ''}
+          ${ev.aus.length ? `<div style="margin-top:5px;text-align:center;font-size:10px;color:var(--text3)">${ev.aus.length} ausente${ev.aus.length > 1 ? 's' : ''}</div>` : ''}
         </div>` : ''}
       </div>`;
     }).join('');
@@ -1730,44 +1732,20 @@ setInterval(atualizarEventos, 60000);
     ${feriasAtivas > 0 ? `<div class="metric amber-m"><div class="ml">Férias em até 7 dias</div><div class="mv amber-v">${feriasAtivas}</div><div class="ms">${feriasProximas.map(a => `${a[1].split(' ')[0]} (${a[4]})`).join(', ')}</div></div>` : ''}
   </div>
 
-  <!-- Abas de navegação (só mobile) -->
-  <div class="eventos-tab" id="eventos-tab-mobile" style="display:none">
-    <button class="eventos-tab-btn ativo" onclick="tabGestor(0)" id="gtab-0">🟢 Hoje <span style="opacity:.7">${eventosHoje.length}</span></button>
-    <button class="eventos-tab-btn" onclick="tabGestor(1)" id="gtab-1">📅 Amanhã <span style="opacity:.7">${eventosAmanha.length}</span></button>
-    ${diasNav.slice(2).map((d, i) => `<button class="eventos-tab-btn" onclick="tabGestor(${i+2})" id="gtab-${i+2}">${d.sublabel} · ${d.label} <span style="opacity:.7">${d.total}</span></button>`).join('')}
-  </div>
-
-  <div class="eventos-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
-    <div class="card" id="gpainel-0">
-      <div class="card-header">
-        <span class="card-title" style="color:#22c55e">#NossoDia</span>
-        <span class="badge blue">${eventosHoje.length} eventos</span>
-        <span style="font-size:10px;color:var(--text3);margin-left:auto">${hojeStr}</span>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header" style="display:flex;align-items:center;gap:6px">
+      <button onclick="navDiaUnico(-1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8249;</button>
+      <div style="flex:1;text-align:center">
+        ${diasNav.map((d, i) => `<div id="diaUnicoLabel-${i}" style="display:${i === 0 ? 'block' : 'none'}">
+          <span class="card-title" style="color:${d.cor}">${d.icone} ${d.label}</span>
+          <span class="badge ${d.corBadge}" style="margin-left:4px">${d.total} eventos</span>
+          <span style="font-size:10px;color:var(--text3);margin-left:6px">${d.sublabel}</span>
+        </div>`).join('')}
       </div>
-      <div id="cb-hoje" class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosHoje, true)}</div>
+      <button onclick="navDiaUnico(1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8250;</button>
     </div>
-    <div class="card" id="gpainel-1">
-      <div class="card-header">
-        <span class="card-title" style="color:#3b82f6">#NossoDiaAmanhã</span>
-        <span class="badge ${semCob > 0 ? 'red' : comAtenc > 0 ? 'amber' : 'green'}">${eventosAmanha.length} eventos</span>
-        <span style="font-size:10px;color:var(--text3);margin-left:auto">${d1Str}</span>
-      </div>
-      <div class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosAmanha, false)}</div>
-    </div>
-    <div class="card" id="gpainel-2-wrap">
-      <div class="card-header" style="display:flex;align-items:center;gap:6px">
-        <button onclick="navDia(-1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8249;</button>
-        <div style="flex:1;text-align:center">
-          ${diasNav.slice(2).map((d, i) => `<div id="tab3-label-${i}" style="display:${i === 0 ? 'block' : 'none'}">
-            <span class="card-title" style="color:#a855f7">${d.sublabel} · ${d.label}</span>
-            <span class="badge" style="background:#f3e8ff;color:#6b21a8;margin-left:4px">${d.total} ev.</span>
-          </div>`).join('')}
-        </div>
-        <button onclick="navDia(1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8250;</button>
-      </div>
-      <div class="card-body" style="max-height:520px;overflow-y:auto">
-        ${diasNav.slice(2).map((d, i) => `<div id="painel3-${i}" style="display:${i === 0 ? 'block' : 'none'}">${renderEventos(d.eventos, false)}</div>`).join('')}
-      </div>
+    <div class="card-body" style="max-height:520px;overflow-y:auto">
+      ${diasNav.map((d, i) => `<div id="diaUnico-${i}" style="display:${i === 0 ? 'block' : 'none'}">${renderEventos(d.eventos, d.comOpac)}</div>`).join('')}
     </div>
   </div>
 </div>
@@ -1835,9 +1813,7 @@ function toggleAcao(){document.getElementById('aj-horarios').style.display=docum
 async function salvarAjuste(){const body={acao:document.getElementById('aj-acao').value,data:document.getElementById('aj-data').value,colaborador:document.getElementById('aj-nome').value,entrada:document.getElementById('aj-entrada').value,saida:document.getElementById('aj-saida').value,obs:document.getElementById('aj-obs').value};const r=await fetch('/api/app?action=ajuste',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(d.ok){fecharModal();toast('Escala atualizada!');setTimeout(()=>location.reload(),1200);}else toast('Erro: '+d.error,'#dc2626');}
 function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.textContent=msg;t.style.background=bg;t.style.display='block';setTimeout(()=>t.style.display='none',2500);}
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
-window.addEventListener('load',function(){var b=document.getElementById('cb-hoje');var a=document.getElementById('primeiro-ativo-hoje');if(b&&a){var pos=0,el=a.previousElementSibling;while(el){pos+=el.offsetHeight+10;el=el.previousElementSibling;}b.scrollTop=Math.max(0,pos-280);}});
-var diaAtual3=0;
-function navDia(dir){var total=5;diaAtual3=(diaAtual3+dir+total)%total;for(var i=0;i<total;i++){var p=document.getElementById('painel3-'+i);var l=document.getElementById('tab3-label-'+i);if(p)p.style.display=i===diaAtual3?'block':'none';if(l)l.style.display=i===diaAtual3?'block':'none';}}
+window.addEventListener('load',function(){var b=document.getElementById('diaUnico-0');var a=document.getElementById('primeiro-ativo-hoje');if(b&&a){var pos=0,el=a.previousElementSibling;while(el){pos+=el.offsetHeight+10;el=el.previousElementSibling;}b.scrollTop=Math.max(0,pos-280);}});
 
 // Badges em tempo real para o gestor (AO VIVO / <30min / <60min)
 function toMinG(h){if(!h)return null;var p=h.split(':').map(Number);return p[0]*60+(p[1]||0);}
@@ -1883,40 +1859,22 @@ function atualizarBadgesGestor(){
 atualizarBadgesGestor();
 setInterval(atualizarBadgesGestor, 30000);
 
-// Mobile: abas de eventos
-var _gTabAtual = 0;
-var _gTotalTabs = 7; // hoje + amanha + 5 dias
-function tabGestor(idx) {
-  _gTabAtual = idx;
-  for (var i = 0; i < _gTotalTabs; i++) {
-    var p = document.getElementById('gpainel-'+i) || document.getElementById('gpainel-2-wrap');
-    var b = document.getElementById('gtab-'+i);
-    if (i === 0 || i === 1) {
-      var panel = document.getElementById('gpainel-'+i);
-      if (panel) panel.style.display = i === idx ? 'block' : 'none';
-    }
-    if (b) b.className = 'eventos-tab-btn' + (i === idx ? ' ativo' : '');
-  }
-  // Painel 3 (dias extras)
-  var wrap = document.getElementById('gpainel-2-wrap');
-  if (wrap) wrap.style.display = idx >= 2 ? 'block' : 'none';
-  if (idx >= 2) navDia(idx - 2 - diaAtual3);
+// Painel único de eventos, navegando dia a dia (hoje/amanhã/D+2..D+6) com < >,
+// em vez das 3 colunas lado a lado de antes - cada dia já vem pré-renderizado do
+// servidor (mesmo padrão que o antigo "painel 3" de dias extras já usava), só troca
+// qual bloco fica visível.
+var _diaUnicoAtual = 0;
+var _diaUnicoTotal = 7; // hoje + amanha + 5 dias
+function navDiaUnico(dir) {
+  var novo = (_diaUnicoAtual + dir + _diaUnicoTotal) % _diaUnicoTotal;
+  var pAntigo = document.getElementById('diaUnico-'+_diaUnicoAtual), lAntigo = document.getElementById('diaUnicoLabel-'+_diaUnicoAtual);
+  var pNovo = document.getElementById('diaUnico-'+novo), lNovo = document.getElementById('diaUnicoLabel-'+novo);
+  if (pAntigo) pAntigo.style.display = 'none';
+  if (lAntigo) lAntigo.style.display = 'none';
+  if (pNovo) pNovo.style.display = 'block';
+  if (lNovo) lNovo.style.display = 'block';
+  _diaUnicoAtual = novo;
 }
-function initMobileGestor() {
-  if (window.innerWidth <= 640) {
-    var tab = document.getElementById('eventos-tab-mobile');
-    if (tab) tab.style.display = 'flex';
-    var grid = document.querySelector('.eventos-grid');
-    if (grid) grid.style.gridTemplateColumns = '1fr';
-    // Esconder painel 1 e 2 inicialmente
-    var p1 = document.getElementById('gpainel-1');
-    var p2 = document.getElementById('gpainel-2-wrap');
-    if (p1) p1.style.display = 'none';
-    if (p2) p2.style.display = 'none';
-  }
-}
-window.addEventListener('load', initMobileGestor);
-window.addEventListener('resize', initMobileGestor);
 function toggleMenu(e){if(e)e.stopPropagation();var d=document.getElementById('menu-dropdown');d.style.display=d.style.display==='block'?'none':'block';}
 document.addEventListener('click',function(e){var d=document.getElementById('menu-dropdown'),btn=document.getElementById('menu-btn');if(d&&d.style.display==='block'&&!d.contains(e.target)&&e.target!==btn){d.style.display='none';}});
 async function responderTroca(id,aceitar){
