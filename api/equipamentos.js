@@ -441,7 +441,6 @@ function menuHTML(isGestor) {
       <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
         <a href="/api/app" class="menu-item">&#127968; Início</a>${itensGestor}
         <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
-        <a href="/api/maestro-booking" class="menu-item">&#128196; Booking</a>
         <a href="/api/maestro-booking-checagem" class="menu-item">&#128269; Booking — Checagem</a>
         <a href="/api/chamados" class="menu-item">&#127915; Chamados</a>
         <div style="height:1px;background:var(--border);margin:2px 0"></div>

@@ -991,7 +991,6 @@ export default async function handler(req, res) {
         <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
         <a href="/api/compasso" class="menu-item">&#129517; Compasso</a>
         <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
-        <a href="/api/maestro-booking" class="menu-item">&#128196; Booking</a>
         <a href="/api/maestro-booking-checagem" class="menu-item">&#128269; Booking — Checagem</a>
         <a href="/api/equipamentos" class="menu-item">&#128230; Equipamentos</a>
         <a href="/api/chamados" class="menu-item">&#127915; Chamados</a>
@@ -1680,7 +1679,6 @@ setInterval(atualizarEventos, 60000);
         <a href="/api/equipe-view" class="menu-item">&#128101; Equipe${badgeEquipeGestor}</a>
         <a href="/api/ausencias" class="menu-item">&#128198; Ausências${pendAusenciasGestor?` <span style="background:#dc2626;color:#fff;border-radius:50%;min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;padding:0 3px">${pendAusenciasGestor}</span>`:''}</a>
         <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
-        <a href="/api/maestro-booking" class="menu-item">&#128196; Booking</a>
         <a href="/api/maestro-booking-checagem" class="menu-item">&#128269; Booking — Checagem</a>
         <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
         <a href="/api/equipamentos" class="menu-item">&#128230; Equipamentos</a>
