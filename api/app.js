@@ -654,6 +654,26 @@ export default async function handler(req, res) {
 
   const isGestor = usuario?.[8] === 'gestor' && (usuario?.[10]||'ativo') === 'ativo';
 
+  // Aniversariantes do dia — coluna F (Data Nascimento) é preenchida pelo <input type="date">
+  // do cadastro (formato "AAAA-MM-DD"), mas aceita também "DD/MM/AAAA" pra não quebrar em
+  // linhas digitadas direto na planilha antes desse campo existir.
+  function ddmmNascimento(s) {
+    const str = String(s || '').trim();
+    if (!str) return null;
+    if (str.includes('-')) {
+      const [ano, mes, dia] = str.split('-');
+      return mes && dia ? `${dia.padStart(2,'0')}/${mes.padStart(2,'0')}` : null;
+    }
+    if (str.includes('/')) {
+      const [dia, mes] = str.split('/');
+      return dia && mes ? `${dia.padStart(2,'0')}/${mes.padStart(2,'0')}` : null;
+    }
+    return null;
+  }
+  const aniversariantesHoje = equipeRaw
+    .filter(r => r[0] && (r[10]||'ativo') === 'ativo' && ddmmNascimento(r[5]) === hojeStr)
+    .map(r => r[0]);
+
   // Ajuste mais recente envolvendo essa pessoa (troca de turno pelo chat de IA, edição
   // manual do gestor etc.) — vira um banner na visão do colaborador. A coluna B (Colaborador)
   // pode ser um nome só ou "Fulano → Beltrano" no caso de troca entre duas pessoas.
@@ -807,7 +827,21 @@ export default async function handler(req, res) {
       }
     }
 
-    const fraseDoDia = await getFraseInteligente();
+    // Aniversário tem prioridade sobre a frase gerada por IA - mensagem fixa e certeira em
+    // vez de arriscar a IA errar/inventar o nome (ver "Não mencione outros colegas" no
+    // prompt de getFraseInteligente, que é sobre outro assunto e não cobre esse caso).
+    function fraseAniversario() {
+      const souEu = aniversariantesHoje.includes(nome);
+      const outros = aniversariantesHoje.filter(n => n !== nome).map(n => n.split(' ')[0]);
+      const listaOutros = outros.length > 1 ? `${outros.slice(0,-1).join(', ')} e ${outros[outros.length-1]}` : outros[0];
+      if (souEu) {
+        return outros.length
+          ? `🎂 Hoje é seu aniversário e também de ${listaOutros}! Parabéns a vocês!`
+          : `🎂 Feliz aniversário, ${nome.split(' ')[0]}! Que seu dia seja incrível!`;
+      }
+      return `🎉 Hoje é aniversário de ${listaOutros}! Manda um parabéns!`;
+    }
+    const fraseDoDia = aniversariantesHoje.length ? fraseAniversario() : await getFraseInteligente();
     const totalEventosHoje = eventosHoje.length;
     const pulseSpeed = totalEventosHoje >= 15 ? '0.6s' : totalEventosHoje >= 10 ? '1s' : totalEventosHoje >= 5 ? '1.5s' : '2.5s';
 
