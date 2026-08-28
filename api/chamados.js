@@ -727,8 +727,8 @@ ${headerHTML(session.nome, isGestor, `${chamados.length} chamados registrados`)}
   <div class="field"><label>O que foi feito / Solução</label><textarea id="g-solucao" rows="3"></textarea></div>
   <div class="field"><label>Como foi feito (procedimento)</label><textarea id="g-comofeito" rows="3" placeholder="Ex: desligamento sequencial, troca do módulo X, teste de sinal..."></textarea></div>
   <div class="field" style="display:flex;gap:8px">
-    <div style="flex:1"><label>Início</label><input id="g-inicio" type="text" placeholder="HH:MM"></div>
-    <div style="flex:1"><label>Fim</label><input id="g-fim" type="text" placeholder="HH:MM"></div>
+    <div style="flex:1;min-width:0"><label>Início</label><input id="g-inicio" type="text" placeholder="HH:MM"></div>
+    <div style="flex:1;min-width:0"><label>Fim</label><input id="g-fim" type="text" placeholder="HH:MM"></div>
   </div>
   <div class="field"><label>Equipe envolvida</label><input id="g-equipe" placeholder="Ex: João, Maria, Pedro"></div>
   <div class="field">

@@ -431,7 +431,7 @@ export default async function handler(req, res) {
       return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-df="${df}" data-nome2="${nome}" data-ent="${escRegDia?.[3]||''}" data-sai="${escRegDia?.[4]||''}" data-obs="${escRegDia?.[5]||''}" data-alertas="${esc(JSON.stringify(a?.alertas||[]))}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;${isGestor?'cursor:pointer':''}"${editAttrs}>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <div style="width:32px;height:32px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
-          <div style="flex:1"><div style="font-size:13px;font-weight:600">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
+          <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;word-break:break-word">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
           ${isGestor && perigo>0?`<span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">${perigo} critico</span>`:''}
           ${isGestor && atencao>0?`<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">${atencao} atencao</span>`:''}
         </div>
@@ -524,7 +524,7 @@ export default async function handler(req, res) {
       return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-ent="${entRepresentativaMes}" style="background:var(--card);border:1px solid ${isGestor && perigo>0?'var(--red-m-border)':isGestor && atencao>0?'var(--amber-m-border)':'var(--border)'};border-radius:10px;padding:12px 14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
           <div style="width:28px;height:28px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
-          <div style="flex:1"><div style="font-size:12px;font-weight:600">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
+          <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;word-break:break-word">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
           ${isGestor ? `<div style="display:flex;gap:4px">
             ${perigo>0?`<span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">${perigo} critico</span>`:''}
             ${atencao>0?`<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">${atencao} atencao</span>`:''}
@@ -636,7 +636,7 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
         <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
         <button onclick="sincronizarAgendas()" title="Atualiza a Agenda do Google de quem ja autorizou, sem mudar a data publicada" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--blue-m-border,#2a4080);background:var(--card);cursor:pointer;color:var(--blue-m-v,#63b3ed)">🔄 Sincronizar agenda</button>
-        <span style="display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:4px 6px 4px 10px;margin-top:2px">
+        <span style="display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:4px 6px 4px 10px;margin-top:2px;flex-wrap:wrap">
           <span style="font-size:11px;color:var(--text2);white-space:nowrap;font-weight:600">Publicar até:</span>
           <input type="date" id="horizCustomData" style="font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--bg2,#fff);color:var(--text);outline:none;min-height:28px">
           <button onclick="publicarHorizonte('custom')" title="Publica ate a data escolhida (a equipe sempre ve a partir de hoje)" style="font-size:12px;font-weight:700;padding:5px 12px;border-radius:5px;border:1px solid var(--blue-m-border,#2a4080);background:var(--blue-m-bg,#eff6ff);cursor:pointer;color:var(--blue-m-v,#1d4ed8)">Aplicar</button>
