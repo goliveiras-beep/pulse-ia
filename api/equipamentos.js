@@ -389,11 +389,11 @@ a{text-decoration:none;color:inherit}
 .donut-legend i{width:10px;height:10px;border-radius:3px;flex:none}
 .donut-legend .v{margin-left:auto;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
 .atividade{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:6px 18px;margin-bottom:20px;box-shadow:var(--shadow-sm)}
-.atividade-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border2);font-size:12px}
+.atividade-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border2);font-size:12px;flex-wrap:wrap}
 .atividade-item:last-child{border-bottom:none}
 .atividade-item .tipo-ic{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:none;font-size:13px;background:var(--bg3)}
 .atividade-item .quando{color:var(--text3);font-size:11px;white-space:nowrap;min-width:110px;font-variant-numeric:tabular-nums}
-.atividade-item .desc{flex:1;min-width:0;word-break:break-word;color:var(--text)}
+.atividade-item .desc{flex:1;min-width:140px;word-break:break-word;color:var(--text)}
 .atividade-item .desc b{font-weight:700}
 .toolbar{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;box-shadow:var(--shadow-sm)}
 .toolbar input,.toolbar select{border:1px solid var(--border);border-radius:7px;padding:8px 11px;font-size:12px;background:var(--bg2);color:var(--text);outline:none}

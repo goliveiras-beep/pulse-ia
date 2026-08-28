@@ -429,9 +429,9 @@ export default async function handler(req, res) {
       const escRegDia=escalaIndex.get(`${df}|${nome}`);
       const editAttrs = isGestor ? ` onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome2,e.dataset.ent,e.dataset.sai,e.dataset.obs,e.dataset.alertas)"` : '';
       return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-df="${df}" data-nome2="${nome}" data-ent="${escRegDia?.[3]||''}" data-sai="${escRegDia?.[4]||''}" data-obs="${escRegDia?.[5]||''}" data-alertas="${esc(JSON.stringify(a?.alertas||[]))}" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;${isGestor?'cursor:pointer':''}"${editAttrs}>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
           <div style="width:32px;height:32px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
-          <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;word-break:break-word">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
+          <div style="flex:1;min-width:120px"><div style="font-size:13px;font-weight:600;word-break:break-word">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
           ${isGestor && perigo>0?`<span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">${perigo} critico</span>`:''}
           ${isGestor && atencao>0?`<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">${atencao} atencao</span>`:''}
         </div>
@@ -522,10 +522,10 @@ export default async function handler(req, res) {
       cal+=`</div>`;
       const entRepresentativaMes = escalaIndex.get(`${dfRepresentativo}|${nome}`)?.[3]||'';
       return `<div data-nome-busca="${nome}" data-cargo="${cargo.toLowerCase()}" data-ordem="${idx}" data-perigo="${perigo}" data-atencao="${atencao}" data-ent="${entRepresentativaMes}" style="background:var(--card);border:1px solid ${isGestor && perigo>0?'var(--red-m-border)':isGestor && atencao>0?'var(--amber-m-border)':'var(--border)'};border-radius:10px;padding:12px 14px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
           <div style="width:28px;height:28px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais(nome)}</div>
-          <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;word-break:break-word">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
-          ${isGestor ? `<div style="display:flex;gap:4px">
+          <div style="flex:1;min-width:120px"><div style="font-size:12px;font-weight:600;word-break:break-word">${nome}</div><div style="font-size:10px;color:#888">${cargo||'Operacoes'}</div></div>
+          ${isGestor ? `<div style="display:flex;gap:4px;flex-wrap:wrap">
             ${perigo>0?`<span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">${perigo} critico</span>`:''}
             ${atencao>0?`<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">${atencao} atencao</span>`:''}
             ${perigo===0&&atencao===0?`<span style="background:#dcfce7;color:#166534;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:700">OK</span>`:''}
