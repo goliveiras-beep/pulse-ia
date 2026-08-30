@@ -1774,17 +1774,17 @@ setInterval(atualizarEventos, 60000);
   <div class="eventos-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
     <div class="card" id="gpainel-0">
       <div class="card-header">
-        <span class="card-title" style="color:#22c55e">#NossoDia</span>
+        <span class="card-title" style="color:#22c55e">🟢 ${hojeStr}</span>
         <span class="badge blue">${eventosHoje.length} eventos</span>
-        <span style="font-size:10px;color:var(--text3);margin-left:auto">${hojeStr}</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:auto">Hoje</span>
       </div>
       <div id="cb-hoje" class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosHoje, true)}</div>
     </div>
     <div class="card" id="gpainel-1">
       <div class="card-header">
-        <span class="card-title" style="color:#3b82f6">#NossoDiaAmanhã</span>
+        <span class="card-title" style="color:#3b82f6">📅 ${d1Str}</span>
         <span class="badge ${semCob > 0 ? 'red' : comAtenc > 0 ? 'amber' : 'green'}">${eventosAmanha.length} eventos</span>
-        <span style="font-size:10px;color:var(--text3);margin-left:auto">${d1Str}</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:auto">Amanhã</span>
       </div>
       <div class="card-body" style="max-height:520px;overflow-y:auto">${renderEventos(eventosCruzadosAmanha, false)}</div>
     </div>
