@@ -87,7 +87,7 @@ async function getEventosPeriodo(dataInicio, dataFim) {
     const d = await r.json();
     return (d.records||[]).map(r=>({
       data: r.fields['Encerramento']?.split('T')[0]||'',
-      hora: toHoraBRT(r.fields['Início do Evento BRT']||''),
+      hora: toHoraBRT(r.fields['PGM (horário)']||''),
       horaFim: toHoraBRT(r.fields['Encerramento']||''),
       nome: r.fields['Match ID']||'Evento',
       tipo: r.fields['Tipo de Conteúdo']||'',

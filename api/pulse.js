@@ -119,8 +119,8 @@ async function getGradeData(dataStr) {
   const data = await res.json();
   const records = data.records || [];
   records.sort((a, b) => {
-    const ha = toHoraBRT(a.fields["Início do Evento BRT"] || "");
-    const hb = toHoraBRT(b.fields["Início do Evento BRT"] || "");
+    const ha = toHoraBRT(a.fields["PGM (horário)"] || "");
+    const hb = toHoraBRT(b.fields["PGM (horário)"] || "");
     return ha.localeCompare(hb);
   });
   return records;
@@ -131,7 +131,7 @@ function formatEvents(records, dataFormatada) {
   return records.map((r, i) => {
     const f = r.fields;
     const nome = f["Match ID"] || "Sem título";
-    const inicio = toHoraBRT(f["Início do Evento BRT"] || "");
+    const inicio = toHoraBRT(f["PGM (horário)"] || "");
     const posRaw = f["Encerramento"] || "";
     const termino = posRaw ? toHoraBRT(posRaw) : "";
     const local = f["Padrão de Produção"] || "";

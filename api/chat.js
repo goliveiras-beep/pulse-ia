@@ -591,7 +591,7 @@ export default async function handler(req, res) {
         });
         const d2 = await r.json();
         if (d2.records) {
-          eventosCtx = d2.records.map(ev => `${toHoraBRT(ev.fields['Início do Evento BRT']||'')} - ${ev.fields['Match ID']||'Evento'} (${ev.fields['Tipo de Conteúdo']||''})`).join('\n');
+          eventosCtx = d2.records.map(ev => `${toHoraBRT(ev.fields['PGM (horário)']||'')} - ${ev.fields['Match ID']||'Evento'} (${ev.fields['Tipo de Conteúdo']||''})`).join('\n');
         }
       } catch {}
 

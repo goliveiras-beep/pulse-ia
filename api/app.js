@@ -84,7 +84,7 @@ async function getEventos(dataStr) {
     const d=await r.json();
     return (d.records||[]).map(r=>({
       nome:r.fields['Match ID']||'Evento',
-      hora:horaDeString(r.fields['Início do Evento BRT']||''),
+      hora:horaDeString(r.fields['PGM (horário)']||''),
       horaFim:horaDeString(r.fields['Encerramento']||''),
       tipo:r.fields['Tipo de Conteúdo']||'',
       local:r.fields['Padrão de Produção']||'',
