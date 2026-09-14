@@ -1,5 +1,6 @@
 import { createHash, createSign, timingSafeEqual } from 'crypto';
 import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
+import { garantirLinhasSheet } from '../lib/google-auth.js';
 
 // ── helpers de sessão ────────────────────────────────────────────────────────
 
@@ -157,6 +158,9 @@ async function sheetsAppend(token, range, values) {
   if (getData.error) throw new Error('Sheets GET (append pre-check): ' + JSON.stringify(getData.error));
   const nextRow = 2 + (getData.values || []).length;
   const lastRow = nextRow + values.length - 1;
+  // Garante linhas suficientes antes de escrever - aba que já encheu a grade (aconteceu de
+  // verdade com a Escala em 2026-09-14) quebra qualquer append pra QUALQUER pessoa.
+  await garantirLinhasSheet(id, sheetName, lastRow);
   const putRange = `${sheetName}!${colStart}${nextRow}:${colEnd}${lastRow}`;
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(putRange)}?valueInputOption=USER_ENTERED`,

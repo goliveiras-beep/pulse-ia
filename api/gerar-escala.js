@@ -1,6 +1,6 @@
 // api/gerar-escala.js — Geração de escala com cobertura inteligente
 export const config = { maxDuration: 60 };
-import { sheetsRequest } from '../lib/google-auth.js';
+import { sheetsRequest, garantirLinhasSheet } from '../lib/google-auth.js';
 import { calcularDia, horasNoturnas, jornadaContratada, feriadosDoAno, duracaoHoras } from '../lib/horas-extras-engine.js';
 import { createHash, timingSafeEqual } from 'crypto';
 
@@ -77,6 +77,9 @@ async function appendSheet(range, values) {
   const existing = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`${sheetName}!${colStart}2:${colEnd}`)}`).then(d=>d.values||[]);
   const nextRow = 2 + existing.length;
   const lastRow = nextRow + values.length - 1;
+  // Garante linhas suficientes antes de escrever - aba que já encheu a grade (aconteceu de
+  // verdade com a Escala em 2026-09-14) quebra qualquer append pra QUALQUER pessoa.
+  await garantirLinhasSheet(process.env.GOOGLE_SHEET_ID, sheetName, lastRow);
   await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`${sheetName}!${colStart}${nextRow}:${colEnd}${lastRow}`)}?valueInputOption=RAW`, 'PUT', {values});
 }
 

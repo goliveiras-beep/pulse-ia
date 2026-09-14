@@ -2,7 +2,7 @@
 // maxDuration 60 porque ajuste/aceitar-troca agora esperam a sincronização da Agenda do
 // Google terminar antes de responder (ver sincronizarUmaPessoa em lib/google-calendar.js).
 export const config = { maxDuration: 60 };
-import { sheetsRequest } from '../lib/google-auth.js';
+import { sheetsRequest, garantirLinhasSheet } from '../lib/google-auth.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
 import { createHash, timingSafeEqual } from 'crypto';
@@ -72,6 +72,9 @@ async function appendSheet(range, values) {
   const existing = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`${sheetName}!${colStart}2:${colEnd}`)}`).then(d=>d.values||[]);
   const nextRow = 2 + existing.length;
   const lastRow = nextRow + values.length - 1;
+  // Garante linhas suficientes antes de escrever - aba que já encheu a grade (aconteceu de
+  // verdade com a Escala em 2026-09-14) quebra qualquer append pra QUALQUER pessoa.
+  await garantirLinhasSheet(process.env.GOOGLE_SHEET_ID, sheetName, lastRow);
   await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`${sheetName}!${colStart}${nextRow}:${colEnd}${lastRow}`)}?valueInputOption=USER_ENTERED`, 'PUT', {values});
 }
 

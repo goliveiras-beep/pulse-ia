@@ -1,6 +1,6 @@
 // api/escalas.js — Visão dia/semana/mês com alertas trabalhistas
 export const config = { maxDuration: 60 };
-import { sheetsRequest } from '../lib/google-auth.js';
+import { sheetsRequest, garantirLinhasSheet } from '../lib/google-auth.js';
 import { analisarEscala, duracaoTurno } from '../lib/escalas-engine.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { createHash, timingSafeEqual } from 'crypto';
@@ -80,6 +80,10 @@ async function appendSheet(range, values) {
   const existing = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`${sheetName}!${colStart}2:${colEnd}`)}`).then(d=>d.values||[]);
   const nextRow = 2 + existing.length;
   const lastRow = nextRow + values.length - 1;
+  // Garante que a aba tenha linhas suficientes antes de escrever - sem isso, uma aba que já
+  // encheu a grade (aconteceu de verdade com a Escala em 2026-09-14) quebra qualquer novo turno
+  // pra QUALQUER pessoa, não só quem acabou de entrar.
+  await garantirLinhasSheet(process.env.GOOGLE_SHEET_ID, sheetName, lastRow);
   await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/${encodeURIComponent(`${sheetName}!${colStart}${nextRow}:${colEnd}${lastRow}`)}?valueInputOption=RAW`, 'PUT', {values});
 }
 
@@ -246,7 +250,6 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    try {
     // Equipe (9 col): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
     const equipeRaw2 = await getSheet('Equipe!A2:I50');
     const usuario2 = equipeRaw2.find(r=>r[0]===session.nome);
@@ -267,16 +270,16 @@ export default async function handler(req, res) {
     const obs = tipo==='folga'?'Folga':tipo==='dispensa'?'Dispensa Médica':tipo==='ferias'?'Férias':'';
     const entVal = (tipo==='folga'||tipo==='ausencia')?'':( ent||'');
     const saiVal = (tipo==='folga'||tipo==='ausencia')?'':( sai||'');
-    if (idx >= 0) {
-      await setSheet(`Escala!D${idx+2}:F${idx+2}`, [[entVal, saiVal, obs]]);
-    } else {
-      await appendSheet('Escala!A:F', [[data,'',colaborador,entVal,saiVal,obs]]);
+    try {
+      if (idx >= 0) {
+        await setSheet(`Escala!D${idx+2}:F${idx+2}`, [[entVal, saiVal, obs]]);
+      } else {
+        await appendSheet('Escala!A:F', [[data,'',colaborador,entVal,saiVal,obs]]);
+      }
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
     }
     return res.status(200).json({ok:true});
-    } catch (eDebugTemp) {
-      // TEMPORARIO - remover depois de descobrir a causa do 500
-      return res.status(500).json({ error: eDebugTemp.message, stack: eDebugTemp.stack });
-    }
   }
 
   // Equipe (9 col): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
