@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "google-auth-library": "^9.14.2",
-    "mailparser": "^3.9.16",
+    "mailparser": "^3.9.26",
     "mammoth": "^1.12.1",
     "pdf-lib": "^1.17.1",
     "unpdf": "^1.8.1",

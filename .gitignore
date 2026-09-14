@@ -1,2 +1,4 @@
 node_modules/
 .vercel/
+.sentinela-analise.json
+.sentinela-relatorio.md

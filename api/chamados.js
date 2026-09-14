@@ -41,6 +41,25 @@ async function getSheet(range) {
   try { const d = await sheetsRequest(SHEET_ID, `/values/${encodeURIComponent(range)}`); return d.values || []; }
   catch { return []; }
 }
+
+// Compartilha com a equipe ativa em vez de "anyone" (achado médio do SentinelaMODE 2026-09-14).
+// Não dá pra restringir por domínio Workspace — mesma limitação já documentada em
+// lib/routes/repositorio.js (equipe usa conta pessoal do Gmail, sem domínio único).
+async function getEmailsAtivos() {
+  try {
+    const d = await sheetsRequest(SHEET_ID, '/values/Equipe!A2:N200');
+    const rows = d.values || [];
+    return rows.filter(r => r[0] && (r[10]||'ativo').toLowerCase()==='ativo' && r[9]).map(r => r[9].trim().toLowerCase());
+  } catch { return []; }
+}
+async function compartilharComEquipe(fileId, gestorToken) {
+  const emails = await getEmailsAtivos();
+  await Promise.all(emails.map(email => fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions?sendNotificationEmail=false`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'user', emailAddress: email }),
+  }).catch(() => {})));
+}
 async function setSheet(range, values) {
   await sheetsRequest(SHEET_ID, `/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`, 'PUT', { values });
 }
@@ -129,11 +148,7 @@ async function garantirSubpastaChamados(gestorToken) {
       headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'CHAMADOS-PULSE' }),
     });
-    await fetch(`https://www.googleapis.com/drive/v3/files/${idAntiga}/permissions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: 'reader', type: 'anyone' }),
-    }).catch(() => {});
+    await compartilharComEquipe(idAntiga, gestorToken);
     return idAntiga;
   }
 
@@ -144,11 +159,7 @@ async function garantirSubpastaChamados(gestorToken) {
   });
   const createData = await createRes.json();
   if (!createData.id) throw new Error('Erro ao criar pasta CHAMADOS-PULSE: ' + JSON.stringify(createData));
-  await fetch(`https://www.googleapis.com/drive/v3/files/${createData.id}/permissions`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role: 'reader', type: 'anyone' }),
-  }).catch(() => {});
+  await compartilharComEquipe(createData.id, gestorToken);
   return createData.id;
 }
 
@@ -362,12 +373,8 @@ export default async function handler(req, res) {
       if (!uploadData.id) throw new Error('Upload error: ' + JSON.stringify(uploadData));
 
       try {
-        await fetch(`https://www.googleapis.com/drive/v3/files/${uploadData.id}/permissions`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${gestorToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'reader', type: 'anyone' }),
-        });
-      } catch (e) { console.warn('Permissão pública não aplicada:', e.message); }
+        await compartilharComEquipe(uploadData.id, gestorToken);
+      } catch (e) { console.warn('Permissão de anexo não aplicada:', e.message); }
 
       const url = `https://drive.google.com/file/d/${uploadData.id}/view`;
       const linha = idx + 2;

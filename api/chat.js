@@ -31,10 +31,18 @@ function getSession(req) {
   const token = cookies[COOKIE_NAME];
   if (!token) return null;
   try {
+    // "data" é "nome~~accessToken~~refreshToken" — pegar só as 2 últimas barras (não a
+    // primeira split simples) e depois o primeiro segmento de "~~", igual ao padrão correto
+    // de api/app.js. Bug igual ao corrigido em gerar-escala.js/equipe.js (CLAUDE.md 2026-07-07),
+    // mas esse arquivo tinha ficado de fora — session.nome virava o blob inteiro.
     const decoded = Buffer.from(token, 'base64').toString('utf8');
-    const [nome, h, ts] = decoded.split('|');
+    const lastPipe = decoded.lastIndexOf('|'), secondPipe = decoded.lastIndexOf('|', lastPipe - 1);
+    const data = decoded.slice(0, secondPipe), h = decoded.slice(secondPipe + 1, lastPipe), ts = decoded.slice(lastPipe + 1);
     if (Date.now() - parseInt(ts, 10) > COOKIE_MAX * 1000) return null;
-    if (h !== hash(nome + ts)) return null;
+    if (h !== hash(data + ts)) return null;
+    if (data.startsWith('~~OAUTH~~')) return null;
+    const nome = data.split('~~')[0];
+    if (!nome) return null;
     return { nome };
   } catch { return null; }
 }
@@ -510,9 +518,19 @@ export default async function handler(req, res) {
     const token = await getAccessToken();
     // Equipe (9 col, só 0=nome e 6=status são usados aqui): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
     const equipeRows = await sheetsGet(token, 'Equipe!A2:I50');
+    const minhaLinha = equipeRows.find(r => r[0] === session.nome);
+    const souGestor = minhaLinha?.[8] === 'gestor';
     const pending = getPendingAction(req);
 
     if (pending?.action && isConfirmacao(ultimaMensagem)) {
+      // Defesa em profundidade: o gate real é na criação da ação pendente (abaixo), mas
+      // confere de novo aqui antes de gravar de verdade (achado alto do SentinelaMODE
+      // 2026-09-14 — chat de IA deixava qualquer colaborador alterar escala/ausência de
+      // qualquer colega sem checar perfil, igual o endpoint /api/app?action=ajuste já checa).
+      if (!souGestor) {
+        clearPendingAction(res);
+        return res.status(200).json({ resposta: '⛔ Só gestores podem confirmar alterações de escala/ausência. Peça pra um gestor fazer essa mudança.', acaoRealizada: { action: 'access_denied', status: 'forbidden' } });
+      }
       const resultado = await executarAcaoPendente(token, pending.action);
       clearPendingAction(res);
       return res.status(200).json({ resposta: montarRespostaFinal(resultado), acaoRealizada: resultado });
@@ -529,6 +547,11 @@ export default async function handler(req, res) {
 
     const hoje = hojeBrasil();
     const comando = await interpretarComando({ mensagem: ultimaMensagem, equipeRows, hoje });
+
+    const ACOES_DE_ESCRITA = ['add_shift', 'remove_shift', 'swap_employee', 'update_shift', 'set_dayoff', 'set_vacation', 'set_medical_leave'];
+    if (ACOES_DE_ESCRITA.includes(comando.action) && !souGestor) {
+      return res.status(200).json({ resposta: '⛔ Só gestores podem alterar escala, folga, férias ou atestado de alguém pelo chat. Peça pra um gestor fazer essa mudança, ou use o botão de solicitação se for pra você mesmo.', acaoRealizada: { action: 'access_denied', status: 'forbidden' } });
+    }
 
     if (comando.action === 'add_shift') {
       const { colaborador, entrada, saida, datas, missing } = validarAddShift(comando, equipeRows);
