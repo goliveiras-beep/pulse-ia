@@ -246,6 +246,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    try {
     // Equipe (9 col): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
     const equipeRaw2 = await getSheet('Equipe!A2:I50');
     const usuario2 = equipeRaw2.find(r=>r[0]===session.nome);
@@ -272,6 +273,10 @@ export default async function handler(req, res) {
       await appendSheet('Escala!A:F', [[data,'',colaborador,entVal,saiVal,obs]]);
     }
     return res.status(200).json({ok:true});
+    } catch (eDebugTemp) {
+      // TEMPORARIO - remover depois de descobrir a causa do 500
+      return res.status(500).json({ error: eDebugTemp.message, stack: eDebugTemp.stack });
+    }
   }
 
   // Equipe (9 col): 0=nome, 1=cargo, 2=nucleo, 3=email, 4=slackId, 5=regime, 6=status, 7=senha (hash), 8=perfil
