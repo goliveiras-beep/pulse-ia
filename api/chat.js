@@ -1,4 +1,4 @@
-import { createHash, createSign } from 'crypto';
+import { createHash, createSign, timingSafeEqual } from 'crypto';
 import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
 
 // ── helpers de sessão ────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ function getSession(req) {
     const lastPipe = decoded.lastIndexOf('|'), secondPipe = decoded.lastIndexOf('|', lastPipe - 1);
     const data = decoded.slice(0, secondPipe), h = decoded.slice(secondPipe + 1, lastPipe), ts = decoded.slice(lastPipe + 1);
     if (Date.now() - parseInt(ts, 10) > COOKIE_MAX * 1000) return null;
-    if (h !== hash(data + ts)) return null;
+    if (!assinaturaBate(h, hash(data + ts))) return null;
     if (data.startsWith('~~OAUTH~~')) return null;
     const nome = data.split('~~')[0];
     if (!nome) return null;

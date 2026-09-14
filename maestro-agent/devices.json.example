@@ -1,0 +1,8 @@
+[
+  {
+    "nome": "Nome do equipamento",
+    "host": "IP interno do equipamento na rede da LiveMode",
+    "community": "community SNMP real (nunca 'public' em produção)",
+    "tempCritica": 70
+  }
+]

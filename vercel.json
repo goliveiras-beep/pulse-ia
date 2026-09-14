@@ -11,7 +11,7 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'none'" }
       ]
     }
   ],
@@ -63,8 +63,8 @@
     { "source": "/api/maestro-cron-plano-europa", "destination": "/api/maestro-bundle?_route=cron-plano-europa" }
   ],
   "crons": [
-    { "path": "/api/maestro-cron-diario?token=pulse_booking_cron_2026&momento=manha", "schedule": "0 9 * * *" },
-    { "path": "/api/maestro-cron-diario?token=pulse_booking_cron_2026&momento=noite", "schedule": "0 2 * * *" },
-    { "path": "/api/maestro-cron-plano-europa?token=pulse_booking_cron_2026", "schedule": "0 14 * * 1" }
+    { "path": "/api/maestro-cron-diario?momento=manha", "schedule": "0 9 * * *" },
+    { "path": "/api/maestro-cron-diario?momento=noite", "schedule": "0 2 * * *" },
+    { "path": "/api/maestro-cron-plano-europa", "schedule": "0 14 * * 1" }
   ]
 }

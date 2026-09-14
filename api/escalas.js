@@ -3,7 +3,7 @@ export const config = { maxDuration: 60 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { analisarEscala, duracaoTurno } from '../lib/escalas-engine.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
-import { createHash } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
 const COOKIE_MAX = 60 * 60 * 24 * 7;
@@ -16,6 +16,7 @@ function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.
 function iniciais(n) { return n.split(' ').slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
 
+function assinaturaBate(a, b) { const ba = Buffer.from(a), bb = Buffer.from(b); return ba.length === bb.length && timingSafeEqual(ba, bb); }
 function getSession(req) {
   const cookies = {};
   (req.headers.cookie||'').split(';').forEach(c => {
@@ -33,7 +34,7 @@ function getSession(req) {
     const h = d.slice(secondPipe + 1, lastPipe);
     const ts = d.slice(lastPipe + 1);
     if (Date.now() - parseInt(ts, 10) > COOKIE_MAX * 1000) return null;
-    if (h !== hash(data + ts)) return null;
+    if (!assinaturaBate(h, hash(data + ts))) return null;
     if (data.startsWith('~~OAUTH~~')) return null;
     const nome = data.split('~~')[0];
     if (!nome) return null;

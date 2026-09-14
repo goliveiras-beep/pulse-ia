@@ -5,7 +5,7 @@ export const config = { maxDuration: 60 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
-import { createHash } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 
 const AIRTABLE_BASE = 'appqPBoDUYfX2edOp';
 const AIRTABLE_TABLE = 'tblkqT3nDu1Gw6bnf';
@@ -20,6 +20,7 @@ function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.
 function fmtAirtable(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function iniciais(n) { return (n||'?').split(' ').slice(0,2).map(p=>p[0]||'').join('').toUpperCase() || '?'; }
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
+function assinaturaBate(a, b) { const ba = Buffer.from(a), bb = Buffer.from(b); return ba.length === bb.length && timingSafeEqual(ba, bb); }
 function horaDeString(s) {
   const m = String(s||'').match(/(\d{1,2}:\d{2})$/);
   return m ? m[1] : '';
@@ -159,7 +160,7 @@ function getSession(req) {
     const h = d.slice(secondPipe + 1, lastPipe);
     const ts = d.slice(lastPipe + 1);
     if (Date.now() - parseInt(ts, 10) > COOKIE_MAX * 1000) return null;
-    if (h !== hash(data + ts)) return null;
+    if (!assinaturaBate(h, hash(data + ts))) return null;
     if (data.startsWith('~~OAUTH~~')) return null;
     const sessionParts = data.split('~~');
     const nome = sessionParts[0];
@@ -174,11 +175,11 @@ function setSession(res, nome) {
   const ts = String(Date.now());
   const h = hash(nome + ts);
   const token = Buffer.from(`${nome}|${h}|${ts}`).toString('base64');
-  res.setHeader('Set-Cookie', `${COOKIE_NAME}=${token}; Path=/; Max-Age=${COOKIE_MAX}; HttpOnly; SameSite=Lax`);
+  res.setHeader('Set-Cookie', `${COOKIE_NAME}=${token}; Path=/; Max-Age=${COOKIE_MAX}; HttpOnly; Secure; SameSite=Lax`);
 }
 
 function clearSession(res) {
-  res.setHeader('Set-Cookie', `${COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);
+  res.setHeader('Set-Cookie', `${COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`);
 }
 
 const CHAT_IA = `

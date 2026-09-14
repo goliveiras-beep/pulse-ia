@@ -2,7 +2,7 @@
 export const config = { maxDuration: 60 };
 import { sheetsRequest } from '../lib/google-auth.js';
 import { calcularDia, horasNoturnas, jornadaContratada, feriadosDoAno, duracaoHoras } from '../lib/horas-extras-engine.js';
-import { createHash } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 
 const AIRTABLE_BASE = 'appqPBoDUYfX2edOp';
 const AIRTABLE_TABLE = 'tblkqT3nDu1Gw6bnf';
@@ -16,6 +16,7 @@ function fmtData(d) { return `${String(d.getDate()).padStart(2,'0')}/${String(d.
 function fmtAirtable(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function hash(s) { return createHash('sha256').update(s + 'pulse2026').digest('hex').slice(0,32); }
 function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); return hh*60+(mm||0); }
+function assinaturaBate(a, b) { const ba = Buffer.from(a), bb = Buffer.from(b); return ba.length === bb.length && timingSafeEqual(ba, bb); }
 function toHoraBRT(isoString) {
   if (!isoString) return '';
   const d = new Date(isoString);
@@ -51,7 +52,7 @@ function getSession(req) {
     const h = d.slice(secondPipe + 1, lastPipe);
     const ts = d.slice(lastPipe + 1);
     if (Date.now()-parseInt(ts,10) > 7*24*3600*1000) return null;
-    if (h !== hash(data+ts)) return null;
+    if (!assinaturaBate(h, hash(data + ts))) return null;
     if (data.startsWith('~~OAUTH~~')) return null;
     const nome = data.split('~~')[0];
     if (!nome) return null;

@@ -4,7 +4,7 @@
   "description": "IA oficial da LiveMode no Slack",
   "type": "module",
   "dependencies": {
-    "google-auth-library": "^9.14.2",
+    "google-auth-library": "^10.9.1",
     "mailparser": "^3.9.26",
     "mammoth": "^1.12.1",
     "pdf-lib": "^1.17.1",

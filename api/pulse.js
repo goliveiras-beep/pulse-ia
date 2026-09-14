@@ -1,6 +1,33 @@
-export const config = { maxDuration: 30 };
+// bodyParser desligado pra poder verificar a assinatura HMAC do Slack sobre o corpo BRUTO
+// (achado alto do SentinelaMODE 2026-09-14 - esse endpoint aceitava qualquer requisição forjada
+// como se fosse um evento real do Slack, sem checagem nenhuma, e gravava ausencia/postava
+// mensagem com o token do bot a partir dela).
+export const config = { maxDuration: 30, api: { bodyParser: false } };
 
+import { createHmac, timingSafeEqual } from 'crypto';
 import { sheetsRequest } from '../lib/google-auth.js';
+
+async function lerCorpoBruto(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+// Verificação oficial do Slack (https://api.slack.com/authentication/verifying-requests-from-slack):
+// v0:timestamp:corpoBruto, HMAC-SHA256 com o Signing Secret, comparado em tempo constante.
+// Timestamp fora de 5 minutos é rejeitado (replay de uma requisição capturada antes).
+function assinaturaValida(rawBody, headers) {
+  const secret = process.env.SLACK_SIGNING_SECRET;
+  if (!secret) return false; // sem o segredo configurado, nao ha como validar - falha fechado
+  const timestamp = headers['x-slack-request-timestamp'];
+  const assinaturaRecebida = headers['x-slack-signature'];
+  if (!timestamp || !assinaturaRecebida) return false;
+  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false;
+  const base = `v0:${timestamp}:${rawBody}`;
+  const assinaturaEsperada = 'v0=' + createHmac('sha256', secret).update(base).digest('hex');
+  const a = Buffer.from(assinaturaEsperada), b = Buffer.from(assinaturaRecebida);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 const SYSTEM = `Você é o Pulse, a IA oficial da LiveMode. Ajuda o time com informações internas, documentos, agenda e suporte geral.
 Responda sempre em português brasileiro. Seja objetivo e amigável.`;
@@ -199,7 +226,14 @@ const EMOJI = { 'Férias': '🏖️', 'Atestado': '🏥', 'Folga': '😴', 'Lice
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  const body = req.body;
+
+  const rawBody = await lerCorpoBruto(req);
+  if (!assinaturaValida(rawBody, req.headers)) {
+    return res.status(401).json({ error: "Assinatura inválida" });
+  }
+
+  let body;
+  try { body = JSON.parse(rawBody); } catch { return res.status(400).json({ error: "JSON inválido" }); }
   if (body.type === "url_verification") return res.status(200).json({ challenge: body.challenge });
   const event = body.event;
   if (!event || event.subtype || event.bot_id || !event.text || !event.user) return res.status(200).json({ ok: true });
