@@ -267,7 +267,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ok:true});
     }
 
-    const obs = tipo==='folga'?'Folga':tipo==='dispensa'?'Dispensa Médica':tipo==='ferias'?'Férias':'';
+    const obs = tipo==='folga'?'Folga':tipo==='dispensa'?'Dispensa Médica':tipo==='ferias'?'Férias':tipo==='externa'?'Externa':'';
     const entVal = (tipo==='folga'||tipo==='ausencia')?'':( ent||'');
     const saiVal = (tipo==='folga'||tipo==='ausencia')?'':( sai||'');
     try {
@@ -805,6 +805,7 @@ function baixarImagemEscala(){
     <button onclick="setTipo('folga')" id="btn-tipo-folga" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:none;color:#a0aec0">Folga</button>
     <button onclick="setTipo('dispensa')" id="btn-tipo-dispensa" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:none;color:#a0aec0">Dispensa</button>
     <button onclick="setTipo('ferias')" id="btn-tipo-ferias" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:none;color:#a0aec0">Ferias</button>
+    <button onclick="setTipo('externa')" id="btn-tipo-externa" style="flex:1;padding:5px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #3d4660;background:none;color:#a0aec0">Externa</button>
   </div>
   <div id="editor-horarios">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
@@ -843,6 +844,7 @@ function abrirEditor(el,data,nome,ent,sai,obs,alertasJson){
   if(obs==='Folga')tipo='folga';
   else if(obs==='Dispensa Médica')tipo='dispensa';
   else if(obs==='Férias')tipo='ferias';
+  else if(obs==='Externa')tipo='externa';
   setTipo(tipo);
   document.getElementById('editor-ent').value=ent||'';
   document.getElementById('editor-sai').value=sai||'';
@@ -858,10 +860,10 @@ function abrirEditor(el,data,nome,ent,sai,obs,alertasJson){
 // Navegação Tab/Enter entre campos
 document.getElementById('editor-ent').addEventListener('keydown',function(e){if(e.key==='Tab'||e.key==='Enter'){e.preventDefault();document.getElementById('editor-sai').focus();}});
 document.getElementById('editor-sai').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();salvarEdicao();}});
-function setTipo(tipo){editorData.tipo=tipo;['turno','folga','dispensa','ferias'].forEach(function(t){var btn=document.getElementById('btn-tipo-'+t);if(t===tipo){var bgs={turno:'#1a2744',folga:'#1f1a0d',dispensa:'#1a0d2e',ferias:'#0d2010'},clrs={turno:'#63b3ed',folga:'#f6ad55',dispensa:'#c084fc',ferias:'#68d391'},bds={turno:'#2a4080',folga:'#3d3010',dispensa:'#6b21a8',ferias:'#166534'};btn.style.background=bgs[t]||'none';btn.style.color=clrs[t]||'#a0aec0';btn.style.borderColor=bds[t]||'#3d4660';}else{btn.style.background='none';btn.style.color='#a0aec0';btn.style.borderColor='#3d4660';}});document.getElementById('editor-horarios').style.display=tipo==='turno'?'block':'none';}
+function setTipo(tipo){editorData.tipo=tipo;['turno','folga','dispensa','ferias','externa'].forEach(function(t){var btn=document.getElementById('btn-tipo-'+t);if(t===tipo){var bgs={turno:'#1a2744',folga:'#1f1a0d',dispensa:'#1a0d2e',ferias:'#0d2010',externa:'#1a2e1a'},clrs={turno:'#63b3ed',folga:'#f6ad55',dispensa:'#c084fc',ferias:'#68d391',externa:'#4ade80'},bds={turno:'#2a4080',folga:'#3d3010',dispensa:'#6b21a8',ferias:'#166534',externa:'#15803d'};btn.style.background=bgs[t]||'none';btn.style.color=clrs[t]||'#a0aec0';btn.style.borderColor=bds[t]||'#3d4660';}else{btn.style.background='none';btn.style.color='#a0aec0';btn.style.borderColor='#3d4660';}});document.getElementById('editor-horarios').style.display=(tipo==='turno'||tipo==='externa')?'block':'none';}
 function fecharEditor(){document.getElementById('editor-popup').style.display='none';document.getElementById('editor-overlay').style.display='none';}
 function copiarTurno(){clipboard={ent:document.getElementById('editor-ent').value,sai:document.getElementById('editor-sai').value,tipo:editorData.tipo};toast('Turno copiado!','#166634');fecharEditor();}
-async function salvarEdicao(){var ent=document.getElementById('editor-ent').value,sai=document.getElementById('editor-sai').value,tipo=editorData.tipo||'turno';if(tipo==='turno'&&(!ent||!sai)){toast('Informe entrada e saida','#dc2626');return;}var btn=document.querySelector('#editor-popup button:last-child');btn.textContent='Salvando...';btn.disabled=true;try{var r=await fetch('/api/escalas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:editorData.data,colaborador:editorData.nome,ent,sai,tipo})});var d=await r.json();if(d.ok){fecharEditor();toast('Salvo!','#166634');setTimeout(function(){location.reload();},800);}else{toast('Erro: '+d.error,'#dc2626');btn.textContent='Salvar';btn.disabled=false;}}catch(e){toast('Erro de conexao','#dc2626');btn.textContent='Salvar';btn.disabled=false;}}
+async function salvarEdicao(){var ent=document.getElementById('editor-ent').value,sai=document.getElementById('editor-sai').value,tipo=editorData.tipo||'turno';if((tipo==='turno'||tipo==='externa')&&(!ent||!sai)){toast('Informe entrada e saida','#dc2626');return;}var btn=document.querySelector('#editor-popup button:last-child');btn.textContent='Salvando...';btn.disabled=true;try{var r=await fetch('/api/escalas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:editorData.data,colaborador:editorData.nome,ent,sai,tipo})});var d=await r.json();if(d.ok){fecharEditor();toast('Salvo!','#166634');setTimeout(function(){location.reload();},800);}else{toast('Erro: '+d.error,'#dc2626');btn.textContent='Salvar';btn.disabled=false;}}catch(e){toast('Erro de conexao','#dc2626');btn.textContent='Salvar';btn.disabled=false;}}
 function toast(msg,bg){var t=document.getElementById('toast-esc');t.textContent=msg;t.style.background=bg||'#1a1a1a';t.style.display='block';setTimeout(function(){t.style.display='none';},2500);}
 async function publicarHorizonte(opcao){
   var hoje=new Date();
