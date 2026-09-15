@@ -268,8 +268,11 @@ export default async function handler(req, res) {
     }
 
     const obs = tipo==='folga'?'Folga':tipo==='dispensa'?'Dispensa Médica':tipo==='ferias'?'Férias':tipo==='externa'?'Externa':'';
-    const entVal = (tipo==='folga'||tipo==='ausencia')?'':( ent||'');
-    const saiVal = (tipo==='folga'||tipo==='ausencia')?'':( sai||'');
+    // Externa sempre fecha em horário comercial fixo (09:00->18:00) - não dá pra prever o
+    // horário real de um trabalho fora da central, mas a jornada pra banco de horas/CLT
+    // precisa de um valor.
+    const entVal = tipo==='externa' ? '09:00' : (tipo==='folga'||tipo==='ausencia')?'':( ent||'');
+    const saiVal = tipo==='externa' ? '18:00' : (tipo==='folga'||tipo==='ausencia')?'':( sai||'');
     try {
       if (idx >= 0) {
         await setSheet(`Escala!D${idx+2}:F${idx+2}`, [[entVal, saiVal, obs]]);
@@ -860,10 +863,10 @@ function abrirEditor(el,data,nome,ent,sai,obs,alertasJson){
 // Navegação Tab/Enter entre campos
 document.getElementById('editor-ent').addEventListener('keydown',function(e){if(e.key==='Tab'||e.key==='Enter'){e.preventDefault();document.getElementById('editor-sai').focus();}});
 document.getElementById('editor-sai').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();salvarEdicao();}});
-function setTipo(tipo){editorData.tipo=tipo;['turno','folga','dispensa','ferias','externa'].forEach(function(t){var btn=document.getElementById('btn-tipo-'+t);if(t===tipo){var bgs={turno:'#1a2744',folga:'#1f1a0d',dispensa:'#1a0d2e',ferias:'#0d2010',externa:'#1a2e1a'},clrs={turno:'#63b3ed',folga:'#f6ad55',dispensa:'#c084fc',ferias:'#68d391',externa:'#4ade80'},bds={turno:'#2a4080',folga:'#3d3010',dispensa:'#6b21a8',ferias:'#166534',externa:'#15803d'};btn.style.background=bgs[t]||'none';btn.style.color=clrs[t]||'#a0aec0';btn.style.borderColor=bds[t]||'#3d4660';}else{btn.style.background='none';btn.style.color='#a0aec0';btn.style.borderColor='#3d4660';}});document.getElementById('editor-horarios').style.display=(tipo==='turno'||tipo==='externa')?'block':'none';}
+function setTipo(tipo){editorData.tipo=tipo;['turno','folga','dispensa','ferias','externa'].forEach(function(t){var btn=document.getElementById('btn-tipo-'+t);if(t===tipo){var bgs={turno:'#1a2744',folga:'#1f1a0d',dispensa:'#1a0d2e',ferias:'#0d2010',externa:'#1a2e1a'},clrs={turno:'#63b3ed',folga:'#f6ad55',dispensa:'#c084fc',ferias:'#68d391',externa:'#4ade80'},bds={turno:'#2a4080',folga:'#3d3010',dispensa:'#6b21a8',ferias:'#166534',externa:'#15803d'};btn.style.background=bgs[t]||'none';btn.style.color=clrs[t]||'#a0aec0';btn.style.borderColor=bds[t]||'#3d4660';}else{btn.style.background='none';btn.style.color='#a0aec0';btn.style.borderColor='#3d4660';}});document.getElementById('editor-horarios').style.display=tipo==='turno'?'block':'none';}
 function fecharEditor(){document.getElementById('editor-popup').style.display='none';document.getElementById('editor-overlay').style.display='none';}
 function copiarTurno(){clipboard={ent:document.getElementById('editor-ent').value,sai:document.getElementById('editor-sai').value,tipo:editorData.tipo};toast('Turno copiado!','#166634');fecharEditor();}
-async function salvarEdicao(){var ent=document.getElementById('editor-ent').value,sai=document.getElementById('editor-sai').value,tipo=editorData.tipo||'turno';if((tipo==='turno'||tipo==='externa')&&(!ent||!sai)){toast('Informe entrada e saida','#dc2626');return;}var btn=document.querySelector('#editor-popup button:last-child');btn.textContent='Salvando...';btn.disabled=true;try{var r=await fetch('/api/escalas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:editorData.data,colaborador:editorData.nome,ent,sai,tipo})});var d=await r.json();if(d.ok){fecharEditor();toast('Salvo!','#166634');setTimeout(function(){location.reload();},800);}else{toast('Erro: '+d.error,'#dc2626');btn.textContent='Salvar';btn.disabled=false;}}catch(e){toast('Erro de conexao','#dc2626');btn.textContent='Salvar';btn.disabled=false;}}
+async function salvarEdicao(){var ent=document.getElementById('editor-ent').value,sai=document.getElementById('editor-sai').value,tipo=editorData.tipo||'turno';if(tipo==='turno'&&(!ent||!sai)){toast('Informe entrada e saida','#dc2626');return;}var btn=document.querySelector('#editor-popup button:last-child');btn.textContent='Salvando...';btn.disabled=true;try{var r=await fetch('/api/escalas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:editorData.data,colaborador:editorData.nome,ent,sai,tipo})});var d=await r.json();if(d.ok){fecharEditor();toast('Salvo!','#166634');setTimeout(function(){location.reload();},800);}else{toast('Erro: '+d.error,'#dc2626');btn.textContent='Salvar';btn.disabled=false;}}catch(e){toast('Erro de conexao','#dc2626');btn.textContent='Salvar';btn.disabled=false;}}
 function toast(msg,bg){var t=document.getElementById('toast-esc');t.textContent=msg;t.style.background=bg||'#1a1a1a';t.style.display='block';setTimeout(function(){t.style.display='none';},2500);}
 async function publicarHorizonte(opcao){
   var hoje=new Date();
