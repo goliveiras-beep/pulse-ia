@@ -122,7 +122,10 @@ async function getFraseDoDia(dataStr) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-20b', max_tokens: 80,
+        // gpt-oss-20b é modelo de raciocínio - com max_tokens baixo ele gasta tudo "pensando"
+        // e o content final sai vazio (achado ao vivo em 2026-09-16). reasoning_effort:'low'
+        // + folga de tokens garante que sempre sobra espaço pra resposta de verdade.
+        model: 'openai/gpt-oss-20b', max_tokens: 200, reasoning_effort: 'low',
         messages: [
           { role: 'system', content: 'Responda com APENAS UMA frase curta de até 6 palavras, sem mencionar o dia da semana. Sem explicações, sem listas. Só a frase animada para equipe de TV ao vivo.' },
           { role: 'user', content: `Frase animada para equipe de TV ao vivo. Data: ${dataStr}.` }
@@ -494,13 +497,24 @@ export default async function handler(req, res) {
       const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
-        body: JSON.stringify({ model: 'openai/gpt-oss-20b', max_tokens: 30, messages: [{ role: 'user', content: 'diga oi' }] }),
+        body: JSON.stringify({ model: 'openai/gpt-oss-20b', max_tokens: 200, reasoning_effort: 'low', messages: [{ role: 'user', content: 'diga oi' }] }),
       });
       const texto = await r.text();
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       return res.status(200).json({ status: r.status, corpo: texto, temChave: !!process.env.GROQ_API_KEY });
     } catch (e) {
       return res.status(200).json({ erroFetch: e.message });
+    }
+  }
+
+  if (req.query.debugLimparCacheFrase === '1') {
+    // TEMPORARIO - limpar o cache da frase do dia que ficou travado no texto de reserva.
+    // Remover junto do bloco debugGroq acima.
+    try {
+      await setSheet('Equipe!K1:L1', [['', '']]);
+      return res.status(200).json({ ok: true });
+    } catch (e) {
+      return res.status(200).json({ erro: e.message });
     }
   }
 
@@ -829,7 +843,8 @@ export default async function handler(req, res) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
           body: JSON.stringify({
-            model: 'openai/gpt-oss-20b', max_tokens: 100,
+            // mesmo ajuste de getFraseDoDia acima - reasoning_effort:'low' + folga de tokens
+            model: 'openai/gpt-oss-20b', max_tokens: 200, reasoning_effort: 'low',
             messages: [
               { role: 'system', content: 'Voce e o assistente do Pulse, app interno de uma empresa de TV. Gere UMA mensagem curta (max 12 palavras) e animada para o colaborador. Se houver info sobre ferias proximas ou folga amanha (do proprio colaborador), use isso de forma criativa e personalizada. Nao mencione outros colegas. Sem explicacoes, so a mensagem. Use o primeiro nome do colaborador quando relevante.' },
               { role: 'user', content: contexto }
