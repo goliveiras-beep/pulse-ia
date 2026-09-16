@@ -491,33 +491,6 @@ function cruzarEventos(eventos, escHoje, dataStr, ausencias, equipeAtivos) {
 export default async function handler(req, res) {
   const action = req.query.action || '';
 
-  if (req.query.debugGroq === '1') {
-    // TEMPORARIO - descobrir por que a frase do dia caiu no fallback. Remover depois.
-    try {
-      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` },
-        body: JSON.stringify({ model: 'openai/gpt-oss-20b', max_tokens: 200, reasoning_effort: 'low', messages: [{ role: 'user', content: 'diga oi' }] }),
-      });
-      const texto = await r.text();
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      return res.status(200).json({ status: r.status, corpo: texto, temChave: !!process.env.GROQ_API_KEY });
-    } catch (e) {
-      return res.status(200).json({ erroFetch: e.message });
-    }
-  }
-
-  if (req.query.debugLimparCacheFrase === '1') {
-    // TEMPORARIO - limpar o cache da frase do dia que ficou travado no texto de reserva.
-    // Remover junto do bloco debugGroq acima.
-    try {
-      await setSheet('Equipe!K1:L1', [['', '']]);
-      return res.status(200).json({ ok: true });
-    } catch (e) {
-      return res.status(200).json({ erro: e.message });
-    }
-  }
-
   if (req.method === 'POST' && action === 'logout') {
     clearSession(res);
     return res.redirect(302, '/api/app');
