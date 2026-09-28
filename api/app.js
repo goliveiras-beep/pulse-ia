@@ -634,11 +634,12 @@ export default async function handler(req, res) {
 
   const d1 = new Date(hoje); d1.setDate(hoje.getDate() + 1);
   const d1Str = fmtData(d1);
-  const d2 = new Date(hoje); d2.setDate(hoje.getDate() + 2);
-  const d3 = new Date(hoje); d3.setDate(hoje.getDate() + 3);
-  const d4 = new Date(hoje); d4.setDate(hoje.getDate() + 4);
-  const d5 = new Date(hoje); d5.setDate(hoje.getDate() + 5);
-  const d6 = new Date(hoje); d6.setDate(hoje.getDate() + 6);
+  // Dias extras (D+2 até D+14) - janela de 15 dias no total (hoje + amanhã + 13), pedido do
+  // Guilherme 2026-09-28 (antes eram só D+2..D+6, 7 dias no total). Array em vez de d2..d6
+  // nomeados um por um - repetir isso 13x nos dois lugares (visão gestor/colaborador) que
+  // usam essa janela seria o dobro do código pra manter.
+  const diasFuturos = [];
+  for (let i = 2; i <= 14; i++) { const d = new Date(hoje); d.setDate(hoje.getDate() + i); diasFuturos.push(d); }
 
   const DIAS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
   const DIAS_FULL = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
@@ -720,7 +721,7 @@ export default async function handler(req, res) {
     return { id: a[0], requester: a[1], meuDiaRequester: a[4], colegaDia };
   });
 
-  const dias = [hoje, d1, d2, d3, d4, d5, d6];
+  const dias = [hoje, d1, ...diasFuturos];
   const escSem = escala.filter(r => dias.some(d => fmtData(d) === r[0]));
   const ausSem = ausencias;
   const nomes = equipeRaw.map(r => r[0]);
@@ -761,14 +762,9 @@ export default async function handler(req, res) {
     const ausHoje = ausencias.find(a => a[1] === nome && dentroAusencia(a, hojeStr) && a[0] !== 'CANCELADO');
     const ausD1 = ausencias.find(a => a[1] === nome && dentroAusencia(a, d1Str) && a[0] !== 'CANCELADO');
 
-    const [eventosHoje, eventosAmanha, eventosD2c, eventosD3c, eventosD4c, eventosD5c, eventosD6c] = await Promise.all([
-      getEventos(hojeAirtable),
-      getEventos(fmtAirtable(d1)),
-      getEventos(fmtAirtable(d2)),
-      getEventos(fmtAirtable(d3)),
-      getEventos(fmtAirtable(d4)),
-      getEventos(fmtAirtable(d5)),
-      getEventos(fmtAirtable(d6)),
+    const [[eventosHoje, eventosAmanha], eventosFuturosC] = await Promise.all([
+      Promise.all([getEventos(hojeAirtable), getEventos(fmtAirtable(d1))]),
+      Promise.all(diasFuturos.map(d => getEventos(fmtAirtable(d)))),
     ]);
 
     // ── Frase do dia inteligente ──────────────────────────────────────────
@@ -978,13 +974,10 @@ export default async function handler(req, res) {
     }
 
     // Cruza cada dia extra com a escala (mesma lógica de hoje/amanhã), pra equipe ver quem está no turno também nesses dias
-    const diasExtras = [
-      {label: fmtData(d2), sub: DIAS_PT[d2.getDay()], evs: cruzarEventos(eventosD2c, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2), ausencias, equipeAtivos)},
-      {label: fmtData(d3), sub: DIAS_PT[d3.getDay()], evs: cruzarEventos(eventosD3c, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3), ausencias, equipeAtivos)},
-      {label: fmtData(d4), sub: DIAS_PT[d4.getDay()], evs: cruzarEventos(eventosD4c, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4), ausencias, equipeAtivos)},
-      {label: fmtData(d5), sub: DIAS_PT[d5.getDay()], evs: cruzarEventos(eventosD5c, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5), ausencias, equipeAtivos)},
-      {label: fmtData(d6), sub: DIAS_PT[d6.getDay()], evs: cruzarEventos(eventosD6c, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6), ausencias, equipeAtivos)},
-    ];
+    const diasExtras = diasFuturos.map((d, i) => ({
+      label: fmtData(d), sub: DIAS_PT[d.getDay()],
+      evs: cruzarEventos(eventosFuturosC[i], escalaComNoturnosAnteriores(escala, fmtData(d)), fmtData(d), ausencias, equipeAtivos),
+    }));
     const diasExtrasJson = JSON.stringify(diasExtras.map(d => ({label:d.label,sub:d.sub,evs:d.evs.map(e=>({nome:e.nome,hora:e.hora,horaFim:e.horaFim,tipo:e.tipo,local:e.local,encoder:e.encoder,prime:e.prime,disp:e.disp,semCob:e.semCob}))})));
     // Cruzar com escala para mostrar quem está no turno (igual à visão do gestor)
     const escHoje2   = escalaComNoturnosAnteriores(escala, hojeStr);
@@ -1156,8 +1149,8 @@ export default async function handler(req, res) {
         <div class="card-header" style="display:flex;align-items:center;gap:6px">
           <button onclick="navDiaColab(-1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8249;</button>
           <div style="flex:1;text-align:center" id="nav-colab-label">
-            <span class="card-title" style="color:#a855f7">${fmtData(d2)}</span>
-            <span class="badge" style="background:#f3e8ff;color:#6b21a8;margin-left:4px">${eventosD2c.length} ev.</span>
+            <span class="card-title" style="color:#a855f7">${fmtData(diasFuturos[0])}</span>
+            <span class="badge" style="background:#f3e8ff;color:#6b21a8;margin-left:4px">${eventosFuturosC[0].length} ev.</span>
           </div>
           <button onclick="navDiaColab(1)" style="background:none;border:1px solid var(--border);border-radius:5px;width:24px;height:24px;cursor:pointer;color:var(--text2);font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#8250;</button>
         </div>
@@ -1551,18 +1544,9 @@ setInterval(atualizarEventos, 60000);
 
   // ── VISÃO GESTOR ──────────────────────────────────────────────────────────
 
-  const [
-    eventosHoje, eventosAmanha,
-    eventosD2, eventosD3, eventosD4, eventosD5, eventosD6,
-    fraseDoDia,
-  ] = await Promise.all([
-    getEventos(hojeAirtable),
-    getEventos(fmtAirtable(d1)),
-    getEventos(fmtAirtable(d2)),
-    getEventos(fmtAirtable(d3)),
-    getEventos(fmtAirtable(d4)),
-    getEventos(fmtAirtable(d5)),
-    getEventos(fmtAirtable(d6)),
+  const [[eventosHoje, eventosAmanha], eventosFuturos, fraseDoDia] = await Promise.all([
+    Promise.all([getEventos(hojeAirtable), getEventos(fmtAirtable(d1))]),
+    Promise.all(diasFuturos.map(d => getEventos(fmtAirtable(d)))),
     getFraseDoDia(hojeStr),
   ]);
 
@@ -1572,11 +1556,11 @@ setInterval(atualizarEventos, 60000);
   const diasNav = [
     { label: '#NossoDia', sublabel: hojeStr, eventos: eventosCruzadosHoje, total: eventosHoje.length, key: 'hoje', data: hojeStr, comOpac: true },
     { label: '#NossoDiaAmanhã', sublabel: d1Str, eventos: eventosCruzadosAmanha, total: eventosAmanha.length, key: 'amanha', data: d1Str, comOpac: false },
-    { label: fmtData(d2), sublabel: DIAS_PT[d2.getDay()], eventos: cruzarEventos(eventosD2, escalaComNoturnosAnteriores(escala, fmtData(d2)), fmtData(d2), ausencias, equipeAtivos), total: eventosD2.length, key: 'd2', data: fmtData(d2), comOpac: false },
-    { label: fmtData(d3), sublabel: DIAS_PT[d3.getDay()], eventos: cruzarEventos(eventosD3, escalaComNoturnosAnteriores(escala, fmtData(d3)), fmtData(d3), ausencias, equipeAtivos), total: eventosD3.length, key: 'd3', data: fmtData(d3), comOpac: false },
-    { label: fmtData(d4), sublabel: DIAS_PT[d4.getDay()], eventos: cruzarEventos(eventosD4, escalaComNoturnosAnteriores(escala, fmtData(d4)), fmtData(d4), ausencias, equipeAtivos), total: eventosD4.length, key: 'd4', data: fmtData(d4), comOpac: false },
-    { label: fmtData(d5), sublabel: DIAS_PT[d5.getDay()], eventos: cruzarEventos(eventosD5, escalaComNoturnosAnteriores(escala, fmtData(d5)), fmtData(d5), ausencias, equipeAtivos), total: eventosD5.length, key: 'd5', data: fmtData(d5), comOpac: false },
-    { label: fmtData(d6), sublabel: DIAS_PT[d6.getDay()], eventos: cruzarEventos(eventosD6, escalaComNoturnosAnteriores(escala, fmtData(d6)), fmtData(d6), ausencias, equipeAtivos), total: eventosD6.length, key: 'd6', data: fmtData(d6), comOpac: false },
+    ...diasFuturos.map((d, i) => ({
+      label: fmtData(d), sublabel: DIAS_PT[d.getDay()],
+      eventos: cruzarEventos(eventosFuturos[i], escalaComNoturnosAnteriores(escala, fmtData(d)), fmtData(d), ausencias, equipeAtivos),
+      total: eventosFuturos[i].length, key: `d${i+2}`, data: fmtData(d), comOpac: false,
+    })),
   ];
 
   const semCob = eventosCruzadosAmanha.filter(e => e.semCob).length;
@@ -1877,7 +1861,7 @@ function toast(msg,bg='#1a1a1a'){const t=document.getElementById('toast');t.text
 document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)fecharModal();});
 window.addEventListener('load',function(){var b=document.getElementById('cb-hoje');var a=document.getElementById('primeiro-ativo-hoje');if(b&&a){var pos=0,el=a.previousElementSibling;while(el){pos+=el.offsetHeight+10;el=el.previousElementSibling;}b.scrollTop=Math.max(0,pos-280);}});
 var diaAtual3=0;
-function navDia(dir){var total=5;diaAtual3=(diaAtual3+dir+total)%total;for(var i=0;i<total;i++){var p=document.getElementById('painel3-'+i);var l=document.getElementById('tab3-label-'+i);if(p)p.style.display=i===diaAtual3?'block':'none';if(l)l.style.display=i===diaAtual3?'block':'none';}}
+function navDia(dir){var total=13;diaAtual3=(diaAtual3+dir+total)%total;for(var i=0;i<total;i++){var p=document.getElementById('painel3-'+i);var l=document.getElementById('tab3-label-'+i);if(p)p.style.display=i===diaAtual3?'block':'none';if(l)l.style.display=i===diaAtual3?'block':'none';}}
 
 // Badges em tempo real para o gestor (AO VIVO / <30min / <60min)
 function toMinG(h){if(!h)return null;var p=h.split(':').map(Number);return p[0]*60+(p[1]||0);}
@@ -1925,7 +1909,7 @@ setInterval(atualizarBadgesGestor, 30000);
 
 // Mobile: abas de eventos
 var _gTabAtual = 0;
-var _gTotalTabs = 7; // hoje + amanha + 5 dias
+var _gTotalTabs = 15; // hoje + amanha + 13 dias
 function tabGestor(idx) {
   _gTabAtual = idx;
   for (var i = 0; i < _gTotalTabs; i++) {
