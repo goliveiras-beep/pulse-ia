@@ -38,6 +38,7 @@
     { "source": "/api/dashboard", "destination": "/api/gestao-bundle?_route=dashboard" },
     { "source": "/api/banco-horas", "destination": "/api/gestao-bundle?_route=banco-horas" },
     { "source": "/api/publicar", "destination": "/api/gestao-bundle?_route=publicar" },
+    { "source": "/api/capacidade", "destination": "/api/gestao-bundle?_route=capacidade" },
 
     { "source": "/api/ausencias", "destination": "/api/extras-bundle?_route=ausencias" },
     { "source": "/api/repositorio", "destination": "/api/extras-bundle?_route=repositorio" },

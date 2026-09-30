@@ -10,6 +10,7 @@ import equipeViewHandler from '../lib/routes/equipe-view.js';
 import dashboardHandler from '../lib/routes/dashboard.js';
 import bancoHorasHandler from '../lib/routes/banco-horas.js';
 import publicarHandler from '../lib/routes/publicar.js';
+import capacidadeHandler from '../lib/routes/capacidade.js';
 
 const ROUTES = {
   'equipe': equipeHandler,
@@ -17,6 +18,7 @@ const ROUTES = {
   'dashboard': dashboardHandler,
   'banco-horas': bancoHorasHandler,
   'publicar': publicarHandler,
+  'capacidade': capacidadeHandler,
 };
 
 export default async function handler(req, res) {
