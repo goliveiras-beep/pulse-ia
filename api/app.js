@@ -532,6 +532,11 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST' && action === 'solicitar') {
     try {
+      const equipeCheckView = await getSheet('Equipe!A2:L200');
+      const usuarioCheckView = equipeCheckView.find(r => r[0] === nome);
+      // Conta "view" só enxerga a própria escala — não pode abrir solicitação mesmo
+      // chamando o endpoint direto (o botão já nem aparece pra esse perfil na tela).
+      if (usuarioCheckView?.[8] === 'view') return res.status(403).json({ error: 'Essa conta é somente leitura — solicitações não estão disponíveis.' });
       const { tipo, motivo, dataInicio, dataFim, colega, colegaDia } = req.body || {};
       if (!tipo || !dataInicio) return res.status(400).json({ error: 'Dados inválidos' });
       if (tipo === 'Troca de horário' && (!colega || !colegaDia)) return res.status(400).json({ error: 'Informe o colega e a data dele' });
@@ -661,6 +666,9 @@ export default async function handler(req, res) {
   }
 
   const isGestor = usuario?.[8] === 'gestor' && (usuario?.[10]||'ativo') === 'ativo';
+  // Conta "view": colaborador somente-leitura, sem botão de Solicitações nem chat de IA
+  // (a conta de verdade nunca pode gravar nada — ver gate espelhado em action=solicitar acima).
+  const isView = usuario?.[8] === 'view';
 
   // Aniversariantes do dia — coluna F (Data Nascimento) é preenchida pelo <input type="date">
   // do cadastro (formato "AAAA-MM-DD"), mas aceita também "DD/MM/AAAA" pra não quebrar em
@@ -752,7 +760,7 @@ export default async function handler(req, res) {
 
   const escHoje = escalaComNoturnosAnteriores(escala, hojeStr);
   const escD1 = escalaComNoturnosAnteriores(escala, d1Str);
-  const SOLICITAR_BTN = await solicitarBtn(nome);
+  const SOLICITAR_BTN = isView ? '' : await solicitarBtn(nome);
 
   if (!isGestor) {
     const cargo = usuario?.[1] || '';
@@ -1539,7 +1547,7 @@ setInterval(atualizarEventos, 60000);
     res.setHeader('Cache-Control', 'no-cache');
 
 
-    return res.status(200).send(baseHTML('Equipe', conteudoEquipe + SOLICITAR_BTN + CHAT_IA));
+    return res.status(200).send(baseHTML('Equipe', conteudoEquipe + SOLICITAR_BTN + (isView ? '' : CHAT_IA)));
   }
 
   // ── VISÃO GESTOR ──────────────────────────────────────────────────────────
