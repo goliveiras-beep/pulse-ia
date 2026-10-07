@@ -44,10 +44,11 @@ function estaDeServico(ent, sai, horaEv, horaFimEv, isCarryover) {
   // Turno diurno: só cobre entre ent e sai (sem tolerância no fim — turno encerrado não cobre mais)
   return e >= i - 60 && e < f;
 }
-function statusTurno(ent,sai,horaEv) {
+function statusTurno(ent,sai,horaEv,isCarryover) {
   if(!ent||!sai||!horaEv) return null;
   const ev=toMin(horaEv),i=toMin(ent),f=toMin(sai);
-  if(Math.abs(i-ev)<=60) return 'entrando';
+  // Sobra do turno de ontem: a "entrada" (ex.: 20:00) foi ontem, não hoje — só a saída conta.
+  if(!isCarryover && Math.abs(i-ev)<=60) return 'entrando';
   // "saindo" só vale se o turno ainda cobre o início do evento e termina até 60min depois —
   // turno que já encerrou ANTES do evento começar não conta (pessoa já foi embora)
   if(f>ev && f-ev<=60) return 'saindo';
@@ -465,7 +466,7 @@ function cruzarEventos(eventos, escHoje, dataStr, ausencias, equipeAtivos) {
   const escValida = equipeAtivos ? escHoje.filter(r => equipeAtivos.has(r[2])) : escHoje;
   return eventos.map(ev => {
     const disp = escValida.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && !ausentesHoje.has(r[2]) && estaDeServico(r[3], r[4], ev.hora, ev.horaFim, r[6]));
-    const atenc = escValida.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && !ausentesHoje.has(r[2]) && statusTurno(r[3], r[4], ev.hora) !== null && !disp.find(d => d[2] === r[2]));
+    const atenc = escValida.filter(r => r[3] && r[4] && r[5] !== 'Folga' && r[5] !== 'Folga/Ausente' && !ausentesHoje.has(r[2]) && statusTurno(r[3], r[4], ev.hora, r[6]) !== null && !disp.find(d => d[2] === r[2]));
     const aus = escValida.filter(r => !disp.find(d => d[2] === r[2]) && !atenc.find(a => a[2] === r[2]));
     const semCob = disp.length === 0;
     const semAntecedencia = atenc.length > 0 && disp.length === 0;
