@@ -11,6 +11,7 @@ import importEscalaHandler from '../lib/routes/import-escala.js';
 import uploadAtestadoHandler from '../lib/routes/upload-atestado.js';
 import fixGestorHandler from '../lib/routes/fix-gestor.js';
 import compassoHandler from '../lib/routes/compasso.js';
+import registrosTecnicosHandler from '../lib/routes/registros-tecnicos.js';
 
 const ROUTES = {
   'ausencias': ausenciasHandler,
@@ -20,6 +21,7 @@ const ROUTES = {
   'upload-atestado': uploadAtestadoHandler,
   'fix-gestor': fixGestorHandler,
   'compasso': compassoHandler,
+  'registros-tecnicos': registrosTecnicosHandler,
 };
 
 export default async function handler(req, res) {

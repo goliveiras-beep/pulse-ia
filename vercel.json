@@ -47,6 +47,7 @@
     { "source": "/api/upload-atestado", "destination": "/api/extras-bundle?_route=upload-atestado" },
     { "source": "/api/fix-gestor", "destination": "/api/extras-bundle?_route=fix-gestor" },
     { "source": "/api/compasso", "destination": "/api/extras-bundle?_route=compasso" },
+    { "source": "/api/registros-tecnicos", "destination": "/api/extras-bundle?_route=registros-tecnicos" },
 
     { "source": "/api/maestro-painel", "destination": "/api/maestro-bundle?_route=painel" },
     { "source": "/api/maestro-telemetria", "destination": "/api/maestro-bundle?_route=telemetria" },
