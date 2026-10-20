@@ -2,6 +2,7 @@
 // perda/extravio, dano). Acessível a gestor e colaborador; ações de gestão são gestor-only.
 export const config = { maxDuration: 30 };
 import { sheetsRequest } from '../lib/google-auth.js';
+import { menuItens } from '../lib/menu.js';
 import { createHash, timingSafeEqual } from 'crypto';
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
@@ -605,26 +606,12 @@ tr:last-child td{border-bottom:none}
 }
 
 function menuHTML(isGestor) {
-  const itensGestor = isGestor ? `
-        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
-        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe</a>
-        <a href="/api/ausencias" class="menu-item">&#128198; Ausências</a>
-        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
-        <a href="/api/equipamentos" class="menu-item">&#128230; Equipamentos</a>
-  ` : '';
   return `
     <button id="tt" class="btn-sm" onclick="(function(){var h=document.documentElement;var dk=h.classList.toggle('dark');localStorage.setItem('pulse-theme',dk?'dark':'light');})()" style="font-size:14px;padding:3px 8px">&#127769;</button>
     <div style="position:relative">
       <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-sm" style="font-size:15px;padding:4px 10px;line-height:1">&#9776;</button>
       <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
-        <a href="/api/app" class="menu-item">&#127968; Início</a>${itensGestor}
-        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
-        <a href="/api/maestro-booking-dia" class="menu-item">&#128197; Booking — Grade do dia</a>
-        <a href="/api/chamados" class="menu-item">&#127915; Chamados</a>
-        <div style="height:1px;background:var(--border);margin:2px 0"></div>
-        <form method="POST" action="/api/app?action=logout" style="margin:0">
-          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
-        </form>
+        ${menuItens(isGestor)}
       </div>
     </div>`;
 }

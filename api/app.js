@@ -3,6 +3,7 @@
 // Google terminar antes de responder (ver sincronizarUmaPessoa em lib/google-calendar.js).
 export const config = { maxDuration: 60 };
 import { sheetsRequest, garantirLinhasSheet } from '../lib/google-auth.js';
+import { menuItens } from '../lib/menu.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
 import { createHash, timingSafeEqual } from 'crypto';
@@ -1031,18 +1032,7 @@ export default async function handler(req, res) {
     <div class="m-keep" style="position:relative">
       <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-sm" style="font-size:15px;padding:4px 10px;line-height:1">&#9776;</button>
       <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
-        <a href="/api/app" class="menu-item">&#127968; Início</a>
-        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
-        <a href="/api/compasso" class="menu-item">&#129517; Compasso</a>
-        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
-        <a href="/api/registros-tecnicos" class="menu-item">&#128225; Registros técnicos</a>
-        <a href="/api/maestro-booking-dia" class="menu-item">&#128197; Booking — Grade do dia</a>
-        <a href="/api/equipamentos" class="menu-item">&#128230; Equipamentos</a>
-        <a href="/api/chamados" class="menu-item">&#127915; Chamados</a>
-        <div style="height:1px;background:var(--border);margin:2px 0"></div>
-        <form method="POST" action="/api/app?action=logout" style="margin:0">
-          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
-        </form>
+        ${menuItens(false)}
       </div>
     </div>
   </div>
@@ -1709,22 +1699,7 @@ setInterval(atualizarEventos, 60000);
     <div class="m-keep" style="position:relative">
       <button id="menu-btn" onclick="toggleMenu(event)" aria-label="Menu" class="btn-sm" style="font-size:15px;padding:4px 10px;line-height:1">&#9776;</button>
       <div id="menu-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:210px;overflow:hidden;z-index:200">
-        <a href="/api/app" class="menu-item">&#127968; Inicio</a>
-        <a href="/api/escalas?v=semana" class="menu-item">&#128197; Escala</a>
-        <a href="/api/compasso" class="menu-item">&#129517; Compasso</a>
-        <a href="/api/equipe-view" class="menu-item">&#128101; Equipe${badgeEquipeGestor}</a>
-        <a href="/api/ausencias" class="menu-item">&#128198; Ausências${pendAusenciasGestor?` <span style="background:#dc2626;color:#fff;border-radius:50%;min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;padding:0 3px">${pendAusenciasGestor}</span>`:''}</a>
-        <a href="/api/repositorio" class="menu-item">&#128193; Central de Conhecimento</a>
-        <a href="/api/registros-tecnicos" class="menu-item">&#128225; Registros técnicos</a>
-        <a href="/api/maestro-booking-dia" class="menu-item">&#128197; Booking — Grade do dia</a>
-        <a href="/api/banco-horas" class="menu-item">&#128202; Banco de horas</a>
-        <a href="/api/capacidade" class="menu-item">&#128200; Capacidade</a>
-        <a href="/api/equipamentos" class="menu-item">&#128230; Equipamentos</a>
-        <a href="/api/chamados" class="menu-item">&#127915; Chamados</a>
-        <div style="height:1px;background:var(--border);margin:2px 0"></div>
-        <form method="POST" action="/api/app?action=logout" style="margin:0">
-          <button type="submit" class="menu-item" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;color:#dc2626">&#128682; Sair</button>
-        </form>
+        ${menuItens(true, { extras: { '/api/equipe-view': badgeEquipeGestor, '/api/ausencias': pendAusenciasGestor ? ` <span style="background:#dc2626;color:#fff;border-radius:50%;min-width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;padding:0 3px">${pendAusenciasGestor}</span>` : '' } })}
       </div>
     </div>
   </div>
