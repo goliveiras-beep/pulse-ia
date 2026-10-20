@@ -15,15 +15,6 @@
     return n;
   }
 
-  // ---------- abas ----------
-  document.querySelectorAll('.tab').forEach(function (b) {
-    b.addEventListener('click', function () {
-      document.querySelectorAll('.tab').forEach(function (x) { x.classList.toggle('on', x === b); });
-      $('tab-patch').hidden = b.dataset.tab !== 'patch';
-      $('tab-antenas').hidden = b.dataset.tab !== 'antenas';
-    });
-  });
-
   // ---------- mapa e estado ----------
   var sig = function (p) { var v = M.QIN[p.slice(0, 4)]; return v ? v[0] + ' ' + v[1] + ' ' + v[2] : ''; };
   var portLabel = function (p) { return M.QIN[p.slice(0, 4)] ? p + ' (' + sig(p) + ')' : p; };
