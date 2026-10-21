@@ -49,6 +49,7 @@
     { "source": "/api/compasso", "destination": "/api/extras-bundle?_route=compasso" },
     { "source": "/api/registros-tecnicos", "destination": "/api/extras-bundle?_route=registros-tecnicos" },
     { "source": "/api/antenas", "destination": "/api/extras-bundle?_route=antenas" },
+    { "source": "/api/importar-historico", "destination": "/api/extras-bundle?_route=importar-historico" },
 
     { "source": "/api/maestro-painel", "destination": "/api/maestro-bundle?_route=painel" },
     { "source": "/api/maestro-telemetria", "destination": "/api/maestro-bundle?_route=telemetria" },
