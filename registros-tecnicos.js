@@ -112,6 +112,8 @@
     $('form').addEventListener('submit', async function (ev) {
       ev.preventDefault();
       var quando = $('quando').value, para = $('para').value, motivo = $('motivo').value.trim();
+      var tecnico = $('tecnico').value;
+      if (!tecnico) { setMsg('Selecione o técnico responsável.', 'err'); $('tecnico').focus(); return; }
       if (!quando) { setMsg('Informe a data e a hora da alteração.', 'err'); return; }
       if (!para) { setMsg('Selecione a nova conexão.', 'err'); $('para').focus(); return; }
       if (!motivo) { setMsg('Informe o motivo da alteração.', 'err'); $('motivo').focus(); return; }
@@ -119,7 +121,7 @@
       $('salvar').disabled = true; setMsg('Salvando…');
       try {
         var j = await chamar('registrar', {
-          ts: new Date(quando).toISOString(), dispositivo: $('disp').value, entrada: +$('entrada').value,
+          tecnico: tecnico, ts: new Date(quando).toISOString(), dispositivo: $('disp').value, entrada: +$('entrada').value,
           de: $('de').value, para: para, tipo: $('tipo').value, motivo: motivo, obs: $('obs').value.trim(),
         });
         rows = rows.concat(j.registros);
@@ -137,13 +139,14 @@
     $('padrao').addEventListener('click', async function () {
       var n = renderRack();
       if (!n) { setMsg('Todas as entradas já estão no padrão do mapa oficial.', 'ok'); return; }
+      if (!$('tecnico').value) { setMsg('Selecione o técnico responsável antes de normalizar.', 'err'); $('tecnico').focus(); return; }
       if (!pronto) {
         pronto = true; $('padrao').textContent = 'Confirmar: normalizar ' + (n === 1 ? '1 entrada' : n + ' entradas');
         $('padrao-cancel').hidden = false; setMsg(''); return;
       }
       $('padrao').disabled = true; $('salvar').disabled = true; setMsg('Normalizando…');
       try {
-        var j = await chamar('normalizar');
+        var j = await chamar('normalizar', { tecnico: $('tecnico').value });
         rows = rows.concat(j.registros);
         setMsg(j.registros.length ? 'Mapa normalizado: ' + j.registros.length + (j.registros.length === 1 ? ' entrada' : ' entradas') + ' de volta ao padrão.' : 'Nada a normalizar.', 'ok');
         renderRack(); syncFrom(); renderTable();
