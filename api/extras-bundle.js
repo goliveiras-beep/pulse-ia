@@ -13,7 +13,6 @@ import fixGestorHandler from '../lib/routes/fix-gestor.js';
 import compassoHandler from '../lib/routes/compasso.js';
 import registrosTecnicosHandler from '../lib/routes/registros-tecnicos.js';
 import antenasHandler from '../lib/routes/antenas.js';
-import importarHistoricoHandler from '../lib/routes/importar-historico.js';
 
 const ROUTES = {
   'ausencias': ausenciasHandler,
@@ -25,7 +24,6 @@ const ROUTES = {
   'compasso': compassoHandler,
   'registros-tecnicos': registrosTecnicosHandler,
   'antenas': antenasHandler,
-  'importar-historico': importarHistoricoHandler,
 };
 
 export default async function handler(req, res) {
