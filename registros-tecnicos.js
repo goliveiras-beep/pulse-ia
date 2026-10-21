@@ -173,7 +173,7 @@
     var tb = $('tbody'), list = filtradas();
     tb.replaceChildren();
     if (!list.length) {
-      var tr = el('tr'), td = el('td', { class: 'empty-state', colspan: U.isGestor ? '8' : '7' }, rows.some(function (r) { return !r.removido; }) ? 'Nenhum registro com esses filtros.' : 'Nenhuma alteração registrada ainda.');
+      var tr = el('tr'), td = el('td', { class: 'empty-state', colspan: U.isGestor ? '9' : '8' }, rows.some(function (r) { return !r.removido; }) ? 'Nenhum registro com esses filtros.' : 'Nenhuma alteração registrada ainda.');
       tr.append(td); tb.append(tr); $('trunc').textContent = ''; return;
     }
     list.slice(0, LIMITE).forEach(function (r) {
@@ -181,7 +181,7 @@
       var tipo = el('td'); tipo.append(el('span', { class: 'tag' + (r.tipo === 'Normalização ao padrão' ? ' norm' : '') }, r.tipo));
       var mot = el('td', null, r.motivo); if (r.obs) { mot.append(el('br'), el('small', { style: 'color:var(--text3)' }, r.obs)); }
       tr.append(el('td', null, fmt(r.ts)), el('td', null, r.tecnico), el('td', null, dispName(r.dispositivo, r.entrada)),
-        el('td', null, portLabel(r.de)), el('td', null, portLabel(r.para)), tipo, mot);
+        el('td', null, portLabel(r.de)), el('td', null, portLabel(r.para)), tipo, mot, el('td', null, r.registradoPor || '—'));
       if (U.isGestor) {
         var ac = el('td'), b = el('button', { type: 'button', class: 'mini' }, 'Remover'), armado = false, timer;
         b.addEventListener('click', async function () {
@@ -206,9 +206,9 @@
     return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
   $('csv').addEventListener('click', function () {
-    var cab = ['Data e hora', 'Técnico', 'Dispositivo', 'Entrada', 'De', 'Para', 'Tipo', 'Motivo', 'Observações'];
+    var cab = ['Data e hora', 'Técnico', 'Dispositivo', 'Entrada', 'De', 'Para', 'Tipo', 'Motivo', 'Observações', 'Registrado por'];
     var linhas = filtradas().map(function (r) {
-      return [fmt(r.ts), r.tecnico, r.dispositivo, single(r.dispositivo) ? 'Entrada RF' : 'IN' + r.entrada, portLabel(r.de), portLabel(r.para), r.tipo, r.motivo, r.obs].map(csvCel).join(',');
+      return [fmt(r.ts), r.tecnico, r.dispositivo, single(r.dispositivo) ? 'Entrada RF' : 'IN' + r.entrada, portLabel(r.de), portLabel(r.para), r.tipo, r.motivo, r.obs, r.registradoPor || ''].map(csvCel).join(',');
     });
     var csv = '\uFEFF' + [cab.join(',')].concat(linhas).join('\r\n');
     var a = el('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
