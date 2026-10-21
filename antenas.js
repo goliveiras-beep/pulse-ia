@@ -57,7 +57,7 @@ const app = document.getElementById("app");
 const AT = window.__AT || {}; const U = AT.usuario || {};
 let db = true, me = {id: U.nome || null, name: U.nome || ""}, isOwner = !!U.isGestor, isView = !!U.isView;
 let list = [], filter = "todos", unsubList = null, view = "lista", periodo = "T"+(Math.floor(new Date().getMonth()/3)+1), charts = [];
-let sla = {emergencial:4,corretiva:48,emerg_d:1,corr_d:2,preventiva:15,nc_h:96,prev_int:90,plus_int:365,reinc_d:90,inicio:""};
+let sla = {emergencial:4,corretiva:48,emerg_d:2,corr_d:2,preventiva:15,nc_h:96,prev_int:90,plus_int:365,reinc_d:90,inicio:"2024-07-03"};
 let anoSel = new Date().getFullYear();
 let antSel = "RX01", medSel = "cn";
 let cur = null, curId = null, curAnt = "RX01", saveTimer = null, saving = false, pending = false;
@@ -92,7 +92,7 @@ function progresso(c, antId){
 }
 
 /* ---------- dados (API do Pulse) ---------- */
-const SLA_PADRAO = {emergencial:4,corretiva:48,emerg_d:1,corr_d:2,preventiva:15,nc_h:96,prev_int:90,plus_int:365,reinc_d:90,inicio:""};
+const SLA_PADRAO = {emergencial:4,corretiva:48,emerg_d:2,corr_d:2,preventiva:15,nc_h:96,prev_int:90,plus_int:365,reinc_d:90,inicio:"2024-07-03"};
 async function api(action, corpo){
   const get = corpo === undefined;
   const r = await fetch('/api/antenas?action=' + action, get ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(corpo)});
@@ -663,7 +663,7 @@ function renderChecklist(){
   <section class="card">
     <h3>Identificação</h3>
     <div class="grid2">
-      ${TIPOS[cur.tipo].chamado?`<label class="f">Abertura do chamado (e-mail à contratada)<input type="date" data-id="abertura" value="${esc((cur.ident.abertura||"").slice(0,10))}" ${lock?"disabled":""}></label>`
+      ${TIPOS[cur.tipo].chamado?`<label class="f">Abertura do chamado<input type="date" data-id="abertura" value="${esc((cur.ident.abertura||"").slice(0,10))}" ${lock?"disabled":""}></label>`
         :`<label class="f">Agendamento realizado<input type="date" data-id="agendamento" value="${esc(cur.ident.agendamento||"")}" ${lock?"disabled":""}></label>`}
       <label class="f">Nº da OS<input data-id="os" value="${esc(cur.ident.os)}" readonly title="Gerado automaticamente: LM + mês + ano + sequência" style="background:var(--soft);font-weight:600"></label>
       <label class="f">Data da execução<input type="date" data-id="data" value="${esc(cur.ident.data)}" ${lock?"disabled":""}></label>
@@ -819,6 +819,8 @@ function makePad(id){
   c.onpointermove=e=>{if(!drawing)return;const p=pos(e);g.beginPath();g.moveTo(last[0],last[1]);g.lineTo(p[0],p[1]);g.stroke();last=p;};
   c.onpointerup=c.onpointercancel=()=>{drawing=false;};
   return {has:()=>has, clear:()=>{g.clearRect(0,0,c.width,c.height);has=false;},
+    rubrica:(txt)=>{ const b=c.getBoundingClientRect(); g.clearRect(0,0,c.width,c.height); g.save(); g.fillStyle="#1F3FBF"; g.textAlign="center"; g.textBaseline="middle";
+      g.font="italic "+Math.min(b.height*0.7,64)+"px \"Segoe Script\",\"Brush Script MT\",\"Lucida Handwriting\",\"Apple Chancery\",cursive"; g.fillText(txt,b.width/2,b.height/2); g.restore(); has=true; },
     png:()=>{const o=document.createElement("canvas");o.width=400;o.height=Math.round(400*c.height/c.width);const og=o.getContext("2d");og.fillStyle="#FFFFFF";og.fillRect(0,0,o.width,o.height);og.drawImage(c,0,0,o.width,o.height);return o.toDataURL("image/jpeg",0.7);}};
 }
 
@@ -855,7 +857,7 @@ function renderAssinaturas(){
       <label class="f">Parecer<select id="avPar"><option>Aprovado</option><option>Aprovado com ressalvas</option><option>Aceite condicionado às pendências do relatório</option><option>Reprovado</option></select></label>
       <label class="f">Observações<input id="avObs"></label></div>
       <p class="legend" style="margin:10px 0 4px">Assine abaixo</p>${padHTML("avPad")}
-      <div class="acts"><button class="btn" id="avLimpa">Limpar</button><button class="btn primary" id="avOk">Assinar e concluir</button>
+      <div class="acts"><button class="btn" id="avLimpa">Limpar</button><button class="btn" id="avRub">Usar rubrica cadastrada</button><button class="btn primary" id="avOk">Assinar e concluir</button>
       ${falta?`<span class="legend">${falta} ${falta===1?"item sem resposta":"itens sem resposta"}</span>`:""}</div>`}
   </div>
   <div class="acts" style="margin-top:14px;display:flex;gap:8px"><button class="btn" id="baixar">Baixar PDF</button></div>`;
@@ -872,6 +874,7 @@ function renderAssinaturas(){
   if(!av){
     const pad=makePad("avPad");
     document.getElementById("avLimpa").onclick=()=>pad.clear();
+    document.getElementById("avRub").onclick=()=>{ const p=(document.getElementById("avNome").value||"").split(/\s+/).filter(w=>w&&!/^(d[aeo]s?|e)$/i.test(w)); const ini=(p.length>1?p[0][0]+p[p.length-1][0]:(p[0]||"")[0]||"").toUpperCase(); if(!ini) return toast("Nome do avaliador ausente."); pad.rubrica(ini); };
     document.getElementById("avOk").onclick=async()=>{
       const nome=document.getElementById("avNome").value.trim();
       if(!nome) return toast("Selecione o nome do avaliador.");
@@ -938,5 +941,67 @@ function perguntar(msg,okLabel){
     const f=o.querySelector(".btn.primary"); if(f) f.focus();
   });
 }
+/* ---------- calendário próprio (substitui o seletor de data do navegador) ---------- */
+(function(){
+  const MESES=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+  const SEM=["D","S","T","Q","Q","S","S"];
+  const st=document.createElement("style");
+  st.textContent=".cal-in{cursor:pointer}.cal-pop{position:fixed;z-index:80;width:272px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.22);padding:10px}"
+    +".cal-h{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px}.cal-h b{text-transform:capitalize;font-size:14px}"
+    +".cal-h button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;width:30px;height:30px;font-size:16px;cursor:pointer}"
+    +".cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}.cal-g i{font-style:normal;font-size:11px;color:var(--muted);padding:4px 0}"
+    +".cal-g button{border:0;background:transparent;color:var(--ink);border-radius:6px;height:32px;font-size:13px;cursor:pointer}.cal-g button:hover{background:var(--soft)}"
+    +".cal-g button.hoje{outline:1px solid var(--brand)}.cal-g button.sel{background:var(--brand);color:var(--brand-ink)}"
+    +".cal-f{display:flex;justify-content:space-between;margin-top:8px}.cal-f button{border:0;background:transparent;color:var(--brand);font-weight:600;cursor:pointer;padding:4px 6px}";
+  document.head.appendChild(st);
+  const iso=(y,m,d)=>y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+  const br=v=>v?String(v).slice(0,10).split("-").reverse().join("/"):"";
+  let pop=null, alvo=null;
+  function fechar(){ if(pop){ pop.remove(); pop=null; } alvo=null; document.removeEventListener("mousedown",fora,true); window.removeEventListener("scroll",fechar,true); }
+  function fora(e){ if(pop&&!pop.contains(e.target)&&!(alvo&&alvo.vis.contains(e.target))) fechar(); }
+  function escolher(orig,vis,v){
+    orig.value=v; vis.value=br(v);
+    orig.dispatchEvent(new Event("input",{bubbles:true})); orig.dispatchEvent(new Event("change",{bubbles:true}));
+    fechar();
+  }
+  function abrir(orig,vis){
+    fechar(); alvo={orig,vis};
+    const base=orig.value?new Date(orig.value.slice(0,10)+"T12:00:00"):new Date();
+    let ano=base.getFullYear(), mes=base.getMonth();
+    pop=document.createElement("div"); pop.className="cal-pop"; pop.setAttribute("role","dialog"); pop.setAttribute("aria-label","Escolher data");
+    document.body.appendChild(pop);
+    const desenhar=()=>{
+      const prim=new Date(ano,mes,1).getDay(), dias=new Date(ano,mes+1,0).getDate(), hj=hoje(), sel=(orig.value||"").slice(0,10);
+      let h=`<div class="cal-h"><button type="button" data-n="-1" aria-label="Mês anterior">‹</button><b>${MESES[mes]} de ${ano}</b><button type="button" data-n="1" aria-label="Próximo mês">›</button></div><div class="cal-g">`;
+      SEM.forEach(s=>h+=`<i>${s}</i>`);
+      for(let i=0;i<prim;i++) h+="<span></span>";
+      for(let d=1;d<=dias;d++){ const v=iso(ano,mes,d); h+=`<button type="button" data-d="${v}" class="${v===hj?"hoje ":""}${v===sel?"sel":""}">${d}</button>`; }
+      h+=`</div><div class="cal-f"><button type="button" data-hoje="1">Hoje</button><button type="button" data-limpar="1">Limpar</button></div>`;
+      pop.innerHTML=h;
+      pop.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{ mes+=+b.dataset.n; if(mes<0){mes=11;ano--;} if(mes>11){mes=0;ano++;} desenhar(); });
+      pop.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>escolher(orig,vis,b.dataset.d));
+      pop.querySelector("[data-hoje]").onclick=()=>escolher(orig,vis,hoje());
+      pop.querySelector("[data-limpar]").onclick=()=>escolher(orig,vis,"");
+    };
+    desenhar();
+    const r=vis.getBoundingClientRect(), w=pop.offsetWidth, hh=pop.offsetHeight;
+    let top=r.bottom+4; if(top+hh>window.innerHeight-8) top=Math.max(8,r.top-hh-4);
+    pop.style.top=top+"px"; pop.style.left=Math.max(8,Math.min(r.left,window.innerWidth-w-8))+"px";
+    document.addEventListener("mousedown",fora,true); window.addEventListener("scroll",fechar,true);
+  }
+  function melhorar(raiz){
+    raiz.querySelectorAll('input[type="date"]:not([data-cal])').forEach(orig=>{
+      orig.dataset.cal="1";
+      const vis=document.createElement("input"); vis.type="text"; vis.readOnly=true; vis.autocomplete="off"; vis.inputMode="none";
+      vis.className=(orig.className?orig.className+" ":"")+"cal-in"; vis.placeholder="dd/mm/aaaa"; vis.value=br(orig.value); vis.disabled=orig.disabled;
+      vis.setAttribute("aria-label",(orig.closest("label")&&orig.closest("label").firstChild&&orig.closest("label").firstChild.textContent||"Data").trim());
+      orig.style.display="none"; orig.after(vis);
+      vis.onclick=()=>{ if(!vis.disabled) abrir(orig,vis); };
+      vis.onkeydown=e=>{ if((e.key==="Enter"||e.key===" ")&&!vis.disabled){ e.preventDefault(); abrir(orig,vis); } };
+    });
+  }
+  new MutationObserver(()=>melhorar(app)).observe(app,{childList:true,subtree:true});
+  melhorar(app);
+})();
 init();
 })();
