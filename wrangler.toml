@@ -5,6 +5,9 @@ compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
 keep_names = false   # esbuild injetaria __name() em funções que o Compasso copia como texto pro navegador
 
+[placement]
+region = "aws:us-east-1"   # perto de Google Sheets/Airtable (mesma região da Vercel, iad1) — não do usuário
+
 [assets]
 directory = ".cf-assets"
 binding = "ASSETS"
