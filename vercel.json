@@ -49,6 +49,7 @@
     { "source": "/api/compasso", "destination": "/api/extras-bundle?_route=compasso" },
     { "source": "/api/registros-tecnicos", "destination": "/api/extras-bundle?_route=registros-tecnicos" },
     { "source": "/api/antenas", "destination": "/api/extras-bundle?_route=antenas" },
+    { "source": "/api/compasso-cron-agenda", "destination": "/api/extras-bundle?_route=compasso-cron-agenda" },
 
     { "source": "/api/maestro-painel", "destination": "/api/maestro-bundle?_route=painel" },
     { "source": "/api/maestro-telemetria", "destination": "/api/maestro-bundle?_route=telemetria" },
@@ -68,6 +69,7 @@
   "crons": [
     { "path": "/api/maestro-cron-diario?momento=manha", "schedule": "0 9 * * *" },
     { "path": "/api/maestro-cron-diario?momento=noite", "schedule": "0 2 * * *" },
-    { "path": "/api/maestro-cron-plano-europa", "schedule": "0 14 * * 1" }
+    { "path": "/api/maestro-cron-plano-europa", "schedule": "0 14 * * 1" },
+    { "path": "/api/compasso-cron-agenda", "schedule": "30 9 * * *" }
   ]
 }
