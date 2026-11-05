@@ -1,0 +1,22 @@
+name = "pulse-ia"
+account_id = "9a4057b69f532a7b9c23e6e073925c33" # Isouza@livemode.com's Account
+main = "worker.js"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
+
+[assets]
+directory = ".cf-assets"
+binding = "ASSETS"
+run_worker_first = true
+
+[vars]
+PULSE_BASE_URL = "https://pulse.livemode.ai"
+
+# Mesmos horários do vercel.json (UTC).
+[triggers]
+crons = ["0 9 * * *", "0 2 * * *", "0 14 * * 1", "30 9 * * *"]
+
+# Domínio próprio: só descomentar depois que a zona livemode.ai estiver nesta conta Cloudflare.
+[[routes]]
+pattern = "pulse.livemode.ai"
+custom_domain = true

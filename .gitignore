@@ -2,3 +2,9 @@ node_modules/
 .vercel/
 .sentinela-analise.json
 .sentinela-relatorio.md
+.cf-assets/
+.wrangler/
+.dev.vars
+
+.vercel
+.env*

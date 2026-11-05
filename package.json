@@ -15,6 +15,12 @@
   "devDependencies": {
     "@capacitor/android": "8.5.0",
     "@capacitor/cli": "8.5.0",
-    "@capacitor/core": "8.5.0"
+    "@capacitor/core": "8.5.0",
+    "wrangler": "^4.151.3"
+  },
+  "scripts": {
+    "cf:assets": "node scripts/cf-assets.mjs",
+    "cf:dev": "node scripts/cf-assets.mjs && wrangler dev",
+    "cf:deploy": "node scripts/cf-assets.mjs && wrangler deploy"
   }
 }
