@@ -1,6 +1,6 @@
 import { createHash, createSign, timingSafeEqual } from 'crypto';
 import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
-import { garantirLinhasSheet } from '../lib/google-auth.js';
+import { garantirLinhasSheet, invalidarCacheSheets } from '../lib/google-auth.js';
 
 // ── helpers de sessão ────────────────────────────────────────────────────────
 
@@ -139,6 +139,7 @@ async function sheetsBatchUpdate(token, updates) {
   });
   const data = await res.json();
   if (data.error) throw new Error('Sheets batchUpdate: ' + JSON.stringify(data.error));
+  await invalidarCacheSheets();
   return data;
 }
 
@@ -172,6 +173,7 @@ async function sheetsAppend(token, range, values) {
   );
   const data = await res.json();
   if (data.error) throw new Error('Sheets append(as update): ' + JSON.stringify(data.error));
+  await invalidarCacheSheets();
   return data;
 }
 

@@ -60,6 +60,11 @@ async function getSheet(range) {
   try { const d=await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}`); return d.values||[]; }
   catch { return []; }
 }
+// Igual a getSheet, mas pode servir de um cache de ~15s (só renderização de página; nunca antes de gravar).
+async function getSheetCache(range) {
+  try { const d=await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}`,'GET',null,{cache:true}); return d.values||[]; }
+  catch { return []; }
+}
 async function setSheet(range, values) {
   await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,'PUT',{values});
 }
@@ -659,11 +664,11 @@ export default async function handler(req, res) {
   ]);
 
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw, ajustesRaw] = await Promise.all([
-    getSheet('Equipe!A2:N200'),
-    getSheet('Escala!A2:F2000'),
-    getSheet('Ausências!A2:I500'),
-    getSheet('PulseConfig!A2:B20'),
-    getSheet('Ajustes!A2:G500'),
+    getSheetCache('Equipe!A2:N200'),
+    getSheetCache('Escala!A2:F2000'),
+    getSheetCache('Ausências!A2:I500'),
+    getSheetCache('PulseConfig!A2:B20'),
+    getSheetCache('Ajustes!A2:G500'),
   ]);
 
   const usuario = equipeRaw.find(r => r[0] === nome && (r[10]||'ativo') === 'ativo');
