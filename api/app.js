@@ -651,6 +651,13 @@ export default async function handler(req, res) {
   const DIAS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
   const DIAS_FULL = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
 
+  // Disparados já, em paralelo com a leitura das abas: não dependem delas (eventos só precisam das
+  // datas; o botão de Solicitações só do nome da sessão). Antes ficavam em fila depois das planilhas.
+  const eventosP = Promise.all([
+    Promise.all([getEventos(hojeAirtable), getEventos(fmtAirtable(d1))]),
+    Promise.all(diasFuturos.map(d => getEventos(fmtAirtable(d)))),
+  ]);
+
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw, ajustesRaw] = await Promise.all([
     getSheet('Equipe!A2:N200'),
     getSheet('Escala!A2:F2000'),
@@ -660,6 +667,14 @@ export default async function handler(req, res) {
   ]);
 
   const usuario = equipeRaw.find(r => r[0] === nome && (r[10]||'ativo') === 'ativo');
+
+  // Equipe vazia = a leitura da planilha falhou (cota do Google, rede), não "usuário inexistente".
+  // Antes isso apagava o cookie e deslogava a pessoa; agora só pede pra tentar de novo.
+  if (!usuario && equipeRaw.length === 0) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Retry-After', '3');
+    return res.status(503).send('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pulse</title><body style="font-family:system-ui;background:#111318;color:#e2e8f0;display:grid;place-items:center;height:100vh;margin:0;text-align:center"><div><h2>Pulse está ocupado</h2><p>A planilha demorou a responder. Sua sessão continua ativa.</p><p><a href="" style="color:#63b3ed">Tentar de novo</a></p></div><script>setTimeout(function(){location.reload()},3000)</script>');
+  }
 
   if (!usuario) {
     clearSession(res);
@@ -762,7 +777,7 @@ export default async function handler(req, res) {
 
   const escHoje = escalaComNoturnosAnteriores(escala, hojeStr);
   const escD1 = escalaComNoturnosAnteriores(escala, d1Str);
-  const SOLICITAR_BTN = isView ? '' : await solicitarBtn(nome);
+  const SOLICITAR_BTN = isView ? '' : await solicitarBtn(nome, { equipeRaw, ausRaw: ausenciasRaw }).catch(() => '');
 
   if (!isGestor) {
     const cargo = usuario?.[1] || '';
@@ -772,10 +787,7 @@ export default async function handler(req, res) {
     const ausHoje = ausencias.find(a => a[1] === nome && dentroAusencia(a, hojeStr) && a[0] !== 'CANCELADO');
     const ausD1 = ausencias.find(a => a[1] === nome && dentroAusencia(a, d1Str) && a[0] !== 'CANCELADO');
 
-    const [[eventosHoje, eventosAmanha], eventosFuturosC] = await Promise.all([
-      Promise.all([getEventos(hojeAirtable), getEventos(fmtAirtable(d1))]),
-      Promise.all(diasFuturos.map(d => getEventos(fmtAirtable(d)))),
-    ]);
+    const [[eventosHoje, eventosAmanha], eventosFuturosC] = await eventosP;
 
     // ── Frase do dia inteligente ──────────────────────────────────────────
     async function getFraseInteligente() {
@@ -1544,9 +1556,8 @@ setInterval(atualizarEventos, 60000);
 
   // ── VISÃO GESTOR ──────────────────────────────────────────────────────────
 
-  const [[eventosHoje, eventosAmanha], eventosFuturos, fraseDoDia] = await Promise.all([
-    Promise.all([getEventos(hojeAirtable), getEventos(fmtAirtable(d1))]),
-    Promise.all(diasFuturos.map(d => getEventos(fmtAirtable(d)))),
+  const [[[eventosHoje, eventosAmanha], eventosFuturos], fraseDoDia] = await Promise.all([
+    eventosP,
     getFraseDoDia(hojeStr),
   ]);
 
