@@ -1,6 +1,7 @@
 // cloudflare/rotas.js — monta a tabela de rotas a partir do vercel.json (rewrites) e dos handlers
 // standalone de api/. Não duplica nada: se uma rota é adicionada ao vercel.json, ela passa a valer aqui.
 import vercel from '../vercel.json' with { type: 'json' };
+import crons from './crons.json' with { type: 'json' };
 import app from '../api/app.js';
 import chat from '../api/chat.js';
 import escalas from '../api/escalas.js';
@@ -43,4 +44,5 @@ export function resolverRota(pathname) {
 }
 
 export const CABECALHOS = (vercel.headers?.[0]?.headers || []).map(({ key, value }) => [key, value]);
-export const CRONS = vercel.crons || [];
+// Crons ficam só aqui (não no vercel.json) pra não rodar em dobro enquanto a Vercel ainda está no ar.
+export const CRONS = crons;

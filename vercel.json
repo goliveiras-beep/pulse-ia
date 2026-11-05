@@ -65,11 +65,5 @@
     { "source": "/api/maestro-booking-dia", "destination": "/api/maestro-bundle?_route=booking-dia" },
     { "source": "/api/maestro-cron-diario", "destination": "/api/maestro-bundle?_route=cron-diario" },
     { "source": "/api/maestro-cron-plano-europa", "destination": "/api/maestro-bundle?_route=cron-plano-europa" }
-  ],
-  "crons": [
-    { "path": "/api/maestro-cron-diario?momento=manha", "schedule": "0 9 * * *" },
-    { "path": "/api/maestro-cron-diario?momento=noite", "schedule": "0 2 * * *" },
-    { "path": "/api/maestro-cron-plano-europa", "schedule": "0 14 * * 1" },
-    { "path": "/api/compasso-cron-agenda", "schedule": "30 9 * * *" }
   ]
 }

@@ -1,0 +1,18 @@
+[
+  {
+    "path": "/api/maestro-cron-diario?momento=manha",
+    "schedule": "0 9 * * *"
+  },
+  {
+    "path": "/api/maestro-cron-diario?momento=noite",
+    "schedule": "0 2 * * *"
+  },
+  {
+    "path": "/api/maestro-cron-plano-europa",
+    "schedule": "0 14 * * 1"
+  },
+  {
+    "path": "/api/compasso-cron-agenda",
+    "schedule": "30 9 * * *"
+  }
+]

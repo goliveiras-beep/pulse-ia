@@ -12,7 +12,7 @@ run_worker_first = true
 [vars]
 PULSE_BASE_URL = "https://pulse.livemode.ai"
 
-# Mesmos horários do vercel.json (UTC).
+# Mesmos horários de cloudflare/crons.json (UTC) — a Vercel não roda mais crons.
 [triggers]
 crons = ["0 9 * * *", "0 2 * * *", "0 14 * * 1", "30 9 * * *"]
 
