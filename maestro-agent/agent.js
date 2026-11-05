@@ -29,7 +29,7 @@ function loadEnv() {
 }
 loadEnv();
 
-const MAESTRO_BASE_URL = process.env.MAESTRO_BASE_URL || 'https://pulse-ia-six.vercel.app';
+const MAESTRO_BASE_URL = process.env.MAESTRO_BASE_URL || 'https://pulse.livemode.ai';
 const MAESTRO_AGENT_TOKEN = process.env.MAESTRO_AGENT_TOKEN;
 
 // objetos escalares em SNMP precisam do sufixo ".0" pra instância (confirmado
