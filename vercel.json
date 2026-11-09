@@ -1,4 +1,11 @@
 {
+  "redirects": [
+    {
+      "source": "/api/:path((?!maestro-ingest$|maestro-detalhe-ingest$|maestro-comandos-pendentes$|maestro-comando-resultado$|pulse$).*)",
+      "destination": "https://pulse.livemode.ai/api/:path",
+      "permanent": false
+    }
+  ],
   "functions": {
     "api/*.js": {
       "maxDuration": 60
