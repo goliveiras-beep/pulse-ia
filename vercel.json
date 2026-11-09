@@ -56,6 +56,7 @@
     { "source": "/api/compasso", "destination": "/api/extras-bundle?_route=compasso" },
     { "source": "/api/mapa", "destination": "/api/extras-bundle?_route=mapa" },
     { "source": "/api/alexa", "destination": "/api/extras-bundle?_route=alexa" },
+    { "source": "/api/avisar-central", "destination": "/api/extras-bundle?_route=avisar-central" },
     { "source": "/api/registros-tecnicos", "destination": "/api/extras-bundle?_route=registros-tecnicos" },
     { "source": "/api/antenas", "destination": "/api/extras-bundle?_route=antenas" },
     { "source": "/api/compasso-cron-agenda", "destination": "/api/extras-bundle?_route=compasso-cron-agenda" },

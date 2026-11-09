@@ -16,6 +16,7 @@ import antenasHandler from '../lib/routes/antenas.js';
 import compassoCronAgendaHandler from '../lib/routes/compasso-cron-agenda.js';
 import mapaHandler from '../lib/routes/mapa.js';
 import alexaHandler from '../lib/routes/alexa.js';
+import avisarCentralHandler from '../lib/routes/avisar-central.js';
 
 const ROUTES = {
   'ausencias': ausenciasHandler,
@@ -30,6 +31,7 @@ const ROUTES = {
   'compasso-cron-agenda': compassoCronAgendaHandler,
   'mapa': mapaHandler,
   'alexa': alexaHandler,
+  'avisar-central': avisarCentralHandler,
 };
 
 export default async function handler(req, res) {
