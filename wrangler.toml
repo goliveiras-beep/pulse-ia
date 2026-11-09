@@ -3,6 +3,10 @@ account_id = "9a4057b69f532a7b9c23e6e073925c33" # Isouza@livemode.com's Account
 main = "worker.js"
 compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
+# workers.dev ligado SÓ pra skill da Alexa (é o endereço cadastrado no Endpoint da skill, com certificado do tipo "wildcard").
+# O worker.js responde só em /api/alexa nesse endereço; o resto do Pulse continua só em pulse.livemode.ai.
+workers_dev = true
+preview_urls = false
 keep_names = false   # esbuild injetaria __name() em funções que o Compasso copia como texto pro navegador
 
 [placement]

@@ -1,0 +1,76 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "central pulse",
+      "intents": [
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        { "name": "AMAZON.NavigateHomeIntent", "samples": [] },
+        {
+          "name": "ResumoIntent",
+          "slots": [],
+          "samples": [
+            "resumo",
+            "me dê um resumo",
+            "me dá um resumo",
+            "como está a central",
+            "como estão as coisas",
+            "me atualize",
+            "o que tem de novo"
+          ]
+        },
+        {
+          "name": "PlantaoIntent",
+          "slots": [],
+          "samples": [
+            "quem está de plantão",
+            "quem está de plantão agora",
+            "quem está trabalhando",
+            "quem está na central",
+            "quem está escalado",
+            "quem está na escala"
+          ]
+        },
+        {
+          "name": "NoArIntent",
+          "slots": [],
+          "samples": [
+            "o que está no ar",
+            "o que está no ar agora",
+            "quais eventos estão no ar",
+            "tem alguma coisa no ar",
+            "o que estamos transmitindo",
+            "o que está passando"
+          ]
+        },
+        {
+          "name": "ProximoEventoIntent",
+          "slots": [],
+          "samples": [
+            "qual o próximo evento",
+            "qual é o próximo evento",
+            "qual o próximo jogo",
+            "o que vem a seguir",
+            "próximo evento",
+            "o que é o próximo"
+          ]
+        },
+        {
+          "name": "ChamadosIntent",
+          "slots": [],
+          "samples": [
+            "tem chamado aberto",
+            "chamados abertos",
+            "como estão os chamados",
+            "quantos chamados tem",
+            "tem algum chamado",
+            "tem algum problema"
+          ]
+        }
+      ],
+      "types": []
+    }
+  }
+}

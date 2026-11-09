@@ -26,6 +26,9 @@ async function despachar(request) {
 
 export default {
   async fetch(request, env, ctx) {
+    // Endereço do workers.dev: existe só pra skill da Alexa. Qualquer outra rota nele é 404 (o Pulse de verdade fica em pulse.livemode.ai).
+    const alvo = new URL(request.url);
+    if (alvo.hostname.endsWith('.workers.dev') && alvo.pathname !== '/api/alexa') return new Response('Não encontrado', { status: 404 });
     const resp = await despachar(request);
     if (resp) return comCabecalhos(resp);
     if (new URL(request.url).pathname.startsWith('/api/')) {

@@ -15,6 +15,7 @@ import registrosTecnicosHandler from '../lib/routes/registros-tecnicos.js';
 import antenasHandler from '../lib/routes/antenas.js';
 import compassoCronAgendaHandler from '../lib/routes/compasso-cron-agenda.js';
 import mapaHandler from '../lib/routes/mapa.js';
+import alexaHandler from '../lib/routes/alexa.js';
 
 const ROUTES = {
   'ausencias': ausenciasHandler,
@@ -28,6 +29,7 @@ const ROUTES = {
   'antenas': antenasHandler,
   'compasso-cron-agenda': compassoCronAgendaHandler,
   'mapa': mapaHandler,
+  'alexa': alexaHandler,
 };
 
 export default async function handler(req, res) {
