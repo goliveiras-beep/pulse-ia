@@ -54,6 +54,7 @@
     { "source": "/api/upload-atestado", "destination": "/api/extras-bundle?_route=upload-atestado" },
     { "source": "/api/fix-gestor", "destination": "/api/extras-bundle?_route=fix-gestor" },
     { "source": "/api/compasso", "destination": "/api/extras-bundle?_route=compasso" },
+    { "source": "/api/mapa", "destination": "/api/extras-bundle?_route=mapa" },
     { "source": "/api/registros-tecnicos", "destination": "/api/extras-bundle?_route=registros-tecnicos" },
     { "source": "/api/antenas", "destination": "/api/extras-bundle?_route=antenas" },
     { "source": "/api/compasso-cron-agenda", "destination": "/api/extras-bundle?_route=compasso-cron-agenda" },
