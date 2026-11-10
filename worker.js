@@ -5,7 +5,7 @@ import { criarReqRes } from './cloudflare/adapter.js';
 import { resolverRota, CABECALHOS, CRONS } from './cloudflare/rotas.js';
 import { Presenca } from './cloudflare/presenca.js';
 import { Sensores } from './cloudflare/sensores.js';
-import { sessaoDoCookie } from './lib/routes/mapa.js';
+import { sessaoDoCookie, getRacks } from './lib/routes/mapa.js';
 export { Presenca, Sensores };
 
 // comparação sem vazar, pelo tempo, quantos caracteres batem (token da ponte dos sensores)
@@ -29,6 +29,24 @@ async function despachar(request) {
     res.status(500).json({ error: 'Erro interno' });
   }
   return montarResposta();
+}
+
+// IP → rack/equipamento (aba MapaRacks da planilha), só pra ligar cada alerta do Zabbix ao rack certo; o IP NUNCA sai daqui pro navegador.
+let cacheIps = { t: 0, mapa: new Map() };
+async function mapaDeIps() {
+  if (Date.now() - cacheIps.t < 5 * 60000 && cacheIps.mapa.size) return cacheIps.mapa;
+  try {
+    const m = new Map();
+    for (const r of await getRacks()) for (const i of r.itens.concat(r.fora)) { const ip = String(i.ip || '').trim(); if (ip) m.set(ip, { rack: r.codigo, equip: i.nome }); }
+    cacheIps = { t: Date.now(), mapa: m };
+  } catch (e) { console.error('zabbix: não li a planilha de racks', e && e.message); cacheIps.t = Date.now() - 4 * 60000; }
+  return cacheIps.mapa;
+}
+async function zabbixParaNavegador(corpoDO) {
+  const d = JSON.parse(corpoDO); if (!d.zabbix) return d;
+  const ips = await mapaDeIps();
+  d.zabbix.problemas = d.zabbix.problemas.map(p => { const hit = ips.get(p.ip) || {}; const { ip, ...resto } = p; return { ...resto, rack: p.rack || hit.rack || '', equip: hit.equip || '' }; });
+  return d;
 }
 
 export default {
@@ -61,6 +79,23 @@ export default {
       const obj = env.SENSORES.get(env.SENSORES.idFromName('central'));
       const r = await obj.fetch('https://sensores/', { method: 'GET' });
       return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
+    }
+    // Zabbix do Bruno (SÓ LEITURA no Pulse): a ponte manda o resumo; o mapa lê. Mesmo token da ponte dos sensores.
+    if (alvo.pathname === '/api/zabbix/leitura' && request.method === 'POST') {
+      const esperado = env.SENSOR_TOKEN ? 'Bearer ' + env.SENSOR_TOKEN : '';
+      if (!esperado || !igual(request.headers.get('authorization') || '', esperado)) return comCabecalhos(Response.json({ error: 'Não autorizado' }, { status: 401 }));
+      const corpo = await request.text();
+      if (corpo.length > 400000) return comCabecalhos(Response.json({ error: 'Grande demais' }, { status: 413 }));
+      const obj = env.SENSORES.get(env.SENSORES.idFromName('central'));
+      const r = await obj.fetch('https://sensores/zabbix', { method: 'POST', body: corpo });
+      return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
+    }
+    if (alvo.pathname === '/api/zabbix' && request.method === 'GET') {
+      if (!sessaoDoCookie(request.headers.get('cookie') || '')) return comCabecalhos(Response.json({ error: 'Não autenticado' }, { status: 401 }));
+      const obj = env.SENSORES.get(env.SENSORES.idFromName('central'));
+      const r = await obj.fetch('https://sensores/zabbix', { method: 'GET' });
+      const d = await zabbixParaNavegador(await r.text());
+      return comCabecalhos(new Response(JSON.stringify(d), { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
     }
     const resp = await despachar(request);
     if (resp) return comCabecalhos(resp);

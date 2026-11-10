@@ -19,8 +19,8 @@ const texto = (v, max) => String(v || '').replace(/[<>]/g, '').slice(0, max);
 
 export class Sensores {
   constructor(state, env) {
-    this.state = state; this.env = env || {}; this.dados = {}; this.ctl = {};
-    this.pronto = state.blockConcurrencyWhile(async () => { this.dados = (await state.storage.get('dados')) || {}; this.ctl = (await state.storage.get('ctl')) || {}; });
+    this.state = state; this.env = env || {}; this.dados = {}; this.ctl = {}; this.zbx = null;
+    this.pronto = state.blockConcurrencyWhile(async () => { this.dados = (await state.storage.get('dados')) || {}; this.ctl = (await state.storage.get('ctl')) || {}; this.zbx = (await state.storage.get('zbx')) || null; });
   }
 
   resumo() {
@@ -65,9 +65,29 @@ export class Sensores {
     finally { clearTimeout(t); }
   }
 
+  // Alertas do Zabbix do CPD (Bruno), SÓ LEITURA: a ponte consulta o Zabbix pela API (métodos *.get) e manda o resumo pra cá.
+  // Nada aqui escreve de volta no Zabbix nem toca a Echo. POST { zabbix:{ versao, hostsTotal, urlBase, problemas:[...] } | { erro } }
+  async zabbix(request, agora) {
+    if (request.method === 'GET') return Response.json({ agora, zabbix: this.zbx });
+    if (request.method !== 'POST') return Response.json({ error: 'método' }, { status: 405 });
+    let b; try { b = await request.json(); } catch { return Response.json({ error: 'json' }, { status: 400 }); }
+    const z = (b && b.zabbix) || {};
+    const num = (v, mn, mx) => { const n = Number(v); return isFinite(n) ? Math.max(mn, Math.min(mx, n)) : 0; };
+    if (z.erro) { this.zbx = { t: agora, erro: texto(z.erro, 200), versao: texto(z.versao, 20), problemas: [], hostsTotal: 0, urlBase: '' }; }
+    else {
+      const lista = Array.isArray(z.problemas) ? z.problemas.slice(0, 300) : [];
+      this.zbx = { t: agora, erro: '', versao: texto(z.versao, 20), hostsTotal: num(z.hostsTotal, 0, 100000), urlBase: texto(z.urlBase, 120),
+        problemas: lista.map(p => ({ id: texto(p.id, 24), nome: texto(p.nome, 180), sev: num(p.sev, 0, 5), desde: num(p.desde, 0, 4102444800), ack: !!p.ack,
+          host: texto(p.host, 90), ip: texto(p.ip, 45), rack: texto(p.rack, 8).toUpperCase(), link: texto(p.link, 220) })) };
+    }
+    await this.state.storage.put('zbx', this.zbx);
+    return Response.json({ ok: true, problemas: this.zbx.problemas.length });
+  }
+
   async fetch(request) {
     await this.pronto;
     const agora = Date.now();
+    if (new URL(request.url).pathname === '/zabbix') return this.zabbix(request, agora);
     if (request.method === 'GET') return Response.json({ agora, sensores: this.resumo() });
     if (request.method !== 'POST') return Response.json({ error: 'método' }, { status: 405 });
     let b; try { b = await request.json(); } catch { return Response.json({ error: 'json' }, { status: 400 }); }
