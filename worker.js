@@ -4,8 +4,12 @@
 import { criarReqRes } from './cloudflare/adapter.js';
 import { resolverRota, CABECALHOS, CRONS } from './cloudflare/rotas.js';
 import { Presenca } from './cloudflare/presenca.js';
+import { Sensores } from './cloudflare/sensores.js';
 import { sessaoDoCookie } from './lib/routes/mapa.js';
-export { Presenca };
+export { Presenca, Sensores };
+
+// comparação sem vazar, pelo tempo, quantos caracteres batem (token da ponte dos sensores)
+function igual(a, b) { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
 
 function comCabecalhos(resposta) {
   const h = new Headers(resposta.headers);
@@ -39,6 +43,23 @@ export default {
       const h = new Headers({ 'x-pulse-nome': encodeURIComponent(s.nome), 'content-type': 'application/json' });
       const obj = env.PRESENCA.get(env.PRESENCA.idFromName('central'));
       const r = await obj.fetch('https://presenca/', { method: request.method, headers: h, body: request.method === 'POST' ? await request.text() : undefined });
+      return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
+    }
+    // Sensores de temperatura da central (Durable Object, ver cloudflare/sensores.js).
+    // POST /api/sensores/leitura: só a ponte, com o token (SENSOR_TOKEN). GET /api/sensores: só logado.
+    if (alvo.pathname === '/api/sensores/leitura' && request.method === 'POST') {
+      const esperado = env.SENSOR_TOKEN ? 'Bearer ' + env.SENSOR_TOKEN : '';
+      if (!esperado || !igual(request.headers.get('authorization') || '', esperado)) return comCabecalhos(Response.json({ error: 'Não autorizado' }, { status: 401 }));
+      const corpo = await request.text();
+      if (corpo.length > 8000) return comCabecalhos(Response.json({ error: 'Grande demais' }, { status: 413 }));
+      const obj = env.SENSORES.get(env.SENSORES.idFromName('central'));
+      const r = await obj.fetch('https://sensores/', { method: 'POST', body: corpo });
+      return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
+    }
+    if (alvo.pathname === '/api/sensores' && request.method === 'GET') {
+      if (!sessaoDoCookie(request.headers.get('cookie') || '')) return comCabecalhos(Response.json({ error: 'Não autenticado' }, { status: 401 }));
+      const obj = env.SENSORES.get(env.SENSORES.idFromName('central'));
+      const r = await obj.fetch('https://sensores/', { method: 'GET' });
       return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
     }
     const resp = await despachar(request);

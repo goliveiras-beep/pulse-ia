@@ -22,9 +22,17 @@ run_worker_first = true
 name = "PRESENCA"
 class_name = "Presenca"
 
+[[durable_objects.bindings]]
+name = "SENSORES"
+class_name = "Sensores"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Presenca"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Sensores"]
 
 [vars]
 PULSE_BASE_URL = "https://pulse.livemode.ai"
