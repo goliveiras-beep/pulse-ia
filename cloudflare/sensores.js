@@ -73,10 +73,12 @@ export class Sensores {
     let b; try { b = await request.json(); } catch { return Response.json({ error: 'json' }, { status: 400 }); }
     const z = (b && b.zabbix) || {};
     const num = (v, mn, mx) => { const n = Number(v); return isFinite(n) ? Math.max(mn, Math.min(mx, n)) : 0; };
-    if (z.erro) { this.zbx = { t: agora, erro: texto(z.erro, 200), versao: texto(z.versao, 20), problemas: [], hostsTotal: 0, urlBase: '' }; }
+    if (z.erro) { this.zbx = { t: agora, erro: texto(z.erro, 200), versao: texto(z.versao, 20), problemas: [], hostsTotal: 0, urlBase: '', totais: null }; }
     else {
       const lista = Array.isArray(z.problemas) ? z.problemas.slice(0, 300) : [];
+      const tt = z.totais && typeof z.totais === 'object' ? z.totais : null;
       this.zbx = { t: agora, erro: '', versao: texto(z.versao, 20), hostsTotal: num(z.hostsTotal, 0, 100000), urlBase: texto(z.urlBase, 120),
+        totais: tt ? { total: num(tt.total, 0, 100000), ok: num(tt.ok, 0, 100000), alerta: num(tt.alerta, 0, 100000), critico: num(tt.critico, 0, 100000), offline: num(tt.offline, 0, 100000) } : null,
         problemas: lista.map(p => ({ id: texto(p.id, 24), nome: texto(p.nome, 180), sev: num(p.sev, 0, 5), desde: num(p.desde, 0, 4102444800), ack: !!p.ack,
           host: texto(p.host, 90), ip: texto(p.ip, 45), rack: texto(p.rack, 8).toUpperCase(), link: texto(p.link, 220) })) };
     }
