@@ -17,6 +17,15 @@ directory = ".cf-assets"
 binding = "ASSETS"
 run_worker_first = true
 
+# Mapa 3D: presença de quem está passeando + "olha isso" (cloudflare/presenca.js). SQLite = disponível no plano grátis.
+[[durable_objects.bindings]]
+name = "PRESENCA"
+class_name = "Presenca"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Presenca"]
+
 [vars]
 PULSE_BASE_URL = "https://pulse.livemode.ai"
 

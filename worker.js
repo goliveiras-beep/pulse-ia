@@ -3,6 +3,9 @@
 // scripts/cf-assets.mjs). Os crons do vercel.json viram Cron Triggers (wrangler.toml).
 import { criarReqRes } from './cloudflare/adapter.js';
 import { resolverRota, CABECALHOS, CRONS } from './cloudflare/rotas.js';
+import { Presenca } from './cloudflare/presenca.js';
+import { sessaoDoCookie } from './lib/routes/mapa.js';
+export { Presenca };
 
 function comCabecalhos(resposta) {
   const h = new Headers(resposta.headers);
@@ -29,6 +32,15 @@ export default {
     // Endereço do workers.dev: existe só pra skill da Alexa. Qualquer outra rota nele é 404 (o Pulse de verdade fica em pulse.livemode.ai).
     const alvo = new URL(request.url);
     if (alvo.hostname.endsWith('.workers.dev') && alvo.pathname !== '/api/alexa') return new Response('Não encontrado', { status: 404 });
+    // Mapa 3D: quem está passeando agora / "olha isso" (Durable Object, ver cloudflare/presenca.js). Só logado.
+    if (alvo.pathname === '/api/presenca') {
+      const s = sessaoDoCookie(request.headers.get('cookie') || '');
+      if (!s) return comCabecalhos(Response.json({ error: 'Não autenticado' }, { status: 401 }));
+      const h = new Headers({ 'x-pulse-nome': encodeURIComponent(s.nome), 'content-type': 'application/json' });
+      const obj = env.PRESENCA.get(env.PRESENCA.idFromName('central'));
+      const r = await obj.fetch('https://presenca/', { method: request.method, headers: h, body: request.method === 'POST' ? await request.text() : undefined });
+      return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
+    }
     const resp = await despachar(request);
     if (resp) return comCabecalhos(resp);
     if (new URL(request.url).pathname.startsWith('/api/')) {
