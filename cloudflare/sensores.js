@@ -8,12 +8,19 @@
 //   GET  /api/sensores          (só logado)  → { agora, sensores:{ id:{ id, nome, t, temp, umid, co2, tvoc, hist:[temp...] } } }
 const RANGOS = { temp: [-40, 120], umid: [0, 100], co2: [0, 20000], tvoc: [0, 20000] };
 const HIST_MAX = 360;   // ~1 h a cada 10 s
+// Alerta de temperatura (Guilherme, 2026-11-10): passou de 24 °C → toca um efeito sonoro e fala na Echo da central (Voice Monkey).
+// Pra não gastar o plano grátis (200 avisos/mês): avisa UMA vez quando cruza; só avisa de novo se continuar quente depois de
+// 30 min, ou se esfriar (abaixo de 23,5) e voltar a passar. No máximo 1 aviso a cada 5 min e 100 por mês, somando todos os sensores.
+const LIMITE_ALERTA = 24, LIMITE_REARMA = 23.5, REPETE_MS = 30 * 60000, ENTRE_AVISOS_MS = 5 * 60000, MAX_POR_MES = 100;
+const FALADOS = { 'nextcon-1': 'Sensor 1', 'nextcon-2': 'Sensor 2', 'nextcon-3': 'Sensor 3' };
+const CHIME_PADRAO = 'soundbank://soundlibrary/alarms/air_horns/air_horn_01';
+const falaNum = n => n.toFixed(1).replace('.', ',');
 const texto = (v, max) => String(v || '').replace(/[<>]/g, '').slice(0, max);
 
 export class Sensores {
-  constructor(state) {
-    this.state = state; this.dados = {};
-    this.pronto = state.blockConcurrencyWhile(async () => { this.dados = (await state.storage.get('dados')) || {}; });
+  constructor(state, env) {
+    this.state = state; this.env = env || {}; this.dados = {}; this.ctl = {};
+    this.pronto = state.blockConcurrencyWhile(async () => { this.dados = (await state.storage.get('dados')) || {}; this.ctl = (await state.storage.get('ctl')) || {}; });
   }
 
   resumo() {
@@ -25,6 +32,39 @@ export class Sensores {
     return out;
   }
 
+  // Decide se é hora de avisar (cruzou 24 °C, ou continua quente há 30 min) e manda a Echo falar. Nunca derruba a gravação das leituras.
+  async verificarAlertas(agora, ids) {
+    const quentes = [];
+    for (const id of ids) {
+      const s = this.dados[id], temp = s && s.ult && s.ult.temp;
+      if (temp == null) continue;
+      const c = s.alerta || (s.alerta = { ativo: false, ultimo: 0 });
+      if (temp <= LIMITE_REARMA) { c.ativo = false; continue; }
+      if (temp < LIMITE_ALERTA) continue;
+      if (!c.ativo || agora - c.ultimo >= REPETE_MS) quentes.push({ id, temp, c });
+    }
+    if (!quentes.length) return;
+    const mes = new Date(agora).toISOString().slice(0, 7), ctl = this.ctl;
+    if (ctl.mes !== mes) { ctl.mes = mes; ctl.avisos = 0; }
+    if (agora - (ctl.ultimo || 0) < ENTRE_AVISOS_MS || ctl.avisos >= MAX_POR_MES) return;
+    if (agora - (ctl.tentou || 0) < 60000) return;   // se o Voice Monkey estiver fora do ar, não martela a cada leitura
+    ctl.tentou = agora;
+    const e = this.env;
+    if (!e.VOICEMONKEY_TOKEN || !e.VOICEMONKEY_DEVICE) return;
+    const fala = 'Atenção. Temperatura alta no CPD. ' + quentes.map(q => (FALADOS[q.id] || this.dados[q.id].nome || q.id) + ' com ' + falaNum(q.temp) + ' graus').join('. ') + '.';
+    const corpo = { token: e.VOICEMONKEY_TOKEN, device: e.VOICEMONKEY_DEVICE, speech: fala, chime: e.VOICEMONKEY_CHIME_TEMP || CHIME_PADRAO, voice: 'Ricardo' };
+    if (e.VOICEMONKEY_LANGUAGE) corpo.language = e.VOICEMONKEY_LANGUAGE;
+    const ctlAb = new AbortController(), t = setTimeout(() => ctlAb.abort(), 6000);
+    try {
+      const r = await fetch('https://api-v3.voicemonkey.io/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo), signal: ctlAb.signal });
+      if (!r.ok) { console.error('sensores: Voice Monkey respondeu', r.status); return; }
+      for (const q of quentes) { q.c.ativo = true; q.c.ultimo = agora; }
+      ctl.ultimo = agora; ctl.avisos = (ctl.avisos || 0) + 1;
+      await this.state.storage.put('ctl', ctl);
+    } catch (err) { console.error('sensores: falha ao avisar a Echo', err && err.message); }
+    finally { clearTimeout(t); }
+  }
+
   async fetch(request) {
     await this.pronto;
     const agora = Date.now();
@@ -32,7 +72,7 @@ export class Sensores {
     if (request.method !== 'POST') return Response.json({ error: 'método' }, { status: 405 });
     let b; try { b = await request.json(); } catch { return Response.json({ error: 'json' }, { status: 400 }); }
     const lista = Array.isArray(b.leituras) ? b.leituras.slice(0, 20) : [];
-    let gravou = 0;
+    let gravou = 0; const tocados = [];
     for (const l of lista) {
       const id = String((l && l.id) || '').toLowerCase();
       if (!/^[a-z0-9_-]{1,24}$/.test(id)) continue;
@@ -48,9 +88,9 @@ export class Sensores {
       s.ult = v;
       s.hist.push([agora, v.temp == null ? null : v.temp]);
       if (s.hist.length > HIST_MAX) s.hist.splice(0, s.hist.length - HIST_MAX);
-      gravou++;
+      gravou++; tocados.push(id);
     }
-    if (gravou) await this.state.storage.put('dados', this.dados);
+    if (gravou) { await this.verificarAlertas(agora, tocados); await this.state.storage.put('dados', this.dados); }
     return Response.json({ ok: true, gravou });
   }
 }
