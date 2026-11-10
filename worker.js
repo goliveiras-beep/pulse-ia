@@ -90,6 +90,16 @@ export default {
       const r = await obj.fetch('https://sensores/zabbix', { method: 'POST', body: corpo });
       return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
     }
+    // Entrada exclusiva do Bruno (token PAINEL_TOKEN, separado do da ponte): ele manda o estado dos equipamentos no formato do painel dele.
+    if (alvo.pathname === '/api/painel/leitura' && request.method === 'POST') {
+      const esperado = env.PAINEL_TOKEN ? 'Bearer ' + env.PAINEL_TOKEN : '';
+      if (!esperado || !igual(request.headers.get('authorization') || '', esperado)) return comCabecalhos(Response.json({ error: 'Não autorizado' }, { status: 401 }));
+      const corpo = await request.text();
+      if (corpo.length > 400000) return comCabecalhos(Response.json({ error: 'Grande demais' }, { status: 413 }));
+      const obj = env.SENSORES.get(env.SENSORES.idFromName('central'));
+      const r = await obj.fetch('https://sensores/painel', { method: 'POST', body: corpo });
+      return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
+    }
     if (alvo.pathname === '/api/zabbix' && request.method === 'GET') {
       if (!sessaoDoCookie(request.headers.get('cookie') || '')) return comCabecalhos(Response.json({ error: 'Não autenticado' }, { status: 401 }));
       const obj = env.SENSORES.get(env.SENSORES.idFromName('central'));

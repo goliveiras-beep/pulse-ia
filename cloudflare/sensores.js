@@ -86,9 +86,33 @@ export class Sensores {
     return Response.json({ ok: true, problemas: this.zbx.problemas.length });
   }
 
+  // Entrada do Bruno: ele manda do lado dele o estado dos equipamentos NO FORMATO DO PAINEL DELE (rack, nome, status ok/alerta/critico/offline...) e
+  // o Pulse converte: só alerta e crítico viram alerta (igual ao painel); offline entra só na contagem. SÓ LEITURA/EXIBIÇÃO: nada aqui comanda o Zabbix.
+  async painel(request, agora) {
+    if (request.method !== 'POST') return Response.json({ error: 'método' }, { status: 405 });
+    let b; try { b = await request.json(); } catch { return Response.json({ error: 'json inválido' }, { status: 400 }); }
+    const lista = Array.isArray(b && b.equipamentos) ? b.equipamentos : null;
+    if (!lista) return Response.json({ error: 'faltou a lista "equipamentos"' }, { status: 400 });
+    const num = (v, mn, mx) => { const n = Number(v); return isFinite(n) ? Math.max(mn, Math.min(mx, n)) : 0; };
+    const SEV = { alerta: 3, critico: 4 };
+    const rackDe = r => { const m = String(r || '').match(/(\d+)/); return m ? 'R' + String(m[1]).padStart(2, '0') : ''; };
+    const link = /^https?:[/][/]/i.test(String(b.urlPainel || '')) ? texto(b.urlPainel, 200) : '';
+    const problemas = lista.slice(0, 600).filter(e => SEV[String(e && e.status).toLowerCase()] && e.monitorado !== false).slice(0, 300).map(e => {
+      const st = String(e.status).toLowerCase();
+      return { id: texto(rackDe(e.rack) + '|' + e.nome, 24), nome: texto((st === 'critico' ? 'Crítico' : 'Alerta') + (e.motivo ? ': ' + e.motivo : ''), 180), sev: SEV[st],
+        desde: num(e.desde, 0, 4102444800) || Math.floor(agora / 1000), ack: false, host: texto(e.nome, 90), ip: '', rack: rackDe(e.rack), link };
+    });
+    const T = b.totais && typeof b.totais === 'object' ? b.totais : null;
+    this.zbx = { t: agora, erro: '', versao: 'painel', hostsTotal: num(T && T.total, 0, 100000) || lista.length, urlBase: '',
+      totais: T ? { total: num(T.total, 0, 100000), ok: num(T.ok, 0, 100000), alerta: num(T.alerta, 0, 100000), critico: num(T.critico, 0, 100000), offline: num(T.offline, 0, 100000) } : null, problemas };
+    await this.state.storage.put('zbx', this.zbx);
+    return Response.json({ ok: true, recebidos: lista.length, alertas: problemas.length });
+  }
+
   async fetch(request) {
     await this.pronto;
     const agora = Date.now();
+    if (new URL(request.url).pathname === '/painel') return this.painel(request, agora);
     if (new URL(request.url).pathname === '/zabbix') return this.zabbix(request, agora);
     if (request.method === 'GET') return Response.json({ agora, sensores: this.resumo() });
     if (request.method !== 'POST') return Response.json({ error: 'método' }, { status: 405 });
