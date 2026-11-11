@@ -37,7 +37,7 @@ export class Presenca {
       this.olha = { id: agora, de: nome, x, z, yaw: num(m.yaw, -100, 100) || 0, pitch: num(m.pitch, -2, 2) || 0, rotulo: texto(m.rotulo, 80), t: agora };
       return Response.json(this.lista(agora));
     }
-    const x = num(b.x, -50, 100), z = num(b.z, -50, 100);
+    const x = num(b.x, -1000, 1000), z = num(b.z, -1000, 1000);
     if (x == null || z == null) return Response.json({ error: 'posição' }, { status: 400 });
     // avatar: só repassa o que parecer o objeto de escolhas do mapa (cores #hex e palavras curtas); o mapa valida de novo
     let avatar = null;
@@ -45,7 +45,7 @@ export class Presenca {
       avatar = {};
       for (const k of ['pele', 'roupa', 'cabelo', 'corCabelo', 'acessorio']) avatar[k] = texto(b.avatar[k], 12);
     }
-    this.pessoas.set(nome, { nome, x, z, yaw: num(b.yaw, -100, 100) || 0, avatar, t: agora });
+    this.pessoas.set(nome, { nome, x, z, yaw: num(b.yaw, -100, 100) || 0, rua: b.rua ? 1 : 0, avatar, t: agora });
     return Response.json(this.lista(agora));
   }
 }
