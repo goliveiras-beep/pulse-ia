@@ -371,7 +371,10 @@ export default async function handler(req, res) {
 
   const dfRepresentativo = datas.length ? (datas.includes(fmtData(hoje)) ? fmtData(hoje) : datas[0]) : fmtData(hoje);
 
-  const nomes = equipeRaw.filter(r => r[0]).map(r => r[0]);
+  // Só quem está aprovado (coluna K, índice 10 = Status Aprovação; vazio conta como ativo, mesmo critério do
+  // banco-horas.js) e cada nome uma vez só — o auto-cadastro pelo login com Google cria uma linha "pendente"
+  // que antes aparecia como uma segunda linha da mesma pessoa na escala.
+  const nomes = [...new Set(equipeRaw.filter(r => r[0] && (r[10] || 'ativo').toLowerCase() === 'ativo').map(r => r[0]))];
   // Nome repetido na Equipe (acontece: cadastro duplicado) — fica o tipo que estiver preenchido.
   const tiposPorNome = {};
   equipeRaw.forEach(r => { if (r[0] && (r[12] || !(r[0] in tiposPorNome))) tiposPorNome[r[0]] = r[12] || ''; });
