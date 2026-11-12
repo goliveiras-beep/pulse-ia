@@ -290,7 +290,7 @@ export default async function handler(req, res) {
   // Ausências (range busca 9 col, mas só 0-5 são usados): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
   // Disponibilidade (5 col, criada em api/equipe-view.js): 0=nome, 1=dia da semana, 2=hora início, 3=hora fim, 4=motivo
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw, disponibilidadeRaw] = await Promise.all([
-    getSheet('Equipe!A2:I50'),
+    getSheet('Equipe!A2:M50'), // até a coluna M (12=tipoContrato) — usado pelas regras de jornada
     getSheet('Escala!A2:F2000'),
     getSheet('Ausências!A2:I500'),
     getSheet('PulseConfig!A2:B20'),
@@ -372,7 +372,8 @@ export default async function handler(req, res) {
   const dfRepresentativo = datas.length ? (datas.includes(fmtData(hoje)) ? fmtData(hoje) : datas[0]) : fmtData(hoje);
 
   const nomes = equipeRaw.filter(r => r[0]).map(r => r[0]);
-  const analise = analisarEscala(escalaRaw, ausenciasRaw, nomes, datas);
+  const tiposPorNome = Object.fromEntries(equipeRaw.filter(r => r[0]).map(r => [r[0], r[12] || '']));
+  const analise = analisarEscala(escalaRaw, ausenciasRaw, nomes, datas, tiposPorNome);
 
   // Cruza com Disponibilidade (ex: horário de faculdade) — feito aqui em vez de dentro do motor
   // compartilhado (lib/escalas-engine.js) pra não mudar a assinatura usada por app.js/banco-horas.js/
@@ -625,8 +626,8 @@ a{text-decoration:none}
 <div style="max-width:1200px;margin:0 auto;padding:16px 20px">
 ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Periodo</div><div style="font-size:18px;font-weight:700">${datas.length} dia${datas.length>1?'s':''}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${nomes.length} colaboradores</div></div>
-    <div style="background:${totalPerigo>0?'#fef2f2':'var(--card)'};border:1px solid ${totalPerigo>0?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Alertas criticos</div><div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':'var(--text)'}">${totalPerigo}</div><div style="font-size:10px;color:#aaa;margin-top:2px">interjornada, consecutivos</div></div>
-    <div style="background:${totalAtencao>0?'#fffbeb':'var(--card)'};border:1px solid ${totalAtencao>0?'#fcd34d':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Atencoes</div><div style="font-size:24px;font-weight:700;color:${totalAtencao>0?'#d97706':'var(--text)'}">${totalAtencao}</div><div style="font-size:10px;color:#aaa;margin-top:2px">descanso, 6 dia</div></div>
+    <div style="background:${totalPerigo>0?'#fef2f2':'var(--card)'};border:1px solid ${totalPerigo>0?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Alertas criticos</div><div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':'var(--text)'}">${totalPerigo}</div><div style="font-size:10px;color:#aaa;margin-top:2px">HEI, interjornada, 5x2, 6 dias</div></div>
+    <div style="background:${totalAtencao>0?'#fffbeb':'var(--card)'};border:1px solid ${totalAtencao>0?'#fcd34d':'var(--border)'};border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Atencoes</div><div style="font-size:24px;font-weight:700;color:${totalAtencao>0?'#d97706':'var(--text)'}">${totalAtencao}</div><div style="font-size:10px;color:#aaa;margin-top:2px">hora extra p/ banco, 6º dia</div></div>
     <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Saude da escala</div><div style="font-size:24px;font-weight:700;color:${totalPerigo>0?'#dc2626':totalAtencao>0?'#d97706':'#16a34a'}">${totalPerigo>0?'Critica':totalAtencao>0?'Atencao':'OK'}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${totalPerigo+totalAtencao} ocorrencia(s)</div></div>
     <div style="background:${horizonteVencido?'#fef2f2':'var(--card)'};border:1px solid ${horizonteVencido?'#fca5a5':'var(--border)'};border-radius:8px;padding:12px 14px" title="Ate quando a equipe consegue ver a escala. Gestores sempre veem tudo.">
       <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Publicado até</div>
