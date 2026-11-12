@@ -145,7 +145,7 @@ export default async function handler(req, res) {
   if (!session) return res.redirect(302, '/api/app');
 
   if (req.method === 'GET' && req.query.debug === '1') {
-    const raw = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/Escala!A2:F2000`);
+    const raw = await sheetsRequest(process.env.GOOGLE_SHEET_ID, `/values/Escala!A2:F10000`);
     const todasLinhas = raw.values || [];
     const { nome: filtroNome, data: filtroData } = req.query;
     if (filtroNome || filtroData) {
@@ -169,7 +169,7 @@ export default async function handler(req, res) {
       const usuario2 = equipeRaw2.find(r=>r[0]===session.nome);
       if (usuario2?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});
 
-      const escalaAtual = await getSheet('Escala!A2:F2000');
+      const escalaAtual = await getSheet('Escala!A2:F10000');
       // Ausências (6 col): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
       const ausenciasRaw = await getSheet('Ausências!A2:F500');
       // Ausências aprovadas: não gerar turno para quem está de férias/atestado no dia
@@ -257,7 +257,7 @@ export default async function handler(req, res) {
     if (usuario2?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});
     const {data, colaborador, ent, sai, tipo} = req.body||{};
     if (!data || !colaborador) return res.status(400).json({error:'Dados inválidos'});
-    const escalaRaw2 = await getSheet('Escala!A2:F2000');
+    const escalaRaw2 = await getSheet('Escala!A2:F10000');
     const idx = escalaRaw2.findIndex(r=>r[0]===data&&r[2]===colaborador);
 
     // Excluir: limpa os campos D, E, F deixando a linha em branco
@@ -291,7 +291,7 @@ export default async function handler(req, res) {
   // Disponibilidade (5 col, criada em api/equipe-view.js): 0=nome, 1=dia da semana, 2=hora início, 3=hora fim, 4=motivo
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw, disponibilidadeRaw] = await Promise.all([
     getSheet('Equipe!A2:M50'), // até a coluna M (12=tipoContrato) — usado pelas regras de jornada
-    getSheet('Escala!A2:F2000'),
+    getSheet('Escala!A2:F10000'),
     getSheet('Ausências!A2:I500'),
     getSheet('PulseConfig!A2:B20'),
     getSheet('Disponibilidade!A2:E500'),

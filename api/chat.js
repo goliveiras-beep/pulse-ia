@@ -351,7 +351,7 @@ Regras:
 // ── ações na escala ──────────────────────────────────────────────────────────
 
 async function gravarTurnos(token, turno) {
-  const rows = await sheetsGet(token, 'Escala!A2:F2000');
+  const rows = await sheetsGet(token, 'Escala!A2:F10000');
   const updates = [], appends = [];
   for (const data of turno.datas) {
     const idx = rows.findIndex(r => r[0] === data && (r[2] || '').trim().toLowerCase() === turno.colaborador.toLowerCase());
@@ -370,7 +370,7 @@ async function gravarTurnos(token, turno) {
 }
 
 async function removerTurnos(token, comando) {
-  const rows = await sheetsGet(token, 'Escala!A2:F2000');
+  const rows = await sheetsGet(token, 'Escala!A2:F10000');
   const updates = [];
   for (const data of comando.datas) {
     rows.forEach((r, idx) => {
@@ -384,7 +384,7 @@ async function removerTurnos(token, comando) {
 }
 
 async function marcarAusencia(token, comando) {
-  const rows = await sheetsGet(token, 'Escala!A2:F2000');
+  const rows = await sheetsGet(token, 'Escala!A2:F10000');
   const updates = [], appends = [];
   for (const data of comando.datas) {
     const idx = rows.findIndex(r => r[0] === data && (r[2] || '').trim().toLowerCase() === comando.colaborador.toLowerCase());
@@ -403,7 +403,7 @@ async function marcarAusencia(token, comando) {
 }
 
 async function trocarColaborador(token, comando) {
-  const rows = await sheetsGet(token, 'Escala!A2:F2000');
+  const rows = await sheetsGet(token, 'Escala!A2:F10000');
   const updates = [];
   for (const data of comando.datas) {
     rows.forEach((r, idx) => {
@@ -417,7 +417,7 @@ async function trocarColaborador(token, comando) {
 }
 
 async function atualizarHorario(token, comando) {
-  const rows = await sheetsGet(token, 'Escala!A2:F2000');
+  const rows = await sheetsGet(token, 'Escala!A2:F10000');
   const updates = [], appends = [];
   for (const data of comando.datas) {
     const idx = rows.findIndex(r => r[0] === data && (r[2] || '').trim().toLowerCase() === comando.colaborador.toLowerCase());
@@ -605,7 +605,7 @@ export default async function handler(req, res) {
     if (comando.action === 'query' || !ACTIONS.includes(comando.action)) {
       // Ausências (6 col, não indexado aqui — repassado cru pro LLM): 0=id/status, 1=nome, 2=tipo, 3=motivo, 4=início DD/MM, 5=fim DD/MM
       const [escalaRows, ausRows] = await Promise.all([
-        sheetsGet(token, 'Escala!A2:F2000'),
+        sheetsGet(token, 'Escala!A2:F10000'),
         sheetsGet(token, 'Ausências!A2:F500'),
       ]);
 

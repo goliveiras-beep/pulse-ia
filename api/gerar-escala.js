@@ -179,7 +179,7 @@ export default async function handler(req, res) {
   // Disponibilidade (5 col, criada em api/equipe-view.js): 0=nome, 1=dia da semana, 2=hora início, 3=hora fim, 4=motivo
   const [equipeRaw, escalaRaw, ausenciasRaw, disponibilidadeRaw] = await Promise.all([
     getSheet('Equipe!A2:M200'),
-    getSheet('Escala!A2:F2000'),
+    getSheet('Escala!A2:F10000'),
     getSheet('Ausências!A2:I500'),
     getSheet('Disponibilidade!A2:E500'),
   ]);
@@ -532,7 +532,7 @@ Identifique cada pessoa pelo ID numérico da lista acima, NUNCA pelo nome. Respo
 
   if (req.method === 'POST' && req.query.action === 'quick') {
     try {
-      const escalaAtual = await getSheet('Escala!A2:F2000');
+      const escalaAtual = await getSheet('Escala!A2:F10000');
       const escalaNormQ = escalaAtual.map(r => [normalizarDf(r[0]||''), r[1]||'', r[2]||'', r[3]||'', r[4]||'', r[5]||'']);
       const existingQ = new Set(escalaNormQ.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
       // Detecta turno de cada ativo
@@ -569,7 +569,7 @@ Identifique cada pessoa pelo ID numérico da lista acima, NUNCA pelo nome. Respo
   if (req.method === 'POST') {
     try {
       // Revalida contra a planilha mais recente no momento da gravação, para garantir que nada seja sobrescrito
-      const escalaAtual = await getSheet('Escala!A2:F2000');
+      const escalaAtual = await getSheet('Escala!A2:F10000');
       const existingKeysAgora = new Set(escalaAtual.filter(r=>r[0]&&r[2]).map(r=>`${r[0]}|${r[2]}`));
       const body = req.body||{};
       // Força a regra de rotação de FDS a sobrescrever linha já existente das 9 pessoas da rotação —

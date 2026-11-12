@@ -517,7 +517,7 @@ export default async function handler(req, res) {
     if (usuarioCheck?.[8] !== 'gestor') return res.status(403).json({ error: 'Acesso negado' });
     const { acao, data, colaborador, entrada, saida, obs } = req.body || {};
     if (!data || !colaborador) return res.status(400).json({ error: 'Dados inválidos' });
-    const escalaRaw2 = await getSheet('Escala!A2:F2000');
+    const escalaRaw2 = await getSheet('Escala!A2:F10000');
     const idx = escalaRaw2.findIndex(r => r[0] === data && r[2] === colaborador);
     let entVal = entrada || '', saiVal = saida || '', obsVal = obs || '';
     if (acao === 'folga') { entVal = ''; saiVal = ''; obsVal = 'Folga'; }
@@ -572,7 +572,7 @@ export default async function handler(req, res) {
       if (colegaNome !== nome) return res.status(403).json({ error: 'Essa troca não é destinada a você' });
       const requester = row[1];
       const meuDiaRequester = row[4];
-      const escalaRaw = await getSheet('Escala!A2:F2000');
+      const escalaRaw = await getSheet('Escala!A2:F10000');
       const idxReq = escalaRaw.findIndex(r => r[0] === meuDiaRequester && r[2] === requester);
       const idxColega = escalaRaw.findIndex(r => r[0] === colegaDia && r[2] === nome);
       if (idxReq < 0 || idxColega < 0) return res.status(400).json({ error: 'Não encontrei o turno de um dos dois dias na escala — confira com o gestor.' });
@@ -665,7 +665,7 @@ export default async function handler(req, res) {
 
   const [equipeRaw, escalaRaw, ausenciasRaw, configRaw, ajustesRaw] = await Promise.all([
     getSheetCache('Equipe!A2:N200'),
-    getSheetCache('Escala!A2:F2000'),
+    getSheetCache('Escala!A2:F10000'),
     getSheetCache('Ausências!A2:I500'),
     getSheetCache('PulseConfig!A2:B20'),
     getSheetCache('Ajustes!A2:G500'),
