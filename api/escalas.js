@@ -372,7 +372,9 @@ export default async function handler(req, res) {
   const dfRepresentativo = datas.length ? (datas.includes(fmtData(hoje)) ? fmtData(hoje) : datas[0]) : fmtData(hoje);
 
   const nomes = equipeRaw.filter(r => r[0]).map(r => r[0]);
-  const tiposPorNome = Object.fromEntries(equipeRaw.filter(r => r[0]).map(r => [r[0], r[12] || '']));
+  // Nome repetido na Equipe (acontece: cadastro duplicado) — fica o tipo que estiver preenchido.
+  const tiposPorNome = {};
+  equipeRaw.forEach(r => { if (r[0] && (r[12] || !(r[0] in tiposPorNome))) tiposPorNome[r[0]] = r[12] || ''; });
   const analise = analisarEscala(escalaRaw, ausenciasRaw, nomes, datas, tiposPorNome);
 
   // Cruza com Disponibilidade (ex: horário de faculdade) — feito aqui em vez de dentro do motor
