@@ -48,6 +48,7 @@
     { "source": "/api/capacidade", "destination": "/api/gestao-bundle?_route=capacidade" },
 
     { "source": "/api/ausencias", "destination": "/api/extras-bundle?_route=ausencias" },
+    { "source": "/api/push", "destination": "/api/extras-bundle?_route=push" },
     { "source": "/api/repositorio", "destination": "/api/extras-bundle?_route=repositorio" },
     { "source": "/api/meu-turno", "destination": "/api/extras-bundle?_route=meu-turno" },
     { "source": "/api/import-escala", "destination": "/api/extras-bundle?_route=import-escala" },

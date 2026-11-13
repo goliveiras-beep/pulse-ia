@@ -35,6 +35,7 @@ tag = "v2"
 new_sqlite_classes = ["Sensores"]
 
 [vars]
+VAPID_PUBLIC = "BF2XSjERXXIRu975JM3pOHf8bvKbYgDyba3rDgjE38rTuARRVNSYyOpHIhULZ5d-f4f8hFLt-2zRWP-Ixdo09KU"
 PULSE_BASE_URL = "https://pulse.livemode.ai"
 
 # Mesmos horários de cloudflare/crons.json (UTC) — a Vercel não roda mais crons.

@@ -4,6 +4,8 @@ import { sheetsRequest, garantirLinhasSheet } from '../lib/google-auth.js';
 import { menuItens } from '../lib/menu.js';
 import { analisarEscala, duracaoTurno } from '../lib/escalas-engine.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
+import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
+import { notificarMudancaEscala } from '../lib/notificacoes.js';
 import { createHash, timingSafeEqual } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -261,9 +263,13 @@ export default async function handler(req, res) {
     const idx = escalaRaw2.findIndex(r=>r[0]===data&&r[2]===colaborador);
 
     // Excluir: limpa os campos D, E, F deixando a linha em branco
+    const antesEsc = idx >= 0 ? { ent: escalaRaw2[idx][3], sai: escalaRaw2[idx][4], obs: escalaRaw2[idx][5] } : null;
     if (tipo === 'excluir') {
       if (idx >= 0) {
         await setSheet(`Escala!A${idx+2}:F${idx+2}`, [['','','','','','']]);
+        // Agenda do Google + aviso no celular (só de dia já publicado). Falha aqui não desfaz a edição.
+        await sincronizarUmaPessoa(colaborador);
+        await notificarMudancaEscala({ colaborador, datas: [data], antes: antesEsc, depois: { removido: true }, por: session.nome });
       }
       return res.status(200).json({ok:true});
     }
@@ -283,6 +289,8 @@ export default async function handler(req, res) {
     } catch (e) {
       return res.status(500).json({ error: e.message });
     }
+    await sincronizarUmaPessoa(colaborador);
+    await notificarMudancaEscala({ colaborador, datas: [data], antes: antesEsc, depois: { ent: entVal, sai: saiVal, obs }, por: session.nome });
     return res.status(200).json({ok:true});
   }
 

@@ -6,6 +6,7 @@ import { sheetsRequest, garantirLinhasSheet } from '../lib/google-auth.js';
 import { menuItens } from '../lib/menu.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
+import { notificarMudancaEscala } from '../lib/notificacoes.js';
 import { createHash, timingSafeEqual } from 'crypto';
 
 const AIRTABLE_BASE = 'appqPBoDUYfX2edOp';
@@ -521,9 +522,11 @@ export default async function handler(req, res) {
     const idx = escalaRaw2.findIndex(r => r[0] === data && r[2] === colaborador);
     let entVal = entrada || '', saiVal = saida || '', obsVal = obs || '';
     if (acao === 'folga') { entVal = ''; saiVal = ''; obsVal = 'Folga'; }
+    const antesAj = idx >= 0 ? { ent: escalaRaw2[idx][3], sai: escalaRaw2[idx][4], obs: escalaRaw2[idx][5] } : null;
     if (acao === 'remover') {
       if (idx >= 0) await setSheet(`Escala!D${idx + 2}:F${idx + 2}`, [['', '', '']]);
       await sincronizarUmaPessoa(colaborador);
+      if (idx >= 0) await notificarMudancaEscala({ colaborador, datas: [data], antes: antesAj, depois: { removido: true }, por: nome });
       return res.status(200).json({ ok: true });
     }
     if (idx >= 0) {
@@ -534,6 +537,7 @@ export default async function handler(req, res) {
     // Reflete a mudança na Agenda do Google da pessoa na hora — sem isso, ela só apareceria
     // atualizada no próximo "Sincronizar agenda" manual ou na próxima publicação de horizonte.
     await sincronizarUmaPessoa(colaborador);
+    await notificarMudancaEscala({ colaborador, datas: [data], antes: antesAj, depois: { ent: entVal, sai: saiVal, obs: obsVal }, por: nome });
     return res.status(200).json({ ok: true });
   }
 
@@ -608,6 +612,8 @@ export default async function handler(req, res) {
       const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
       await appendSheet('Ajustes!A:G', [[agora, `${requester} ↔ ${colegaNome}`, `${meuDiaRequester}, ${colegaDia}`, '', '', 'Troca de horário aceita', 'Solicitações']]);
       await Promise.all([sincronizarUmaPessoa(requester), sincronizarUmaPessoa(colegaNome)]);
+      await notificarMudancaEscala({ colaborador: requester, datas: [meuDiaRequester, colegaDia], texto: 'troca de horário com ' + String(colegaNome).split(' ')[0] + ' aceita' });
+      await notificarMudancaEscala({ colaborador: colegaNome, datas: [meuDiaRequester, colegaDia], texto: 'troca de horário com ' + String(requester).split(' ')[0] + ' aceita' });
       return res.status(200).json({ ok: true });
     } catch(err) {
       return res.status(500).json({ error: String(err.message || err) });

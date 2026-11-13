@@ -1,5 +1,6 @@
 import { createHash, createSign, timingSafeEqual } from 'crypto';
 import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
+import { notificarMudancaEscala } from '../lib/notificacoes.js';
 import { garantirLinhasSheet, invalidarCacheSheets } from '../lib/google-auth.js';
 
 // ── helpers de sessão ────────────────────────────────────────────────────────
@@ -493,7 +494,25 @@ function validarUpdateShift(comando, equipeRows) {
   return { colaborador, entrada, saida, datas, missing };
 }
 
-async function executarAcaoPendente(token, action) {
+// Aviso no celular depois de uma ação confirmada no chat (só dias publicados; um aviso por ação). Nunca derruba a ação.
+async function avisarAcaoChat(a, r, por) {
+  if (!r || r.status !== 'success') return;
+  const datas = Array.isArray(a.datas) ? a.datas : [];
+  if (a.action === 'add_shift' || a.action === 'update_shift') return notificarMudancaEscala({ colaborador: a.colaborador, datas, depois: { ent: a.entrada, sai: a.saida, obs: a.obs }, por });
+  if (a.action === 'remove_shift') return notificarMudancaEscala({ colaborador: a.colaborador, datas, depois: { removido: true }, por });
+  const aus = { set_dayoff: 'Folga', set_vacation: 'Férias', set_medical_leave: 'Dispensa médica' }[a.action];
+  if (aus) return notificarMudancaEscala({ colaborador: a.colaborador, datas, depois: { ent: '', sai: '', obs: aus }, por });
+  if (a.action === 'swap_employee') {
+    await notificarMudancaEscala({ colaborador: a.fromColaborador, datas, texto: 'seu turno foi passado para ' + String(a.toColaborador || '').split(' ')[0], por });
+    return notificarMudancaEscala({ colaborador: a.toColaborador, datas, texto: 'você assumiu o turno de ' + String(a.fromColaborador || '').split(' ')[0], por });
+  }
+}
+async function executarAcaoPendente(token, action, por) {
+  const r = await executarAcaoPendenteBase(token, action);
+  try { await avisarAcaoChat(action, r, por); } catch (e) { console.error('aviso do chat falhou', e && e.message); }
+  return r;
+}
+async function executarAcaoPendenteBase(token, action) {
   // Depois de qualquer ação que altere a Escala/Ausências de alguém, sincroniza a Agenda do
   // Google dela na hora — sem isso, só atualizaria no próximo "Sincronizar agenda" manual.
   if (action.action === 'add_shift') { const qtd = await gravarTurnos(token, { colaborador: action.colaborador, entrada: action.entrada, saida: action.saida, datas: action.datas, obs: action.obs||'Ajustado IA' }); await sincronizarUmaPessoa(action.colaborador); return { action: 'add_shift', status: 'success', colaborador: action.colaborador, entrada: action.entrada, saida: action.saida, datas: action.datas, linhasGravadas: qtd }; }
@@ -537,7 +556,7 @@ export default async function handler(req, res) {
         clearPendingAction(res);
         return res.status(200).json({ resposta: '⛔ Só gestores podem confirmar alterações de escala/ausência. Peça pra um gestor fazer essa mudança.', acaoRealizada: { action: 'access_denied', status: 'forbidden' } });
       }
-      const resultado = await executarAcaoPendente(token, pending.action);
+      const resultado = await executarAcaoPendente(token, pending.action, session && session.nome);
       clearPendingAction(res);
       return res.status(200).json({ resposta: montarRespostaFinal(resultado), acaoRealizada: resultado });
     }
