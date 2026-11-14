@@ -18,6 +18,9 @@ self.addEventListener('push', function (e) {
         body: n.corpo || '', tag: n.id, icon: '/icone-play-store-512.png', badge: '/icone-play-store-512.png', data: { url: n.url || '/api/app' }
       });
     }
+    // Se o Pulse estiver aberto em alguma aba, avisa pra ela se atualizar sozinha (o turno mudou).
+    var abas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    abas.forEach(function (c) { c.postMessage({ tipo: 'escala-mudou' }); });
   })());
 });
 
