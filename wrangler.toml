@@ -35,6 +35,7 @@ tag = "v2"
 new_sqlite_classes = ["Sensores"]
 
 [vars]
+ALTO_FALANTE_ATIVO = "nao"   # página do som (alto-falante da central) desligada: só a Echo recebe os avisos; trocar por "sim" religa
 VOICEMONKEY_ATIVO = "sim"   # Echo (Voice Monkey) fala junto com o alto-falante da central; trocar por "nao" desliga so a Echo
 VAPID_PUBLIC = "BF2XSjERXXIRu975JM3pOHf8bvKbYgDyba3rDgjE38rTuARRVNSYyOpHIhULZ5d-f4f8hFLt-2zRWP-Ixdo09KU"
 PULSE_BASE_URL = "https://pulse.livemode.ai"

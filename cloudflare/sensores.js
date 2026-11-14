@@ -52,7 +52,7 @@ export class Sensores {
     const e = this.env;
     const fala = 'Atenção. Temperatura alta no CPD. ' + quentes.map(q => (FALADOS[q.id] || this.dados[q.id].nome || q.id) + ' com ' + falaNum(q.temp) + ' graus').join('. ') + '.';
     let entregue = false;
-    try {
+    if (String(e.ALTO_FALANTE_ATIVO || 'sim') !== 'nao') try {
       const fila = e.PRESENCA.get(e.PRESENCA.idFromName('central'));
       const rf = await fila.fetch('https://presenca/fila', { method: 'POST', body: JSON.stringify({ tipo: 'alarme', texto: fala, de: 'Sensores' }) });
       entregue = rf.ok;
