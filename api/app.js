@@ -62,8 +62,11 @@ async function getSheet(range) {
   catch { return []; }
 }
 // Igual a getSheet, mas pode servir de um cache de ~15s (só renderização de página; nunca antes de gravar).
+// FRESCO: a página foi recarregada por causa de um aviso de mudança de escala (?fresh=1) — lê direto da planilha. O cache de 15s é por
+// datacenter da Cloudflare: a gravação invalida o cache só onde aconteceu, e quem abre a página em outro ainda veria o turno antigo.
+let FRESCO = false;
 async function getSheetCache(range) {
-  try { const d=await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}`,'GET',null,{cache:true}); return d.values||[]; }
+  try { const d=await sheetsRequest(process.env.GOOGLE_SHEET_ID,`/values/${encodeURIComponent(range)}`,'GET',null,{cache:!FRESCO}); return d.values||[]; }
   catch { return []; }
 }
 async function setSheet(range, values) {
@@ -497,6 +500,7 @@ function cruzarEventos(eventos, escHoje, dataStr, ausencias, equipeAtivos) {
 }
 
 export default async function handler(req, res) {
+  FRESCO = String((req.query || {}).fresh || '') === '1';
   const action = req.query.action || '';
 
   if (req.method === 'POST' && action === 'logout') {
