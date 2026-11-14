@@ -50,8 +50,17 @@ export class Sensores {
     if (agora - (ctl.tentou || 0) < 60000) return;   // se o Voice Monkey estiver fora do ar, não martela a cada leitura
     ctl.tentou = agora;
     const e = this.env;
-    if (!e.VOICEMONKEY_TOKEN || !e.VOICEMONKEY_DEVICE) return;
     const fala = 'Atenção. Temperatura alta no CPD. ' + quentes.map(q => (FALADOS[q.id] || this.dados[q.id].nome || q.id) + ' com ' + falaNum(q.temp) + ' graus').join('. ') + '.';
+    let entregue = false;
+    try {
+      const fila = e.PRESENCA.get(e.PRESENCA.idFromName('central'));
+      const rf = await fila.fetch('https://presenca/fila', { method: 'POST', body: JSON.stringify({ tipo: 'alarme', texto: fala, de: 'Sensores' }) });
+      entregue = rf.ok;
+    } catch (err) { console.error('sensores: falha ao entrar na fila da central', err && err.message); }
+    if (String(e.VOICEMONKEY_ATIVO || '') !== 'sim' || !e.VOICEMONKEY_TOKEN || !e.VOICEMONKEY_DEVICE) {
+      if (entregue) { for (const q of quentes) { q.c.ativo = true; q.c.ultimo = agora; } ctl.ultimo = agora; ctl.avisos = (ctl.avisos || 0) + 1; await this.state.storage.put('ctl', ctl); }
+      return;
+    }
     const corpo = { token: e.VOICEMONKEY_TOKEN, device: e.VOICEMONKEY_DEVICE, speech: fala, chime: e.VOICEMONKEY_CHIME_TEMP || CHIME_PADRAO, voice: 'Ricardo' };
     if (e.VOICEMONKEY_LANGUAGE) corpo.language = e.VOICEMONKEY_LANGUAGE;
     const ctlAb = new AbortController(), t = setTimeout(() => ctlAb.abort(), 6000);

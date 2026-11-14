@@ -6,7 +6,9 @@ import { resolverRota, CABECALHOS, CRONS } from './cloudflare/rotas.js';
 import { Presenca } from './cloudflare/presenca.js';
 import { Sensores } from './cloudflare/sensores.js';
 import { sessaoDoCookie, getRacks } from './lib/routes/mapa.js';
-import { ehGestorAtivo, enviarAudioParaEcho, audioConfigurado } from './lib/routes/avisar-central.js';
+import { ehGestorAtivo, enviarAudioParaEcho } from './lib/routes/avisar-central.js';
+import { empilharNaCentral, chaveAltoFalante, vmAtivo } from './lib/fila-central.js';
+import { paginaCentralSom } from './lib/central-som-page.js';
 export { Presenca, Sensores };
 
 // comparação sem vazar, pelo tempo, quantos caracteres batem (token da ponte dos sensores)
@@ -52,6 +54,7 @@ async function zabbixParaNavegador(corpoDO) {
 
 export default {
   async fetch(request, env, ctx) {
+    globalThis.PULSE_ENV = env;   // pros handlers de rota (que não recebem env) chegarem aos Durable Objects
     // Endereço do workers.dev: existe só pra skill da Alexa. Qualquer outra rota nele é 404 (o Pulse de verdade fica em pulse.livemode.ai).
     const alvo = new URL(request.url);
     if (alvo.hostname.endsWith('.workers.dev') && alvo.pathname !== '/api/alexa') return new Response('Não encontrado', { status: 404 });
@@ -71,7 +74,6 @@ export default {
       if (!s) return comCabecalhos(Response.json({ error: 'Não autenticado' }, { status: 401 }));
       let gestor = false; try { gestor = await ehGestorAtivo(s.nome); } catch (e) { return comCabecalhos(Response.json({ error: 'Não consegui ler a planilha agora' }, { status: 503 })); }
       if (!gestor) return comCabecalhos(Response.json({ error: 'Só gestor pode avisar a central' }, { status: 403 }));
-      if (!audioConfigurado()) return comCabecalhos(Response.json({ error: 'A Echo da central ainda não foi conectada (Voice Monkey não configurado).' }, { status: 503 }));
       const buf = await request.arrayBuffer();
       const b = new Uint8Array(buf);
       const pareceMp3 = b.length > 1000 && ((b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33) || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0));
@@ -80,8 +82,10 @@ export default {
       const id = crypto.randomUUID().replace(/-/g, '');
       const obj = env.PRESENCA.get(env.PRESENCA.idFromName('central'));
       await obj.fetch('https://presenca/audio/' + id, { method: 'POST', body: buf });
-      try { await enviarAudioParaEcho('https://pulse.livemode.ai/api/falar-audio/' + id + '.mp3'); }
-      catch (e) { console.error('falar-audio:', e && e.message); return comCabecalhos(Response.json({ error: 'A Echo não recebeu o áudio. Tente de novo em instantes.' }, { status: 502 })); }
+      const naFila = await empilharNaCentral({ tipo: 'audio', url: '/api/falar-audio/' + id + '.mp3', de: String(s.nome).split(' ')[0] }, env);
+      let naEcho = false;
+      if (vmAtivo()) { try { await enviarAudioParaEcho('https://pulse.livemode.ai/api/falar-audio/' + id + '.mp3'); naEcho = true; } catch (e) { console.error('falar-audio (Echo):', e && e.message); } }
+      if (!naFila && !naEcho) return comCabecalhos(Response.json({ error: 'Não consegui entregar o áudio. Tente de novo em instantes.' }, { status: 502 }));
       console.log('falar-audio: enviado por', s.nome, b.length, 'bytes');
       return comCabecalhos(Response.json({ ok: true }));
     }
@@ -90,6 +94,14 @@ export default {
       const obj = env.PRESENCA.get(env.PRESENCA.idFromName('central'));
       const r = await obj.fetch('https://presenca/audio/' + ra[1], { method: request.method });
       return comCabecalhos(new Response(r.body, { status: r.status, headers: r.headers }));
+    }
+    // Alto-falante da central: página (abre sem login, protegida pela chave do link) e a fila que ela consulta.
+    if (alvo.pathname === '/api/central-som' || alvo.pathname === '/api/central-som/fila') {
+      if (!igual(alvo.searchParams.get('k') || '', chaveAltoFalante())) return comCabecalhos(new Response('Link inválido.', { status: 403 }));
+      if (alvo.pathname === '/api/central-som') return comCabecalhos(new Response(paginaCentralSom(alvo.searchParams.get('k')), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }));
+      const obj = env.PRESENCA.get(env.PRESENCA.idFromName('central'));
+      const r = await obj.fetch('https://presenca/fila?desde=' + encodeURIComponent(alvo.searchParams.get('desde') || '0'), { method: 'GET' });
+      return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
     }
     // Sensores de temperatura da central (Durable Object, ver cloudflare/sensores.js).
     // POST /api/sensores/leitura: só a ponte, com o token (SENSOR_TOKEN). GET /api/sensores: só logado.

@@ -25,6 +25,23 @@ export class Presenca {
     return { pessoas: [...this.pessoas.values()], olha: this.olha };
   }
 
+  async filaRota(request) {
+    if (!this.fila) { const d = await this.state.storage.get('fila'); this.fila = (d && d.itens) || []; this.proximo = (d && d.proximo) || 1; }
+    const agora = Date.now();
+    if (request.method === 'POST') {
+      let b = {}; try { b = await request.json(); } catch (e) { b = {}; }
+      const tipo = ['texto', 'alarme', 'audio'].includes(b.tipo) ? b.tipo : 'texto';
+      const item = { id: this.proximo++, t: agora, tipo, texto: String(b.texto || '').replace(/[<>]/g, '').slice(0, 400), url: String(b.url || '').slice(0, 200), de: String(b.de || '').replace(/[<>]/g, '').slice(0, 60) };
+      this.fila = this.fila.filter((i) => agora - i.t < 10 * 60000).concat(item).slice(-30);
+      await this.state.storage.put('fila', { itens: this.fila, proximo: this.proximo });
+      return Response.json({ ok: true, id: item.id });
+    }
+    const desde = new URL(request.url).searchParams.get('desde');
+    if (desde === 'agora') return Response.json({ agora, ultimo: this.proximo - 1, itens: [] });
+    const n = Number(desde) || 0;
+    return Response.json({ agora, ultimo: this.proximo - 1, itens: this.fila.filter((i) => i.id > n && agora - i.t < 3 * 60000) });
+  }
+
   async audio(request, id) {
     const st = this.state.storage, agora = Date.now();
     if (request.method === 'POST') {
@@ -46,6 +63,7 @@ export class Presenca {
   }
 
   async fetch(request) {
+    if (new URL(request.url).pathname === '/fila') return this.filaRota(request);
     const rotaAudio = new URL(request.url).pathname.match(new RegExp('^/audio/([a-f0-9]{32})$'));
     if (rotaAudio) return this.audio(request, rotaAudio[1]);
     const agora = Date.now();
