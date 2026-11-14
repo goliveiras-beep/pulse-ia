@@ -6,6 +6,7 @@ import { resolverRota, CABECALHOS, CRONS } from './cloudflare/rotas.js';
 import { Presenca } from './cloudflare/presenca.js';
 import { Sensores } from './cloudflare/sensores.js';
 import { sessaoDoCookie, getRacks } from './lib/routes/mapa.js';
+import { ehGestorAtivo, enviarAudioParaEcho, audioConfigurado } from './lib/routes/avisar-central.js';
 export { Presenca, Sensores };
 
 // comparação sem vazar, pelo tempo, quantos caracteres batem (token da ponte dos sensores)
@@ -62,6 +63,33 @@ export default {
       const obj = env.PRESENCA.get(env.PRESENCA.idFromName('central'));
       const r = await obj.fetch('https://presenca/', { method: request.method, headers: h, body: request.method === 'POST' ? await request.text() : undefined });
       return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
+    }
+    // Recado em AUDIO pra Echo da central. POST /api/falar-audio (so gestor, corpo = MP3): guarda e manda a Echo tocar.
+    // GET /api/falar-audio/<id>.mp3: publico de proposito (a Echo/Voice Monkey buscam sem login); o id e aleatorio de 128 bits e vale 30 min.
+    if (alvo.pathname === '/api/falar-audio' && request.method === 'POST') {
+      const s = sessaoDoCookie(request.headers.get('cookie') || '');
+      if (!s) return comCabecalhos(Response.json({ error: 'Não autenticado' }, { status: 401 }));
+      let gestor = false; try { gestor = await ehGestorAtivo(s.nome); } catch (e) { return comCabecalhos(Response.json({ error: 'Não consegui ler a planilha agora' }, { status: 503 })); }
+      if (!gestor) return comCabecalhos(Response.json({ error: 'Só gestor pode avisar a central' }, { status: 403 }));
+      if (!audioConfigurado()) return comCabecalhos(Response.json({ error: 'A Echo da central ainda não foi conectada (Voice Monkey não configurado).' }, { status: 503 }));
+      const buf = await request.arrayBuffer();
+      const b = new Uint8Array(buf);
+      const pareceMp3 = b.length > 1000 && ((b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33) || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0));
+      if (!pareceMp3) return comCabecalhos(Response.json({ error: 'Áudio inválido.' }, { status: 400 }));
+      if (b.length > 2500000) return comCabecalhos(Response.json({ error: 'Áudio grande demais (máx. cerca de 1 minuto).' }, { status: 413 }));
+      const id = crypto.randomUUID().replace(/-/g, '');
+      const obj = env.PRESENCA.get(env.PRESENCA.idFromName('central'));
+      await obj.fetch('https://presenca/audio/' + id, { method: 'POST', body: buf });
+      try { await enviarAudioParaEcho('https://pulse.livemode.ai/api/falar-audio/' + id + '.mp3'); }
+      catch (e) { console.error('falar-audio:', e && e.message); return comCabecalhos(Response.json({ error: 'A Echo não recebeu o áudio. Tente de novo em instantes.' }, { status: 502 })); }
+      console.log('falar-audio: enviado por', s.nome, b.length, 'bytes');
+      return comCabecalhos(Response.json({ ok: true }));
+    }
+    const ra = alvo.pathname.match(new RegExp('^/api/falar-audio/([a-f0-9]{32})\.mp3$'));
+    if (ra && (request.method === 'GET' || request.method === 'HEAD')) {
+      const obj = env.PRESENCA.get(env.PRESENCA.idFromName('central'));
+      const r = await obj.fetch('https://presenca/audio/' + ra[1], { method: request.method });
+      return comCabecalhos(new Response(r.body, { status: r.status, headers: r.headers }));
     }
     // Sensores de temperatura da central (Durable Object, ver cloudflare/sensores.js).
     // POST /api/sensores/leitura: só a ponte, com o token (SENSOR_TOKEN). GET /api/sensores: só logado.

@@ -11,6 +11,8 @@
 const VALIDADE = 20000;          // posição sem atualização há 20 s = saiu
 const VALIDADE_OLHA = 10 * 60000; // "olha isso" vale 10 min
 
+// Audio dos recados falados (/audio/<id>): guardado em pedacos de 100 KB (limite do armazenamento por valor) e apagado depois de 30 min.
+const VALIDADE_AUDIO = 30 * 60000, PEDACO = 100000;
 const num = (v, min, max) => (typeof v === 'number' && isFinite(v) ? Math.max(min, Math.min(max, v)) : null);
 const texto = (v, max) => String(v || '').replace(/[<>]/g, '').slice(0, max);
 
@@ -23,7 +25,29 @@ export class Presenca {
     return { pessoas: [...this.pessoas.values()], olha: this.olha };
   }
 
+  async audio(request, id) {
+    const st = this.state.storage, agora = Date.now();
+    if (request.method === 'POST') {
+      const buf = new Uint8Array(await request.arrayBuffer());
+      const meta = await st.list({ prefix: 'am:' });
+      for (const [k, m] of meta) { if (agora - m.t > VALIDADE_AUDIO) { const base = k.slice(3); const del = ['am:' + base]; for (let i = 0; i < m.n; i++) del.push('ac:' + base + ':' + i); await st.delete(del); } }
+      const itens = {}; let n = 0;
+      for (let o = 0; o < buf.length; o += PEDACO) itens['ac:' + id + ':' + (n++)] = buf.slice(o, o + PEDACO);
+      itens['am:' + id] = { n, len: buf.length, t: agora };
+      await st.put(itens);
+      return new Response('ok');
+    }
+    const m = await st.get('am:' + id);
+    if (!m || agora - m.t > VALIDADE_AUDIO) return new Response('não encontrado', { status: 404 });
+    const partes = await st.get(Array.from({ length: m.n }, (_, i) => 'ac:' + id + ':' + i));
+    const saida = new Uint8Array(m.len); let o = 0;
+    for (let i = 0; i < m.n; i++) { const p = partes.get('ac:' + id + ':' + i); saida.set(p, o); o += p.length; }
+    return new Response(request.method === 'HEAD' ? null : saida, { headers: { 'content-type': 'audio/mpeg', 'content-length': String(m.len), 'cache-control': 'no-store' } });
+  }
+
   async fetch(request) {
+    const rotaAudio = new URL(request.url).pathname.match(new RegExp('^/audio/([a-f0-9]{32})$'));
+    if (rotaAudio) return this.audio(request, rotaAudio[1]);
     const agora = Date.now();
     let nome = ''; try { nome = texto(decodeURIComponent(request.headers.get('x-pulse-nome') || ''), 80); } catch { /* cabeçalho estragado */ }
     if (!nome) return Response.json({ error: 'sem nome' }, { status: 400 });
