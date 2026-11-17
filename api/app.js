@@ -6,7 +6,7 @@ import { sheetsRequest, garantirLinhasSheet } from '../lib/google-auth.js';
 import { menuItens } from '../lib/menu.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
-import { notificarMudancaEscala } from '../lib/notificacoes.js';
+import { notificarMudancaEscala, notificarImediato } from '../lib/notificacoes.js';
 import { createHash, timingSafeEqual } from 'crypto';
 
 const AIRTABLE_BASE = 'appqPBoDUYfX2edOp';
@@ -616,8 +616,8 @@ export default async function handler(req, res) {
       const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
       await appendSheet('Ajustes!A:G', [[agora, `${requester} ↔ ${colegaNome}`, `${meuDiaRequester}, ${colegaDia}`, '', '', 'Troca de horário aceita', 'Solicitações']]);
       await Promise.all([sincronizarUmaPessoa(requester), sincronizarUmaPessoa(colegaNome)]);
-      await notificarMudancaEscala({ colaborador: requester, datas: [meuDiaRequester, colegaDia], texto: 'troca de horário com ' + String(colegaNome).split(' ')[0] + ' aceita' });
-      await notificarMudancaEscala({ colaborador: colegaNome, datas: [meuDiaRequester, colegaDia], texto: 'troca de horário com ' + String(requester).split(' ')[0] + ' aceita' });
+      await notificarImediato({ colaborador: requester, datas: [meuDiaRequester, colegaDia], texto: 'troca de horário com ' + String(colegaNome).split(' ')[0] + ' aceita' });
+      await notificarImediato({ colaborador: colegaNome, datas: [meuDiaRequester, colegaDia], texto: 'troca de horário com ' + String(requester).split(' ')[0] + ' aceita' });
       return res.status(200).json({ ok: true });
     } catch(err) {
       return res.status(500).json({ error: String(err.message || err) });

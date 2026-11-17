@@ -3,7 +3,7 @@ export const config = { maxDuration: 60 };
 import { sheetsRequest, garantirLinhasSheet } from '../lib/google-auth.js';
 import { calcularDia, horasNoturnas, jornadaContratada, feriadosDoAno, duracaoHoras } from '../lib/horas-extras-engine.js';
 import { createHash, timingSafeEqual } from 'crypto';
-import { notificarMudancaEscala } from '../lib/notificacoes.js';
+import { registrarMudancas, enviarPendentes } from '../lib/notificacoes.js';
 
 const AIRTABLE_BASE = 'appqPBoDUYfX2edOp';
 const AIRTABLE_TABLE = 'tblkqT3nDu1Gw6bnf';
@@ -641,13 +641,12 @@ Identifique cada pessoa pelo ID numérico da lista acima, NUNCA pelo nome. Respo
       }
       // Só ADICIONA as linhas novas, nunca substitui o intervalo existente
       if (linhasNovas.length) await appendSheet('Escala!A:F', linhasNovas);
-      // Aviso no celular: um por pessoa (só dias publicados). A geração por IA pode tocar vários dias de uma vez.
+      // Aviso no celular: isto É o "compartilhar com a equipe" — registra o que foi gravado e envia tudo que estava pendente (um aviso por pessoa).
       try {
         const porPessoa = {};
-        [...linhasNovas, ...linhasAtualizar.map(x => x.valores)].forEach(l => { if (l[2]) (porPessoa[l[2]] = porPessoa[l[2]] || []).push(l[0]); });
-        for (const [nomeP, datasP] of Object.entries(porPessoa)) {
-          await notificarMudancaEscala({ colaborador: nomeP, datas: datasP, texto: 'escala nova publicada pra você' });
-        }
+        [...linhasNovas, ...linhasAtualizar.map(x => x.valores)].forEach(l => { if (l[2]) (porPessoa[l[2]] = porPessoa[l[2]] || []).push({ data: l[0], antes: null, depois: { ent: l[3], sai: l[4], obs: l[5] } }); });
+        for (const [nomeP, itens] of Object.entries(porPessoa)) await registrarMudancas(nomeP, itens, session && session.nome);
+        await enviarPendentes();
       } catch (e) { console.error('aviso da geração falhou', e && e.message); }
       return res.status(200).json({ ok:true, gravadas:linhasNovas.length, atualizadas:linhasAtualizar.length });
     } catch(e) {

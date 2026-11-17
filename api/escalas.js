@@ -5,7 +5,7 @@ import { menuItens } from '../lib/menu.js';
 import { analisarEscala, duracaoTurno } from '../lib/escalas-engine.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
-import { notificarMudancaEscala } from '../lib/notificacoes.js';
+import { notificarMudancaEscala, enviarPendentes, contarPendentes } from '../lib/notificacoes.js';
 import { createHash, timingSafeEqual } from 'crypto';
 
 const COOKIE_NAME = 'pulse_session';
@@ -161,6 +161,13 @@ export default async function handler(req, res) {
     const total = todasLinhas.length;
     const julho = todasLinhas.filter(r=>String(r[0]).includes('07'));
     return res.status(200).json({ total, primeiras20: rows, linhasJulho: julho.slice(0,20) });
+  }
+
+  if (req.method === 'POST' && req.body?.action === 'compartilhar') {
+    const eqC = await getSheet('Equipe!A2:I50');
+    if (eqC.find(r=>r[0]===session.nome)?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});
+    const rC = await enviarPendentes();
+    return res.status(200).json({ ok: !rC.erro, pessoas: rC.pessoas.length, dias: rC.dias, enviados: rC.enviados });
   }
 
   if (req.method === 'POST' && req.body?.action === 'quick-generate') {
@@ -328,6 +335,7 @@ export default async function handler(req, res) {
   const configMap = {};
   (configRaw||[]).forEach(r => { if (r[0] && !(r[0] in configMap)) configMap[r[0]] = r[1]||''; });
   const horizonteAtual = configMap['publicacao_horizonte']||'';
+  let pendentesQtd = 0; if (usuario[8] === 'gestor') { try { pendentesQtd = await contarPendentes(); } catch (e) { pendentesQtd = 0; } }
   const horizonteData = (() => {
     if(!horizonteAtual) return null;
     const [dh,mh] = horizonteAtual.split('/').map(Number);
@@ -646,6 +654,7 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
       <div style="font-size:10px;color:#888;font-weight:600;text-transform:uppercase;margin-bottom:4px">Publicado até</div>
       <div style="font-size:18px;font-weight:700;color:${horizonteVencido?'#dc2626':'var(--text)'}">${horizonteAtual || 'Nao definido'}</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+        <button onclick="compartilharEscala()" title="Manda UM aviso no celular de cada pessoa cujo turno mudou desde a última vez. Enquanto você não tocar aqui (nem publicar), as edições não avisam ninguém." style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;border:1px solid #b45309;background:#f59e0b;color:#1c1100;cursor:pointer">📣 Avisar equipe${pendentesQtd ? ' (' + pendentesQtd + ' mudança' + (pendentesQtd === 1 ? '' : 's') + ')' : ''}</button>
         <button onclick="if(confirm('Despublicar a escala? A equipe vai deixar de ver os proximos dias.'))publicarHorizonte('limpar')" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--red-m-border);background:var(--card);cursor:pointer;color:var(--red-m-v)">Despublicar</button>
         <button onclick="sincronizarAgendas()" title="Atualiza a Agenda do Google de quem ja autorizou, sem mudar a data publicada" style="font-size:9px;padding:2px 6px;border-radius:4px;border:1px solid var(--blue-m-border,#2a4080);background:var(--card);cursor:pointer;color:var(--blue-m-v,#63b3ed)">🔄 Sincronizar agenda</button>
         <span style="display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:4px 6px 4px 10px;margin-top:2px;flex-wrap:wrap">
@@ -898,6 +907,16 @@ async function publicarHorizonte(opcao){
       toast('Erro: '+(data.error||'?'),'#dc2626');
     }
   } catch(e){ toast('Erro de conexão: '+e.message,'#dc2626'); }
+}
+async function compartilharEscala(){
+  if(!confirm('Avisar a equipe das mudanças de turno feitas desde o último aviso? Cada pessoa afetada recebe uma notificação.')) return;
+  toast('Avisando a equipe...','#374151');
+  try{
+    var r=await fetch('/api/escalas',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'compartilhar'})});
+    var d=await r.json();
+    if(d.ok){ toast(d.pessoas?('✓ '+d.pessoas+' pessoa'+(d.pessoas===1?'':'s')+' avisada'+(d.pessoas===1?'':'s')):'Nada pendente pra avisar','#166534'); setTimeout(function(){location.reload();},1500); }
+    else { toast('Erro: '+(d.error||'?'),'#dc2626'); }
+  }catch(e){ toast('Erro de conexão: '+e.message,'#dc2626'); }
 }
 async function sincronizarAgendas(){
   toast('Sincronizando agendas...','#374151');
