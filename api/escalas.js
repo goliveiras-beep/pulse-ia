@@ -267,13 +267,16 @@ export default async function handler(req, res) {
     const {data, colaborador, ent, sai, tipo} = req.body||{};
     if (!data || !colaborador) return res.status(400).json({error:'Dados inválidos'});
     const escalaRaw2 = await getSheet('Escala!A2:F10000');
-    const idx = escalaRaw2.findIndex(r=>r[0]===data&&r[2]===colaborador);
+    // Pode existir mais de uma linha da mesma pessoa no mesmo dia (duplicata). A tela mostra a ÚLTIMA; antes a edição só pegava a PRIMEIRA e parecia que
+    // "não alterava" (2026-11-17, Bruno/Matheus). Agora toda linha repetida é atualizada junto.
+    const idxs = escalaRaw2.map((r,i)=>(r[0]===data&&r[2]===colaborador)?i:-1).filter(i=>i>=0);
+    const idx = idxs.length ? idxs[idxs.length-1] : -1;
 
     // Excluir: limpa os campos D, E, F deixando a linha em branco
     const antesEsc = idx >= 0 ? { ent: escalaRaw2[idx][3], sai: escalaRaw2[idx][4], obs: escalaRaw2[idx][5] } : null;
     if (tipo === 'excluir') {
       if (idx >= 0) {
-        await setSheet(`Escala!A${idx+2}:F${idx+2}`, [['','','','','','']]);
+        for (const i of idxs) await setSheet(`Escala!A${i+2}:F${i+2}`, [['','','','','','']]);
         // Agenda do Google + aviso no celular (só de dia já publicado). Falha aqui não desfaz a edição.
         await sincronizarUmaPessoa(colaborador);
         await notificarMudancaEscala({ colaborador, datas: [data], antes: antesEsc, depois: { removido: true }, por: session.nome });
@@ -289,7 +292,7 @@ export default async function handler(req, res) {
     const saiVal = tipo==='externa' ? '18:00' : (tipo==='folga'||tipo==='ausencia')?'':( sai||'');
     try {
       if (idx >= 0) {
-        await setSheet(`Escala!D${idx+2}:F${idx+2}`, [[entVal, saiVal, obs]]);
+        for (const i of idxs) await setSheet(`Escala!D${i+2}:F${i+2}`, [[entVal, saiVal, obs]]);
       } else {
         await appendSheet('Escala!A:F', [[data,'',colaborador,entVal,saiVal,obs]]);
       }

@@ -523,18 +523,19 @@ export default async function handler(req, res) {
     const { acao, data, colaborador, entrada, saida, obs } = req.body || {};
     if (!data || !colaborador) return res.status(400).json({ error: 'Dados inválidos' });
     const escalaRaw2 = await getSheet('Escala!A2:F10000');
-    const idx = escalaRaw2.findIndex(r => r[0] === data && r[2] === colaborador);
+    const idxs = escalaRaw2.map((r, i) => (r[0] === data && r[2] === colaborador) ? i : -1).filter(i => i >= 0);   // linhas repetidas: atualiza todas (a tela mostra a última)
+    const idx = idxs.length ? idxs[idxs.length - 1] : -1;
     let entVal = entrada || '', saiVal = saida || '', obsVal = obs || '';
     if (acao === 'folga') { entVal = ''; saiVal = ''; obsVal = 'Folga'; }
     const antesAj = idx >= 0 ? { ent: escalaRaw2[idx][3], sai: escalaRaw2[idx][4], obs: escalaRaw2[idx][5] } : null;
     if (acao === 'remover') {
-      if (idx >= 0) await setSheet(`Escala!D${idx + 2}:F${idx + 2}`, [['', '', '']]);
+      for (const i of idxs) await setSheet(`Escala!D${i + 2}:F${i + 2}`, [['', '', '']]);
       await sincronizarUmaPessoa(colaborador);
       if (idx >= 0) await notificarMudancaEscala({ colaborador, datas: [data], antes: antesAj, depois: { removido: true }, por: nome });
       return res.status(200).json({ ok: true });
     }
     if (idx >= 0) {
-      await setSheet(`Escala!D${idx + 2}:F${idx + 2}`, [[entVal, saiVal, obsVal]]);
+      for (const i of idxs) await setSheet(`Escala!D${i + 2}:F${i + 2}`, [[entVal, saiVal, obsVal]]);
     } else {
       await appendSheet('Escala!A:F', [[data, '', colaborador, entVal, saiVal, obsVal]]);
     }
