@@ -18,6 +18,7 @@ import mapaHandler from '../lib/routes/mapa.js';
 import alexaHandler from '../lib/routes/alexa.js';
 import avisarCentralHandler from '../lib/routes/avisar-central.js';
 import pushHandler from '../lib/routes/push.js';
+import escalaExternaHandler from '../lib/routes/escala-externa.js';
 
 const ROUTES = {
   'ausencias': ausenciasHandler,
@@ -34,6 +35,7 @@ const ROUTES = {
   'alexa': alexaHandler,
   'avisar-central': avisarCentralHandler,
   'push': pushHandler,
+  'escala-externa': escalaExternaHandler,
 };
 
 export default async function handler(req, res) {
