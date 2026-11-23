@@ -118,6 +118,99 @@ async function garantirColuna(sheets, letra, indiceColuna, nomeCabecalho) {
   }
 }
 
+// ── Ligação com o Live Switch (LiveSuite) ────────────────────────────────
+// O Live Switch guarda cada retirada de Kit Mojo na aba KitMojo da planilha "Pedidos LiveOps".
+// O Pulse só LÊ essa aba (a conta pulse-sheets tem acesso de leitor) e copia quem está com cada
+// kit para os celulares ligados a ele na aba LigacaoKits (coluna C, editável: nºs dos celulares).
+// Nada é escrito na planilha do Live Switch.
+const LIVE_SHEET_ID = process.env.LIVESWITCH_SHEET_ID || '1MeMkuQXCo71JgPuTrFCgByUVxYoV7FmzOnEcAnlgzUQ';
+const ABA_LIGACAO = 'LigacaoKits';
+const LIGACAO_CABECALHO = ['Unidade (Live Switch)','Kit','Celulares no Pulse (nºs, ex: 19, 33)','Com quem está','E-mail','Retirado em','Último usuário','Devolvido em','Atualizado em'];
+const KITS_LIVE_SWITCH = [
+  { id: 'RJ|e6|1', rotulo: 'Kit Mojo RJ · própria' },
+  { id: 'RJ|e7|1', rotulo: 'Kit Mojo RJ · Walter (Live West)' },
+  { id: 'SP|e8|1', rotulo: 'Kit Mojo SP 1 · própria' },
+  { id: 'SP|e8|2', rotulo: 'Kit Mojo SP 2 · própria' },
+  { id: 'SP|e9|1', rotulo: 'Kit Mojo SP · Walter (Live West)' },
+  { id: 'MG|e10|1', rotulo: 'Kit Mojo MG · própria' },
+];
+let _ultimaSyncKits = 0;
+
+// ISO com "Z" vira horário de Brasília; sem "Z" (registro retroativo) já está no horário local.
+function dataLive(v) {
+  if (!v) return null;
+  const s = String(v);
+  const d = new Date(/[zZ]$|[+-]\d\d:\d\d$/.test(s) ? s : s + 'Z');
+  if (isNaN(d)) return null;
+  return /[zZ]$|[+-]\d\d:\d\d$/.test(s) ? new Date(d.getTime() - 3 * 3600000) : d;
+}
+function fmtLive(d) {
+  if (!d) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getUTCDate())}/${p(d.getUTCMonth()+1)} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+}
+
+async function sincronizarKitsLiveSwitch() {
+  if (Date.now() - _ultimaSyncKits < 120000) return;   // no máximo 1 leitura a cada 2 min (cota do Google)
+  _ultimaSyncKits = Date.now();
+  try {
+    const [liga, kitmojo, equip] = await Promise.all([
+      getSheet(`${ABA_LIGACAO}!A2:I100`),
+      sheetsRequest(LIVE_SHEET_ID, `/values/${encodeURIComponent('KitMojo!A1:AK3000')}`).then(d => d.values || []).catch(() => null),
+      getSheet('Equipamentos!A2:Q3000'),
+    ]);
+    if (!kitmojo || !kitmojo.length) return;            // sem acesso ou aba vazia: não mexe em nada
+    const cab = kitmojo[0];
+    const ix = n => cab.indexOf(n);
+    const iU = ix('unidade'), iR = ix('responsavel'), iE = ix('respEmail'), iRet = ix('retiradoEm'), iDev = ix('devolvidoEm');
+    if ([iU, iR, iRet, iDev].some(i => i < 0)) return;
+
+    // por unidade: retirada em aberto (se houver) e a mais recente de todas
+    const porUn = {};
+    for (const r of kitmojo.slice(1)) {
+      const un = r[iU], ret = dataLive(r[iRet]);
+      if (!un || !ret) continue;
+      const o = porUn[un] || (porUn[un] = { aberta: null, ultima: null });
+      const reg = { nome: r[iR] || '', email: iE >= 0 ? (r[iE] || '') : '', ret, dev: dataLive(r[iDev]) };
+      if (!o.ultima || ret > o.ultima.ret) o.ultima = reg;
+      if (!reg.dev && (!o.aberta || ret > o.aberta.ret)) o.aberta = reg;
+    }
+
+    // 1) aba LigacaoKits (visão por kit) + 2) celulares ligados a cada kit
+    const agora = fmtTimestamp(getBRT());
+    const porCelular = {};   // nº -> { aberta, ultima }
+    const linhasLiga = [];
+    liga.forEach((l, i) => {
+      const o = porUn[l[0]] || { aberta: null, ultima: null };
+      const novo = [
+        o.aberta ? o.aberta.nome : '', o.aberta ? o.aberta.email : '', o.aberta ? fmtLive(o.aberta.ret) : '',
+        o.ultima ? o.ultima.nome : '', o.ultima && o.ultima.dev ? fmtLive(o.ultima.dev) : '',
+      ];
+      const atual = [l[3]||'', l[4]||'', l[5]||'', l[6]||'', l[7]||''];
+      if (novo.join('|') !== atual.join('|')) linhasLiga.push({ linha: i + 2, valores: [...novo, agora] });
+      for (const n of String(l[2] || '').match(/\d+/g) || []) {
+        const c = porCelular[parseInt(n, 10)] || (porCelular[parseInt(n, 10)] = { aberta: null, ultima: null });
+        if (o.aberta && (!c.aberta || o.aberta.ret > c.aberta.ret)) c.aberta = o.aberta;
+        if (o.ultima && (!c.ultima || o.ultima.ret > c.ultima.ret)) c.ultima = o.ultima;
+      }
+    });
+    for (const x of linhasLiga) await setSheet(`${ABA_LIGACAO}!D${x.linha}:I${x.linha}`, [x.valores]);
+
+    for (let i = 0; i < equip.length; i++) {
+      const m = String(equip[i][2] || '').match(/^Celular (\d+)\b/);
+      if (!m) continue;
+      const c = porCelular[parseInt(m[1], 10)];
+      const com = c && c.aberta ? `${c.aberta.nome} desde ${fmtLive(c.aberta.ret)}` : '';
+      const ult = c && c.ultima ? `${c.ultima.nome} · ${fmtLive(c.ultima.ret)}` : '';
+      if (!c && !(equip[i][15] || equip[i][16])) continue;      // celular sem ligação e sem nada gravado
+      if ((equip[i][15] || '') === com && (equip[i][16] || '') === ult) continue;
+      await setSheet(`Equipamentos!P${i + 2}:Q${i + 2}`, [[com, ult]]);
+    }
+  } catch (e) {
+    console.warn('sincronizarKitsLiveSwitch:', e && e.message);
+  }
+}
+
 async function garantirAbas() {
   const spreadsheet = await sheetsRequest(SHEET_ID, '');
   const sheets = spreadsheet.sheets || [];
@@ -140,6 +233,18 @@ async function garantirAbas() {
     await garantirColuna(sheets, 'M', 13, 'IMEI eSIM');
     await garantirColuna(sheets, 'N', 14, 'IMEI Físico');
     await garantirColuna(sheets, 'O', 15, 'Chip/Telefone');
+    // Preenchidas pela sincronização com o Live Switch (aba LigacaoKits) — não editar à mão.
+    await garantirColuna(sheets, 'P', 16, 'Com quem está');
+    await garantirColuna(sheets, 'Q', 17, 'Último usuário');
+  }
+  if (!sheets.some(s => s.properties.title === ABA_LIGACAO)) {
+    try {
+      await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
+        requests: [{ addSheet: { properties: { title: ABA_LIGACAO, gridProperties: { rowCount: 100, columnCount: 9 } } } }]
+      });
+      await setSheet(`${ABA_LIGACAO}!A1:I1`, [LIGACAO_CABECALHO]);
+      await setSheet(`${ABA_LIGACAO}!A2:C${KITS_LIVE_SWITCH.length + 1}`, KITS_LIVE_SWITCH.map(k => [k.id, k.rotulo, '']));
+    } catch { /* a ligação com o Live Switch nunca derruba a página de Equipamentos */ }
   }
   if (!temMovimentacoes) {
     await sheetsRequest(SHEET_ID, ':batchUpdate', 'POST', {
@@ -210,8 +315,9 @@ export default async function handler(req, res) {
       const movRaw = await getSheet('MovimentacoesEquipamento!A2:H5000');
       return renderHistorico(res, session, movRaw, isGestor);
     }
+    await sincronizarKitsLiveSwitch();   // quem está com cada kit/celular (lê o Live Switch; falha não derruba a página)
     const [equipamentosRaw, movRaw] = await Promise.all([
-      getSheet('Equipamentos!A2:O3000'),
+      getSheet('Equipamentos!A2:Q3000'),
       getSheet('MovimentacoesEquipamento!A2:H5000'),
     ]);
     return renderInventario(res, session, equipamentosRaw, movRaw, isGestor);
@@ -222,7 +328,7 @@ export default async function handler(req, res) {
   // Cadastrar/mover/status/editar/remover é liberado pra qualquer colaborador ativo,
   // igual ao gestor — o parque é gerido pela equipe toda, não só pela gestão.
   const { action } = req.body || {};
-  const equipamentosRaw = await getSheet('Equipamentos!A2:O3000');
+  const equipamentosRaw = await getSheet('Equipamentos!A2:Q3000');
 
   if (action === 'cadastrar') {
     const { categoria, equipamento, patrimonio, serie, alocacao, observacao, tipoParque, anatel, imeiEsim, imeiFisico, chip } = req.body || {};
@@ -526,7 +632,8 @@ function renderInventario(res, session, equipamentosRaw, movRaw, isGestor) {
     id: r[0], categoria: r[1]||'', equipamento: r[2]||'', patrimonio: r[3]||'', serie: r[4]||'',
     status: r[5]||'Operacional', alocacao: r[6]||'Estoque', dataMov: r[7]||'', observacao: r[8]||'', dataCadastro: r[9]||'',
     tipoParque: TIPOS_PARQUE.includes(r[10]) ? r[10] : 'Interno',
-    anatel: r[11]||'', imeiEsim: r[12]||'', imeiFisico: r[13]||'', chip: r[14]||''
+    anatel: r[11]||'', imeiEsim: r[12]||'', imeiFisico: r[13]||'', chip: r[14]||'',
+    comQuem: r[15]||'', ultimoUsuario: r[16]||''
   }));
 
   const porCategoria = {};
@@ -638,7 +745,48 @@ ${headerHTML(session.nome, `${unidades.length} unidades cadastradas no parque`, 
     <a href="/api/equipamentos?v=historico" class="btn">Histórico de movimentações</a>
   </div>
 
-  <div class="tbl-wrap">
+  <style>
+    .cel-resumo{display:flex;flex-wrap:wrap;gap:10px;margin:4px 0 12px}
+    .cel-card{flex:1 1 130px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+    .cel-card b{display:block;font-size:22px;line-height:1.1;color:var(--text)}
+    .cel-card span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);font-weight:700}
+    .cel-modelos{width:100%;font-size:12px;color:var(--text2);margin-top:2px}
+    .cel-modelos i{font-style:normal;display:inline-block;margin:2px 6px 2px 0;padding:2px 9px;border-radius:99px;background:var(--bg3);color:var(--text2)}
+    .cel-barra{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:0 0 10px}
+    .cel-abas,.cel-filtros{display:flex;flex-wrap:wrap;gap:6px}
+    .cel-abas button,.cel-filtros button{border:1px solid var(--border);background:var(--card);color:var(--text2);border-radius:99px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer}
+    .cel-abas button.on{background:var(--blue);border-color:var(--blue);color:#fff}
+    .cel-filtros button.on{background:var(--bg3);color:var(--text);border-color:var(--text3)}
+    .cel-tbl table{width:100%}
+    .cel-tbl th{position:sticky;top:0;background:var(--bg2);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);padding:9px 12px;white-space:nowrap}
+    .cel-tbl td{padding:10px 12px;border-top:1px solid var(--border2);font-size:13px;vertical-align:middle}
+    .cel-n{font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+    .cel-mod{font-weight:600;color:var(--text)}
+    .cel-mut{color:var(--text3)}
+    .cel-mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:nowrap}
+    .cel-pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:11.5px;font-weight:700;white-space:nowrap}
+    .cel-pill.ok{background:var(--badge-green-bg);color:var(--badge-green-c)}
+    .cel-pill.sem{background:var(--bg3);color:var(--text3)}
+    .cel-pill.ret{background:var(--badge-amber-bg);color:var(--badge-amber-c)}
+    .cel-pill.man{background:var(--badge-red-bg);color:var(--badge-red-c)}
+    .cel-ult{display:block;font-size:11px;color:var(--text3);margin-top:2px}
+    .cel-ed{border:1px solid var(--border);background:var(--card);color:var(--text2);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
+    .cel-obs li{margin:0 0 6px}
+    .cel-aviso{font-size:12px;color:var(--text3);margin:10px 2px}
+  </style>
+  <div id="cel-voltar" style="display:none;margin:0 0 10px"><button class="btn" onclick="celCompleta(false)">&larr; Voltar ao painel de celulares</button></div>
+  <div id="cel-view" style="display:none">
+    <div id="cel-resumo" class="cel-resumo"></div>
+    <div class="cel-barra">
+      <div class="cel-abas" id="cel-abas"></div>
+      <div class="cel-filtros" id="cel-filtros"></div>
+      <button class="btn" onclick="celCompleta(true)" title="Mostra a tabela geral de equipamentos (com Mover, Status, Clonar e Remover)">Ver tabela completa</button>
+    </div>
+    <div class="tbl-wrap cel-tbl"><table id="cel-tabela"></table></div>
+    <div class="cel-aviso" id="cel-aviso"></div>
+  </div>
+
+  <div class="tbl-wrap" id="tbl-wrap">
     <table id="tabela">
       <thead><tr>
         <th>ID</th><th>Categoria</th><th>Equipamento</th><th>Patrimônio</th><th>Série</th>
@@ -730,7 +878,10 @@ function linhaHTML(u){
     + '<td><span class="badge '+badgeCls(u.status)+'">'+escHtml(u.status)+'</span></td>'
     + '<td>'+(u.tipoParque==='Externo'?'🌐 ':'🏠 ')+escHtml(u.alocacao)+'</td>'
     + '<td>'+escHtml(u.dataMov||'—')+'</td>'
-    + '<td>'+escHtml(u.observacao||'—')+(tel?' <span class="info-ic" title="'+escHtml(tel)+'">📱</span>':'')+'</td>'
+    + '<td>'+escHtml(u.observacao||'—')+(tel?' <span class="info-ic" title="'+escHtml(tel)+'">📱</span>':'')
+    +   (u.comQuem?'<div style="margin-top:4px"><span class="badge amber" title="Retirado no Live Switch">📲 Com '+escHtml(u.comQuem)+'</span></div>':'')
+    +   (u.ultimoUsuario?'<div style="margin-top:3px;font-size:11px;color:var(--text3)">Último usuário: '+escHtml(u.ultimoUsuario)+'</div>':'')
+    + '</td>'
     + '<td class="acoes">'
     +   '<button onclick="abrirMover(\\''+u.id+'\\')">Mover</button>'
     +   '<button onclick="abrirStatus(\\''+u.id+'\\')">Status</button>'
@@ -738,6 +889,93 @@ function linhaHTML(u){
     +   '<button onclick="clonarEquipamento(\\''+u.id+'\\')" title="Cadastra um equipamento novo com os mesmos dados, exceto patrimônio e série">Clonar</button>'
     +   '<button onclick="removerUnidade(\\''+u.id+'\\')">Remover</button>'
     + '</td></tr>';
+}
+
+// ── Painel de celulares (mesmo formato do controle-telefones.md) ──────────
+var CEL_ABA = 'aparelhos', CEL_FILTRO = '', CEL_COMPLETA = false;
+var CEL_DATA = /^[0-9]{2}[/][0-9]{2}[/][0-9]{4}$/;
+function celEhChave(p){
+  return p==='Sem linha' || p.indexOf('Setor: ')===0 || p.indexOf('Locação: ')===0 || p.indexOf('Conta: ')===0 || p.indexOf('Seguro: ')===0 || p.indexOf('NF ')===0;
+}
+// O cadastro guarda tudo em campos que já existiam: nº e modelo no nome, o resto na observação.
+function celParse(u){
+  var m = String(u.equipamento||'').match(/^Celular ([0-9]+) — (.*)$/);
+  var partes = (m ? m[2] : String(u.equipamento||'')).split(' · ');
+  var o = { u:u, n: m ? parseInt(m[1],10) : 9999, modelo: partes[0], cor: partes[1]||'', setor:'', loc:'', nf:'', compra:'', nome:'', conta:'', seguro:'', notas:[] };
+  var obs = String(u.observacao||'').split(' · ');
+  for (var i=0;i<obs.length;i++){
+    var p = obs[i].trim();
+    if (!p || p==='Sem linha') continue;
+    if (p.indexOf('Setor: ')===0) o.setor = p.slice(7);
+    else if (p.indexOf('Locação: ')===0) o.loc = p.slice(9);
+    else if (p.indexOf('Conta: ')===0) o.conta = p.slice(7);
+    else if (p.indexOf('Seguro: ')===0) o.seguro = p.slice(8);
+    else if (p.indexOf('NF ')===0 && !o.nf && p.indexOf(' inclui ')<0) {
+      o.nf = p.slice(3);
+      if (i+1<obs.length && CEL_DATA.test(obs[i+1].trim())) {
+        o.compra = obs[++i].trim();
+        if (i+1<obs.length && !celEhChave(obs[i+1].trim())) o.nome = obs[++i].trim();
+      }
+    } else o.notas.push(p);
+  }
+  var im = String(u.imeiFisico||'').split(' / ');
+  o.imei1 = im[0]||''; o.imei2 = im[1]||'';
+  o.linha = /[0-9]/.test(u.chip||'') ? u.chip : '';
+  return o;
+}
+function celStatus(o){
+  if (o.u.status!=='Operacional') return '<span class="cel-pill man">'+escHtml(o.u.status)+'</span>';
+  return o.linha ? '<span class="cel-pill ok">Ativo</span>' : '<span class="cel-pill sem">Sem linha</span>';
+}
+function celFmt(v){ return v ? escHtml(v) : '<span class="cel-mut">—</span>'; }
+function celCompleta(v){ CEL_COMPLETA = v; filtrar(); }
+function celAba(a){ CEL_ABA = a; filtrar(); }
+function celFiltro(f){ CEL_FILTRO = (CEL_FILTRO===f ? '' : f); filtrar(); }
+function renderCel(lista){
+  var todos = lista.map(celParse).sort(function(a,b){ return a.n-b.n; });
+  var comLinha = todos.filter(function(o){ return o.linha; }).length;
+  var retirados = todos.filter(function(o){ return o.u.comQuem; }).length;
+  var comNF = todos.filter(function(o){ return o.nf; }).length;
+  var modelos = {};
+  todos.forEach(function(o){ modelos[o.modelo] = (modelos[o.modelo]||0)+1; });
+  var mods = Object.keys(modelos).sort(function(a,b){ return modelos[b]-modelos[a]; }).map(function(k){ return '<i>'+escHtml(k)+' ('+modelos[k]+')</i>'; }).join('');
+  document.getElementById('cel-resumo').innerHTML =
+    '<div class="cel-card"><b>'+todos.length+'</b><span>Aparelhos</span></div>'
+    + '<div class="cel-card"><b>'+comLinha+'</b><span>Com linha</span></div>'
+    + '<div class="cel-card"><b>'+(todos.length-comLinha)+'</b><span>Sem linha</span></div>'
+    + '<div class="cel-card"><b>'+retirados+'</b><span>Retirados agora</span></div>'
+    + '<div class="cel-card"><b>'+comNF+'</b><span>Com nota fiscal</span></div>'
+    + '<div class="cel-modelos">'+mods+'</div>';
+  var abas = [['aparelhos','Aparelhos'],['ident','Identificação (série e IMEIs)'],['nf','Nota fiscal e seguro'],['obs','Observações']];
+  document.getElementById('cel-abas').innerHTML = abas.map(function(a){ return '<button type="button" class="'+(CEL_ABA===a[0]?'on':'')+'" data-a="'+a[0]+'" onclick="celAba(this.dataset.a)">'+a[1]+'</button>'; }).join('');
+  var fl = [['linha','Com linha'],['sem','Sem linha'],['ret','Retirados agora']];
+  document.getElementById('cel-filtros').innerHTML = fl.map(function(f){ return '<button type="button" class="'+(CEL_FILTRO===f[0]?'on':'')+'" data-f="'+f[0]+'" onclick="celFiltro(this.dataset.f)">'+f[1]+'</button>'; }).join('');
+  var vis = todos.filter(function(o){
+    if (CEL_FILTRO==='linha') return !!o.linha;
+    if (CEL_FILTRO==='sem') return !o.linha;
+    if (CEL_FILTRO==='ret') return !!o.u.comQuem;
+    return true;
+  });
+  var th, linhas;
+  if (CEL_ABA==='ident') {
+    th = '<th>Nº</th><th>Modelo</th><th>Nº de série</th><th>IMEI 1 (chip físico)</th><th>IMEI 2</th><th>IMEI eSIM</th><th>Anatel</th>';
+    linhas = vis.map(function(o){ return '<tr><td class="cel-n">'+o.n+'</td><td class="cel-mod">'+escHtml(o.modelo)+'</td><td class="cel-mono">'+celFmt(o.u.serie)+'</td><td class="cel-mono">'+celFmt(o.imei1)+'</td><td class="cel-mono">'+celFmt(o.imei2)+'</td><td class="cel-mono">'+celFmt(o.u.imeiEsim)+'</td><td class="cel-mono">'+celFmt(o.u.anatel)+'</td></tr>'; });
+  } else if (CEL_ABA==='nf') {
+    th = '<th>Nº</th><th>Nota fiscal</th><th>Data da compra</th><th>Em nome de</th><th>Seguro</th><th>Conta vinculada</th>';
+    linhas = vis.map(function(o){ return '<tr><td class="cel-n">'+o.n+'</td><td>'+celFmt(o.nf)+'</td><td>'+celFmt(o.compra)+'</td><td>'+celFmt(o.nome)+'</td><td>'+(o.seguro?escHtml(o.seguro):'<span class="cel-mut">Não informado</span>')+'</td><td>'+celFmt(o.conta)+'</td></tr>'; });
+  } else if (CEL_ABA==='obs') {
+    th = '<th>Nº</th><th>Modelo</th><th>Observações</th>';
+    linhas = vis.filter(function(o){ return o.notas.length; }).map(function(o){ return '<tr><td class="cel-n">'+o.n+'</td><td class="cel-mod">'+escHtml(o.modelo)+'</td><td><ul class="cel-obs" style="margin:0;padding-left:18px">'+o.notas.map(function(t){ return '<li>'+escHtml(t)+'</li>'; }).join('')+'</ul></td></tr>'; });
+  } else {
+    th = '<th>Nº</th><th>Modelo</th><th>Cor</th><th>Linha</th><th>Setor / uso</th><th>Locação</th><th>Status</th><th>Com quem está</th><th></th>';
+    linhas = vis.map(function(o){
+      var com = o.u.comQuem ? '<span class="cel-pill ret">'+escHtml(o.u.comQuem)+'</span>' : '<span class="cel-mut">—</span>';
+      var ult = o.u.ultimoUsuario ? '<span class="cel-ult">Último: '+escHtml(o.u.ultimoUsuario)+'</span>' : '';
+      return '<tr><td class="cel-n">'+o.n+'</td><td class="cel-mod">'+escHtml(o.modelo)+'</td><td>'+celFmt(o.cor)+'</td><td class="cel-mono">'+celFmt(o.linha)+'</td><td>'+celFmt(o.setor)+'</td><td>'+celFmt(o.loc)+'</td><td>'+celStatus(o)+'</td><td>'+com+ult+'</td><td><button class="cel-ed" data-id="'+escHtml(o.u.id)+'" onclick="abrirEditar(this.dataset.id)">Editar</button></td></tr>';
+    });
+  }
+  document.getElementById('cel-tabela').innerHTML = '<thead><tr>'+th+'</tr></thead><tbody>'+(linhas.join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:20px">Nada para mostrar nesta aba</td></tr>')+'</tbody>';
+  document.getElementById('cel-aviso').textContent = 'Os dados vêm da lista de celulares cadastrada. Para mudar um aparelho, use Editar. Quem está com o aparelho vem do Live Switch (aba LigacaoKits).';
 }
 
 function filtrar(){
@@ -754,6 +992,13 @@ function filtrar(){
     if (busca && !(u.id+' '+u.categoria+' '+u.equipamento+' '+u.patrimonio+' '+u.serie+' '+u.alocacao+' '+u.status+' '+u.observacao+' '+(u.anatel||'')+' '+(u.imeiEsim||'')+' '+(u.imeiFisico||'')+' '+(u.chip||'')).toLowerCase().includes(busca)) return false;
     return true;
   });
+  // Alocação "Celulares": painel próprio, no formato do controle-telefones.md (a tabela geral continua em "Ver tabela completa")
+  if (fl !== 'Celulares') CEL_COMPLETA = false;
+  const modoCel = (fl === 'Celulares') && !CEL_COMPLETA;
+  document.getElementById('tbl-wrap').style.display = modoCel ? 'none' : '';
+  document.getElementById('cel-view').style.display = modoCel ? '' : 'none';
+  document.getElementById('cel-voltar').style.display = (fl === 'Celulares' && CEL_COMPLETA) ? '' : 'none';
+  if (modoCel) renderCel(filtradas);
   document.getElementById('tbody').innerHTML = filtradas.map(linhaHTML).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px">Nenhum equipamento encontrado</td></tr>';
   atualizarPills(fl);
   atualizarMacroCards(ft);
