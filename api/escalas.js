@@ -5,8 +5,9 @@ import { menuItens } from '../lib/menu.js';
 import { analisarEscala, duracaoTurno } from '../lib/escalas-engine.js';
 import { solicitarBtn } from '../lib/solicitar-widget.js';
 import { sincronizarUmaPessoa } from '../lib/google-calendar.js';
-import { notificarMudancaEscala, enviarPendentes, contarPendentes } from '../lib/notificacoes.js';
+import { notificarMudancaEscala, enviarPendentes, contarPendentes, notificarPessoa } from '../lib/notificacoes.js';
 import { createHash, timingSafeEqual } from 'crypto';
+import { blocoCoordenacaoOpera, carregarOpera, casarCoordenadores, celulaOpera } from '../lib/opera.js';
 
 const COOKIE_NAME = 'pulse_session';
 const COOKIE_MAX = 60 * 60 * 24 * 7;
@@ -168,6 +169,17 @@ export default async function handler(req, res) {
     if (eqC.find(r=>r[0]===session.nome)?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});
     const rC = await enviarPendentes();
     return res.status(200).json({ ok: !rC.erro, pessoas: rC.pessoas.length, dias: rC.dias, enviados: rC.enviados });
+  }
+
+  // Aviso direto a UMA pessoa (gestor): não mexe nas pendências dos outros nem manda nada pra equipe.
+  if (req.method === 'POST' && req.body?.action === 'avisar-pessoa') {
+    const eqP = await getSheet('Equipe!A2:I50');
+    if (eqP.find(r=>r[0]===session.nome)?.[8] !== 'gestor') return res.status(403).json({error:'Acesso negado'});
+    const { nome, texto } = req.body;
+    if (!nome || !texto) return res.status(400).json({error:'Dados inválidos'});
+    try { await sincronizarUmaPessoa(nome); } catch (e) {}
+    const rP = await notificarPessoa(nome, 'Sua escala foi atualizada', String(texto).slice(0, 200));
+    return res.status(200).json({ ok: true, enviados: rP.enviados || 0 });
   }
 
   if (req.method === 'POST' && req.body?.action === 'quick-generate') {
@@ -454,6 +466,17 @@ export default async function handler(req, res) {
     <div style="display:flex;align-items:center;gap:5px"><div style="width:12px;height:12px;border-radius:3px;background:#fdf4ff;border:1px solid #d8b4fe"></div><span style="color:#666">Ausencia</span></div>
   </div>`;
 
+  // Coordenadores do Pulse sem turno lançado: o dia vazio é preenchido com a escala da Opera (só exibição, só gestor —
+  // não grava na planilha, não entra em alerta). Qualquer coisa no Pulse (turno, folga, ausência) tem prioridade.
+  const operaCarga = isGestor ? await carregarOpera(datas) : null;
+  const { porPulse: operaPorNome, casadosOpera } = casarCoordenadores(
+    nomes.filter(n => /coordena/i.test(equipeRaw.find(r => r[0] === n)?.[1] || '')), operaCarga);
+  const operaDe = (nome, df) => {
+    const a = analise[nome]?.[df];
+    if (escalaIndex.has(`${df}|${nome}`) || (a && a.tipo !== 'livre')) return null;
+    return operaPorNome.get(nome)?.get(df) || null;
+  };
+
   let conteudoGrid = '';
 
   if (foraDoHorizonte) {
@@ -473,7 +496,7 @@ export default async function handler(req, res) {
           ${isGestor && perigo>0?`<span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">${perigo} critico</span>`:''}
           ${isGestor && atencao>0?`<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700">${atencao} atencao</span>`:''}
         </div>
-        ${celulaAnalise(a, null, false, isGestor)}
+        ${operaDe(nome, df) ? celulaOpera(operaDe(nome, df), 'dia') : celulaAnalise(a, null, false, isGestor)}
       </div>`;
     }).join('');
     conteudoGrid = `<div id="grid-principal" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">${conteudoGrid}</div>`;
@@ -523,7 +546,7 @@ export default async function handler(req, res) {
           const _ent=(escReg?.[3]||'');const _sai=(escReg?.[4]||'');const _obs=(escReg?.[5]||'');
           const cellBg = isHoje ? 'var(--today-bg)' : isFds2 ? 'var(--fds-bg)' : '';
           const editAttrsCel = isGestor ? ` onclick="var el=this;abrirEditor(el,el.dataset.df,el.dataset.nome,el.dataset.ent,el.dataset.sai,el.dataset.obs,el.dataset.alertas)"` : '';
-          return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${cellBg};${isGestor?'cursor:pointer':''}${isFds2?';border-left:2px solid var(--fds-border)':''}" data-df="${df}" data-nome="${nome}" data-ent="${_ent}" data-sai="${_sai}" data-obs="${_obs}" data-alertas="${esc(JSON.stringify(a?.alertas||[]))}"${editAttrsCel}>${celulaAnalise(a,null,true,isGestor)}</td>`;
+          return `<td style="padding:4px;border-bottom:1px solid var(--td-border);background:${cellBg};${isGestor?'cursor:pointer':''}${isFds2?';border-left:2px solid var(--fds-border)':''}" data-df="${df}" data-nome="${nome}" data-ent="${_ent}" data-sai="${_sai}" data-obs="${_obs}" data-alertas="${esc(JSON.stringify(a?.alertas||[]))}"${editAttrsCel}>${operaDe(nome, df) ? celulaOpera(operaDe(nome, df), 'semana') : celulaAnalise(a,null,true,isGestor)}</td>`;
         }).join('')}
       </tr>`;
     }).join('');
@@ -553,7 +576,7 @@ export default async function handler(req, res) {
         const editAttrsMes = isGestor ? ` onclick="var e=this;abrirEditor(e,e.dataset.df,e.dataset.nome,e.dataset.ent,e.dataset.sai,e.dataset.obs,e.dataset.alertas)"` : '';
         cal+=`<div style="min-width:0;background:${c.bg};border:1px solid ${isHoje?'var(--today-border)':c.border};border-radius:4px;padding:3px 2px;text-align:center;${isGestor?'cursor:pointer':''}overflow:hidden" data-df="${df}" data-nome="${nome}" data-ent="${_mEnt}" data-sai="${_mSai}" data-obs="${_mObs}" data-alertas="${esc(JSON.stringify(a?.alertas||[]))}"${editAttrsMes}>
           <div style="font-size:9px;font-weight:${isHoje?700:500};color:${c.txt}">${d}</div>
-          ${a?.status&&a.tipo!=='livre'?(_mEnt&&_mSai?`<div style="font-size:7px;line-height:1.15;color:${c.txt}">${_mEnt}<br>${_mSai}</div>`:`<div style="font-size:7px;color:${c.txt};overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${a.status}">${a.status}</div>`):''}
+          ${operaDe(nome, df) ? celulaOpera(operaDe(nome, df), 'mes') : a?.status&&a.tipo!=='livre'?(_mEnt&&_mSai?`<div style="font-size:7px;line-height:1.15;color:${c.txt}">${_mEnt}<br>${_mSai}</div>`:`<div style="font-size:7px;color:${c.txt};overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${a.status}">${a.status}</div>`):''}
           ${temAlerta?`<div style="width:5px;height:5px;border-radius:50%;background:${c.dot};margin:1px auto 0"></div>`:''}
         </div>`;
       }
@@ -696,10 +719,13 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
       ${isGestor ? `<button id="sort-alerta" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Alertas</button>` : ''}
       <button id="sort-horario" style="background:none;color:#888;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">Horario</button>
     </div>
-    <select id="filtro-cargo" style="border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;background:var(--card);color:var(--text);outline:none;cursor:pointer;min-width:140px">
-      <option value="">▾ Todos os cargos</option>
-      ${cargosUnicos.map(c=>`<option value="${c.toLowerCase()}">${c}</option>`).join('')}
-    </select>
+    <div id="cargo-wrap" style="position:relative">
+      <button type="button" id="filtro-cargo" aria-haspopup="true" style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;background:var(--card);color:var(--text);outline:none;cursor:pointer;min-width:140px;text-align:left"><span id="cargo-rotulo">Todos os cargos</span><span aria-hidden="true">▾</span></button>
+      <div id="cargo-painel" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;z-index:60;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.35)">
+        <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:12px;color:var(--text);cursor:pointer;border-radius:6px"><input type="checkbox" id="cargo-todos" checked> Todos os cargos</label>
+        ${cargosUnicos.map(c=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:12px;color:var(--text);cursor:pointer;border-radius:6px"><input type="checkbox" class="cargo-chk" value="${c.toLowerCase().replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}" data-nome="${c.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}"> ${c.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</label>`).join('')}
+      </div>
+    </div>
     <input id="busca" placeholder="Buscar colaborador..." style="flex:1;min-width:160px;border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:12px;outline:none;background:var(--input);color:var(--text)">
     <div style="display:flex;gap:4px">
       <button id="btn-imprimir" onclick="imprimirEscala()" title="Imprimir / Salvar como PDF" style="border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:14px;background:var(--card);color:var(--text2);cursor:pointer">&#128424;&#65039;</button>
@@ -714,6 +740,7 @@ ${isGestor ? `<div id="esc-metrics" style="display:grid;grid-template-columns:re
     ${isGestor ? legendaHTML : ''}
     <div style="margin-top:10px" id="container-grid">${conteudoGrid}</div>
   </div>
+  ${isGestor ? await blocoCoordenacaoOpera(datas, operaCarga, casadosOpera) : ''}
   ${!isGestor ? '' : `<div style="margin-top:20px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px">
     <div style="font-size:10px;font-weight:600;text-transform:uppercase;color:#888;margin-bottom:8px">Regras aplicadas</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text2)">
@@ -744,13 +771,17 @@ function irParaMes(v){
   location.href='/api/escalas?v=mes&offset='+offset;
 }
 function getItens(){if(visaoAtual==='semana')return Array.from(document.querySelectorAll('#tbody-semana tr[data-nome-busca]'));return Array.from(document.querySelectorAll('#grid-principal [data-nome-busca]'));}
+var recolhidos={};try{(localStorage.getItem('esc-recolhidos')||'').split('|').forEach(function(k){if(k)recolhidos[k]=true;});}catch(e){}
+function guardarRecolhidos(){try{localStorage.setItem('esc-recolhidos',Object.keys(recolhidos).filter(function(k){return recolhidos[k];}).join('|'));}catch(e){}}
+function cargosSel(){return Array.from(document.querySelectorAll('.cargo-chk:checked')).map(function(c){return c.value;});}
+function rotuloCargo(){var m=Array.from(document.querySelectorAll('.cargo-chk:checked'));var t=document.getElementById('cargo-todos');if(t)t.checked=!m.length;var r=document.getElementById('cargo-rotulo');if(r)r.textContent=!m.length?'Todos os cargos':(m.length===1?m[0].getAttribute('data-nome'):m.length+' cargos');}
 function aplicarFiltros(){
   var busca=document.getElementById('busca').value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  var cargo=document.getElementById('filtro-cargo').value;
+  var cargos=cargosSel();
   var itens=getItens();
   itens.forEach(function(el){
     var nomeMatch=el.getAttribute('data-nome-busca').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').includes(busca);
-    var cargoMatch=!cargo||el.getAttribute('data-cargo').includes(cargo);
+    var cargoMatch=!cargos.length||cargos.indexOf(el.getAttribute('data-cargo'))!==-1;
     el.style.display=(nomeMatch&&cargoMatch)?'':'none';
   });
   var visiveis=itens.filter(function(el){return el.style.display!=='none';});
@@ -758,8 +789,28 @@ function aplicarFiltros(){
   else if(sortAtual==='alerta')visiveis.sort(function(a,b){var pa=parseInt(a.getAttribute('data-perigo')||0),pb=parseInt(b.getAttribute('data-perigo')||0),aa=parseInt(a.getAttribute('data-atencao')||0),ab=parseInt(b.getAttribute('data-atencao')||0);return(pb*10+ab)-(pa*10+aa);});
   else if(sortAtual==='horario')visiveis.sort(function(a,b){function m(el){var h=el.getAttribute('data-ent');if(!h)return 9999;var p=h.split(':');return parseInt(p[0])*60+parseInt(p[1]||0);}return m(a)-m(b);});
   else visiveis.sort(function(a,b){return parseInt(a.getAttribute('data-ordem'))-parseInt(b.getAttribute('data-ordem'));});
+  if(cargos.length>1){var ordemCargos=Array.from(document.querySelectorAll('.cargo-chk')).map(function(c){return c.value;});visiveis=visiveis.map(function(el,i){return{el:el,i:i};}).sort(function(x,y){var d=ordemCargos.indexOf(x.el.getAttribute('data-cargo'))-ordemCargos.indexOf(y.el.getAttribute('data-cargo'));return d||x.i-y.i;}).map(function(x){return x.el;});}
   var parent=visiveis.length>0?visiveis[0].parentNode:null;
   if(parent)visiveis.forEach(function(el){parent.appendChild(el);});
+  Array.from(document.querySelectorAll('.cargo-sep')).forEach(function(n){n.parentNode&&n.parentNode.removeChild(n);});
+  if(parent&&cargos.length>1){
+    var emTabela=parent.tagName==='TBODY';
+    var nomes={};Array.from(document.querySelectorAll('.cargo-chk')).forEach(function(c){nomes[c.value]=c.getAttribute('data-nome');});
+    var qtd={};visiveis.forEach(function(el){var k=el.getAttribute('data-cargo');qtd[k]=(qtd[k]||0)+1;});
+    var mk=function(tipo,cargo){
+      var txt=tipo==='ini'?((recolhidos[cargo]?'▶ ':'▼ ')+(nomes[cargo]||cargo)+' · '+qtd[cargo]+(qtd[cargo]===1?' pessoa':' pessoas')):('Fim de '+(nomes[cargo]||cargo));
+      var est=tipo==='ini'?'background:var(--card);border:1px solid var(--border);border-left:4px solid #3b82f6;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.04em;cursor:pointer;user-select:none':'border-top:2px dashed var(--border);padding:4px 2px 0;font-size:10px;color:var(--text3,#888);text-align:right;text-transform:uppercase;letter-spacing:.04em';
+      var n;if(emTabela){n=document.createElement('tr');var td=document.createElement('td');td.colSpan=99;td.setAttribute('style',est);td.textContent=txt;n.appendChild(td);}
+      else{n=document.createElement('div');n.setAttribute('style',est+';grid-column:1/-1');n.textContent=txt;}
+      n.className='cargo-sep';n.setAttribute('data-tipo',tipo);n.setAttribute('data-cargo-sep',cargo);
+      if(tipo==='ini'){n.setAttribute('role','button');n.title='Clique para recolher ou mostrar';n.addEventListener('click',function(){recolhidos[cargo]=!recolhidos[cargo];guardarRecolhidos();aplicarFiltros();});}
+      return n;};
+    var ant=null;
+    visiveis.forEach(function(el){var k=el.getAttribute('data-cargo');if(k!==ant){if(ant!==null)parent.insertBefore(mk('fim',ant),el);parent.insertBefore(mk('ini',k),el);ant=k;}});
+    if(ant!==null)parent.appendChild(mk('fim',ant));
+    visiveis.forEach(function(el){if(recolhidos[el.getAttribute('data-cargo')])el.style.display='none';});
+    Array.from(document.querySelectorAll('.cargo-sep[data-tipo="fim"]')).forEach(function(n){if(recolhidos[n.getAttribute('data-cargo-sep')])n.style.display='none';});
+  }
   if(visaoAtual!=='semana'){var grid=document.getElementById('grid-principal');if(grid){if(viewAtual==='grid'){grid.style.display='grid';grid.style.gridTemplateColumns=visaoAtual==='mes'?'repeat(auto-fit,minmax(280px,1fr))':'repeat(auto-fit,minmax(220px,1fr))';grid.style.gap='12px';}else{grid.style.display='flex';grid.style.flexDirection='column';grid.style.gap='6px';}}}
 }
 function setBtn(id){['sort-default','sort-alpha','sort-alerta','sort-horario','view-grid','view-list'].forEach(function(bid){var b=document.getElementById(bid);if(!b)return;if(bid===id){b.style.background='var(--text)';b.style.color='var(--bg)';}else if(bid.startsWith(id.split('-')[0])){b.style.background='none';b.style.color='var(--text3)';}});}
@@ -770,13 +821,18 @@ document.getElementById('sort-alpha').addEventListener('click',function(){sortAt
 if(document.getElementById('sort-alerta'))document.getElementById('sort-alerta').addEventListener('click',function(){sortAtual='alerta';localStorage.setItem('esc-sort','alerta');setBtn('sort-alerta');aplicarFiltros();});
 document.getElementById('sort-horario').addEventListener('click',function(){sortAtual='horario';localStorage.setItem('esc-sort','horario');setBtn('sort-horario');aplicarFiltros();});
 document.getElementById('busca').addEventListener('input',function(){localStorage.setItem('esc-busca',this.value);aplicarFiltros();});
-document.getElementById('filtro-cargo').addEventListener('change',function(){localStorage.setItem('esc-cargo',this.value);aplicarFiltros();});
+document.getElementById('filtro-cargo').addEventListener('click',function(e){e.stopPropagation();var p=document.getElementById('cargo-painel');p.style.display=p.style.display==='block'?'none':'block';});
+document.getElementById('cargo-painel').addEventListener('click',function(e){e.stopPropagation();});
+document.addEventListener('click',function(){var p=document.getElementById('cargo-painel');if(p)p.style.display='none';});
+document.getElementById('cargo-todos').addEventListener('change',function(){Array.from(document.querySelectorAll('.cargo-chk')).forEach(function(c){c.checked=false;});localStorage.setItem('esc-cargo','');rotuloCargo();aplicarFiltros();});
+Array.from(document.querySelectorAll('.cargo-chk')).forEach(function(c){c.addEventListener('change',function(){localStorage.setItem('esc-cargo',cargosSel().join('|'));rotuloCargo();aplicarFiltros();});});
 // Restaurar filtros ao carregar a página
 (function(){
   var b=localStorage.getItem('esc-busca')||'';
   var c=localStorage.getItem('esc-cargo')||'';
   if(b){document.getElementById('busca').value=b;}
-  if(c){var sel=document.getElementById('filtro-cargo');if(sel)sel.value=c;}
+  if(c){var guardados=c.split('|');Array.from(document.querySelectorAll('.cargo-chk')).forEach(function(k){if(guardados.indexOf(k.value)!==-1)k.checked=true;});}
+  rotuloCargo();
   // Restaurar visual dos botões sort/view
   setBtn('sort-'+sortAtual);
   setBtn('view-'+viewAtual);
