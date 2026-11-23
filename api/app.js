@@ -28,11 +28,16 @@ function horaDeString(s) {
   return m ? m[1] : '';
 }
 function toMin(h) { if(!h) return null; const [hh,mm]=h.split(':').map(Number); return hh*60+(mm||0); }
+// Entrada 00:00 (e saída depois dela) = a meia-noite que FECHA o dia lançado: o turno é da madrugada do dia SEGUINTE.
+const zeroNoite = r => !!(r && r[3] && r[4] && toMin(r[3]) === 0 && toMin(r[4]) > 0);
 function estaDeServico(ent, sai, horaEv, horaFimEv, isCarryover) {
   if(!ent||!sai||!horaEv) return false;
   const i=toMin(ent), f=toMin(sai), e=toMin(horaEv);
   if(i===null||f===null||e===null) return false;
   const isOvernight = f < i; // turno vira meia-noite (ex: 23:00→07:00)
+  // Entrada 00:00 = a meia-noite que FECHA o dia lançado: no próprio dia só cobre evento a partir de 23:00 (60 min de antecedência);
+  // a madrugada seguinte chega como sobra (isCarryover) e cobre de 00:00 até a saída.
+  if (i === 0 && f > 0) return isCarryover ? e < f : e >= 1380;
 
   if (isOvernight) {
     if (isCarryover) {
@@ -50,6 +55,7 @@ function statusTurno(ent,sai,horaEv,isCarryover) {
   if(!ent||!sai||!horaEv) return null;
   const ev=toMin(horaEv),i=toMin(ent),f=toMin(sai);
   // Sobra do turno de ontem: a "entrada" (ex.: 20:00) foi ontem, não hoje — só a saída conta.
+  if(i===0 && f>0 && !isCarryover) return ev>=1380 ? 'entrando' : null;   // entrada 00:00 = meia-noite que fecha o dia lançado
   if(!isCarryover && Math.abs(i-ev)<=60) return 'entrando';
   // "saindo" só vale se o turno ainda cobre o início do evento e termina até 60min depois —
   // turno que já encerrou ANTES do evento começar não conta (pessoa já foi embora)
@@ -468,6 +474,15 @@ function dentroAusencia(aus, df) {
   if (f >= i) return n >= i && n <= f;
   return n >= i || n <= f;
 }
+// Ordem de chegada na lista do evento: quem já está (sobra da madrugada) primeiro, depois por hora de entrada; entrada 00:00 (meia-noite que
+// fecha o dia lançado) fica por último — quem chega à meia-noite só entra depois que os outros saem.
+function chaveChegada(r) {
+  const i = toMin(r[3]), f = toMin(r[4]);
+  if (i === null) return 0;
+  if (i === 0 && f > 0) return r[6] ? -1 : 1440;
+  return r[6] ? i - 1440 : i;
+}
+const porChegada = (a, b) => chaveChegada(a) - chaveChegada(b);
 function cruzarEventos(eventos, escHoje, dataStr, ausencias, equipeAtivos) {
   // Quem tem ausência aprovada (Férias/Folga/Atestado/etc, não-cancelada) cobrindo essa data
   // não deve aparecer como "cobrindo" o evento, mesmo que ainda tenha uma linha na Escala.
@@ -490,8 +505,8 @@ function cruzarEventos(eventos, escHoje, dataStr, ausencias, equipeAtivos) {
 
     return {
       ...ev,
-      disp: dedup(disp).map(r => ({ nome: r[2], ent: r[3], sai: r[4] })),
-      atenc: dedup(atenc).map(r => ({ nome: r[2], ent: r[3], sai: r[4] })),
+      disp: dedup(disp).sort(porChegada).map(r => ({ nome: r[2], ent: r[3], sai: r[4] })),
+      atenc: dedup(atenc).sort(porChegada).map(r => ({ nome: r[2], ent: r[3], sai: r[4] })),
       aus: dedup(aus).map(r => ({ nome: r[2] })),
       semCob,
       semAntecedencia,
@@ -785,7 +800,7 @@ export default async function handler(req, res) {
     // (saída < entrada = virou o dia, e saída > 00:00 = sobrou tempo depois da virada;
     // um turno que termina EXATAMENTE às 00:00 não cobre nenhum minuto de hoje)
     const noturnos = escalaArr.filter(r =>
-      r[0] === ontem && r[3] && r[4] && toMin(r[4]) < toMin(r[3]) && toMin(r[4]) > 0
+      r[0] === ontem && r[3] && r[4] && ((toMin(r[4]) < toMin(r[3]) && toMin(r[4]) > 0) || zeroNoite(r))
     ).map(r => { const r2 = r.slice(); r2[6] = true; return r2; }); // r2[6] = veio de ontem (sobra de madrugada)
     // Combina: hoje + noturnos de ontem (podem haver duplicatas de nome, tudo bem)
     return [...diaAtual, ...noturnos];
