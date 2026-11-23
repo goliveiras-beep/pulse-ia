@@ -19,8 +19,8 @@ const texto = (v, max) => String(v || '').replace(/[<>]/g, '').slice(0, max);
 
 export class Sensores {
   constructor(state, env) {
-    this.state = state; this.env = env || {}; this.dados = {}; this.ctl = {}; this.zbx = null;
-    this.pronto = state.blockConcurrencyWhile(async () => { this.dados = (await state.storage.get('dados')) || {}; this.ctl = (await state.storage.get('ctl')) || {}; this.zbx = (await state.storage.get('zbx')) || null; });
+    this.state = state; this.env = env || {}; this.dados = {}; this.ctl = {}; this.zbx = null; this.man = {};
+    this.pronto = state.blockConcurrencyWhile(async () => { this.dados = (await state.storage.get('dados')) || {}; this.ctl = (await state.storage.get('ctl')) || {}; this.zbx = (await state.storage.get('zbx')) || null; this.man = (await state.storage.get('man')) || {}; });
   }
 
   resumo() {
@@ -74,10 +74,30 @@ export class Sensores {
     finally { clearTimeout(t); }
   }
 
+  // Alarmes manuais (alguém avisa que um rack está em manutenção/parado): ficam guardados à parte, então o dado real do monitoramento
+  // não apaga e o alarme não depende de nenhum PC ligado. Expiram sozinhos (padrão 12 h) ou quando alguém limpa.
+  comManuais(agora) {
+    const manuais = Object.entries(this.man || {}).filter(([, m]) => m.ate > agora).map(([rack, m]) => ({ id: 'MANUAL-' + rack, nome: m.texto + ' (alarme manual)', sev: 4, desde: m.desde, ack: false, host: rack, ip: '', rack, link: '' }));
+    if (!manuais.length) return this.zbx;
+    const real = this.zbx && !this.zbx.erro && (agora - this.zbx.t) <= 90000;
+    const base = real ? this.zbx : { t: agora, erro: '', versao: 'manual', hostsTotal: 0, urlBase: '', totais: null, problemas: [] };
+    return { ...base, problemas: [...(base.problemas || []), ...manuais] };
+  }
+  async manual(request, agora) {
+    if (request.method !== 'POST') return Response.json({ error: 'método' }, { status: 405 });
+    let b; try { b = await request.json(); } catch { return Response.json({ error: 'json' }, { status: 400 }); }
+    const m = String((b && b.rack) || '').match(/(\d+)/); if (!m) return Response.json({ error: 'rack inválido' }, { status: 400 });
+    const rack = 'R' + String(m[1]).padStart(2, '0');
+    if (b.limpar) delete this.man[rack];
+    else { const horas = Math.max(1, Math.min(72, Number(b.horas) || 12)); this.man[rack] = { texto: texto(b.texto || ('Manutenção no ' + rack + ': equipamentos parados'), 150), desde: Math.floor(agora / 1000), ate: agora + horas * 3600000 }; }
+    await this.state.storage.put('man', this.man);
+    return Response.json({ ok: true, ativos: Object.keys(this.man).filter(k => this.man[k].ate > agora) });
+  }
+
   // Alertas do Zabbix do CPD (Bruno), SÓ LEITURA: a ponte consulta o Zabbix pela API (métodos *.get) e manda o resumo pra cá.
   // Nada aqui escreve de volta no Zabbix nem toca a Echo. POST { zabbix:{ versao, hostsTotal, urlBase, problemas:[...] } | { erro } }
   async zabbix(request, agora) {
-    if (request.method === 'GET') return Response.json({ agora, zabbix: this.zbx });
+    if (request.method === 'GET') return Response.json({ agora, zabbix: this.comManuais(agora) });
     if (request.method !== 'POST') return Response.json({ error: 'método' }, { status: 405 });
     let b; try { b = await request.json(); } catch { return Response.json({ error: 'json' }, { status: 400 }); }
     const z = (b && b.zabbix) || {};
@@ -122,6 +142,7 @@ export class Sensores {
     await this.pronto;
     const agora = Date.now();
     if (new URL(request.url).pathname === '/painel') return this.painel(request, agora);
+    if (new URL(request.url).pathname === '/manual') return this.manual(request, agora);
     if (new URL(request.url).pathname === '/zabbix') return this.zabbix(request, agora);
     if (request.method === 'GET') return Response.json({ agora, sensores: this.resumo() });
     if (request.method !== 'POST') return Response.json({ error: 'método' }, { status: 405 });

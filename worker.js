@@ -130,6 +130,16 @@ export default {
       const r = await obj.fetch('https://sensores/zabbix', { method: 'POST', body: corpo });
       return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
     }
+    // Alarme manual sobre um rack (fica guardado no servidor, não depende de PC ligado). Mesmo token da ponte. { rack, texto?, horas?, limpar? }
+    if (alvo.pathname === '/api/zabbix/manual' && request.method === 'POST') {
+      const esperado = env.SENSOR_TOKEN ? 'Bearer ' + env.SENSOR_TOKEN : '';
+      if (!esperado || !igual(request.headers.get('authorization') || '', esperado)) return comCabecalhos(Response.json({ error: 'Não autorizado' }, { status: 401 }));
+      const corpo = await request.text();
+      if (corpo.length > 2000) return comCabecalhos(Response.json({ error: 'Grande demais' }, { status: 413 }));
+      const obj = env.SENSORES.get(env.SENSORES.idFromName('central'));
+      const r = await obj.fetch('https://sensores/manual', { method: 'POST', body: corpo });
+      return comCabecalhos(new Response(r.body, { status: r.status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }));
+    }
     // Entrada exclusiva do Bruno (token PAINEL_TOKEN, separado do da ponte): ele manda o estado dos equipamentos no formato do painel dele.
     if (alvo.pathname === '/api/painel/leitura' && request.method === 'POST') {
       const esperado = env.PAINEL_TOKEN ? 'Bearer ' + env.PAINEL_TOKEN : '';
